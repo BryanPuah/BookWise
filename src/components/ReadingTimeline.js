@@ -917,7 +917,7 @@ export function ReadingTimeline({ notes, cards, books }) {
 const t = StyleSheet.create({
   wrap:      { marginBottom: 16 },
   header:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, marginBottom: 10 },
-  monthTxt:  { fontSize: 13, fontWeight: '700', color: C.ink, letterSpacing: -0.1 },
+  monthTxt:  { fontSize: 18, fontWeight: '700', color: C.ink, letterSpacing: -0.2 },
   legend:    { flexDirection: 'row', alignItems: 'center', gap: 5 },
   legendDot: { width: 6, height: 6, borderRadius: 3 },
   legendTxt: { fontSize: 10, color: C.inkFaint },
