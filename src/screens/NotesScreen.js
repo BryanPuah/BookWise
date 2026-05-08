@@ -665,7 +665,7 @@ function BookNotesScreen({ book, notes, cards, onStar, onDelete, onMakeCard, gen
             onPress={() => navigation.navigate('Library', { screen: 'BookDetail', params: { bookId: book.id } })}
             activeOpacity={0.8}
           >
-            <Text style={bns.openBtnTxt}>Open{'\n'}Book{'\n'}Page</Text>
+            <Text style={bns.openBtnTxt}>Open{'\n'}Book</Text>
           </TouchableOpacity>
         </View>
         {/* Type breakdown pills */}
