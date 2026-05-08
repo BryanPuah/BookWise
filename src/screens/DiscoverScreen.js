@@ -14,6 +14,24 @@ const { width: SW } = Dimensions.get('window');
 const PAGE_SIZE = 20;
 const COVER_KEYS = Object.keys(covers);
 
+// ── Format suggestions for the manual-add sheet ────────────────────────
+// Free-text — these are tap-to-fill suggestions, not a fixed list.
+const FORMAT_SUGGESTIONS = [
+  { label: 'Book',      icon: '📖' },
+  { label: 'Article',   icon: '📰' },
+  { label: 'Website',   icon: '🌐' },
+  { label: 'PDF',       icon: '📄' },
+  { label: 'Newspaper', icon: '🗞️' },
+  { label: 'Magazine',  icon: '📓' },
+  { label: 'Podcast',   icon: '🎧' },
+  { label: 'Other',     icon: '✦' },
+];
+
+// Formats that have a meaningful "length" — drives whether we show the length field
+const FORMATS_WITH_LENGTH = ['book', 'pdf', 'magazine'];
+// Formats that have a URL — drives whether we show the URL field
+const FORMATS_WITH_URL = ['article', 'website', 'pdf', 'podcast'];
+
 // ── All genres / categories ─────────────────────────────────────────────
 const ALL_GENRES = [
   { group: 'Mind & Behaviour',     items: ['Psychology','Cognitive Science','Neuroscience','Philosophy','Mindfulness','Happiness'] },
@@ -155,18 +173,24 @@ function GenreSheet({ onSelect, onClose, activeGenres = [] }) {
   );
 }
 
-// ── Add own book sheet ──────────────────────────────────────────────────
-function AddOwnBookSheet({ onAdd, onClose }) {
+// ── Add reading item sheet (format-agnostic) ───────────────────────────
+function AddReadingItemSheet({ onAdd, onClose }) {
   const translateY = useRef(new Animated.Value(700)).current;
-  const dragY      = useRef(new Animated.Value(0)).current;
   const dragStart  = useRef(0);
-  const [title, setTitle]   = useState('');
-  const [author, setAuthor] = useState('');
-  const [pages, setPages]   = useState('');
-  const [genre, setGenre]   = useState('');
+
+  // Form state
+  const [format,    setFormat]    = useState('');     // free-text format
+  const [title,     setTitle]     = useState('');
+  const [author,    setAuthor]    = useState('');     // "Author / Source"
+  const [genre,     setGenre]     = useState('');
+  const [length,    setLength]    = useState('');     // pages OR minutes (smart)
+  const [url,       setUrl]       = useState('');
+
+  const titleRef  = useRef(null);
   const authorRef = useRef(null);
   const genreRef  = useRef(null);
-  const pagesRef  = useRef(null);
+  const lengthRef = useRef(null);
+  const urlRef    = useRef(null);
 
   React.useEffect(() => {
     translateY.setValue(700);
@@ -181,7 +205,7 @@ function AddOwnBookSheet({ onAdd, onClose }) {
     }).start(() => onClose());
   };
 
-  // Drag-to-dismiss PanResponder
+  // Drag-to-dismiss
   const panResponder = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: (_, g) =>
@@ -209,8 +233,39 @@ function AddOwnBookSheet({ onAdd, onClose }) {
     },
   })).current;
 
+  // Smart field visibility based on format keyword
+  const formatKey   = format.trim().toLowerCase();
+  const showLength  = !formatKey || FORMATS_WITH_LENGTH.includes(formatKey);
+  const showUrl     = formatKey && FORMATS_WITH_URL.includes(formatKey);
+
+  // Smart copy based on format
+  const isPodcast       = formatKey === 'podcast' || formatKey === 'audio';
+  const isArticleish    = ['article','website','newspaper','magazine','pdf'].includes(formatKey);
+  const authorLabel     = isPodcast ? 'HOST OR PUBLISHER'
+                        : isArticleish ? 'AUTHOR OR PUBLICATION'
+                        : 'AUTHOR';
+  const authorPlaceholder = isPodcast ? 'e.g. The Daily, NYT'
+                          : isArticleish ? 'Author or publication name'
+                          : 'Author name';
+  const lengthLabel     = isPodcast ? 'LENGTH (MINUTES)' : 'PAGES';
+  const lengthPlaceholder = isPodcast ? 'Episode length in minutes' : 'Number of pages';
+
   const canSave = title.trim().length > 0;
-  const entry   = () => ({ title: title.trim(), author: author.trim(), pages: parseInt(pages) || 0, genre: genre.trim() });
+
+  const buildEntry = () => ({
+    title:  title.trim(),
+    author: author.trim(),
+    pages:  parseInt(length) || 0,
+    genre:  genre.trim(),
+    format: format.trim() || 'Other',
+    url:    url.trim(),
+  });
+
+  const pickFormat = (f) => {
+    setFormat(f);
+    // auto-advance focus to title if user hasn't typed yet
+    if (!title) setTimeout(() => titleRef.current?.focus(), 50);
+  };
 
   return (
     <Modal visible transparent animationType="none" onRequestClose={close}>
@@ -236,71 +291,151 @@ function AddOwnBookSheet({ onAdd, onClose }) {
               showsVerticalScrollIndicator={false}
               contentContainerStyle={s.ownScrollContent}
             >
-              <Text style={s.ownBookTitle}>Add your own book</Text>
-              <Text style={s.ownBookSub}>Can't find it? Add it manually.</Text>
+              {/* Header */}
+              <Text style={s.ownBookTitle}>Add reading item</Text>
+              <Text style={s.ownBookSub}>
+                Anything you read — books, articles, websites, PDFs. Add it manually if search can't find it.
+              </Text>
 
               <View style={s.ownBookForm}>
+
+                {/* ── Format ─────────────────────────────────────────── */}
+                <View style={s.ownBookField}>
+                  <Text style={s.ownBookFieldLabel}>FORMAT</Text>
+                  <TextInput
+                    style={s.ownBookInput}
+                    value={format}
+                    onChangeText={setFormat}
+                    placeholder="e.g. Book, Substack post, audiobook…"
+                    placeholderTextColor={C.inkFaint}
+                    returnKeyType="next"
+                    onSubmitEditing={() => titleRef.current?.focus()}
+                    blurOnSubmit={false}
+                  />
+                  {/* Suggestion chips */}
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={s.formatChipsRow}
+                    keyboardShouldPersistTaps="handled"
+                  >
+                    {FORMAT_SUGGESTIONS.map(f => {
+                      const active = formatKey === f.label.toLowerCase();
+                      return (
+                        <TouchableOpacity
+                          key={f.label}
+                          style={[s.formatChip, active && s.formatChipActive]}
+                          onPress={() => pickFormat(f.label)}
+                          activeOpacity={0.75}
+                        >
+                          <Text style={s.formatChipIcon}>{f.icon}</Text>
+                          <Text style={[s.formatChipTxt, active && s.formatChipTxtActive]}>
+                            {f.label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+
+                {/* ── Title ──────────────────────────────────────────── */}
                 <View style={s.ownBookField}>
                   <Text style={s.ownBookFieldLabel}>TITLE *</Text>
                   <TextInput
+                    ref={titleRef}
                     style={s.ownBookInput}
                     value={title}
                     onChangeText={setTitle}
-                    placeholder="Book title"
+                    placeholder={
+                      formatKey === 'article' || formatKey === 'website'
+                        ? 'Headline or page title'
+                        : isPodcast
+                        ? 'Episode or show title'
+                        : 'Title'
+                    }
                     placeholderTextColor={C.inkFaint}
-                    autoFocus
                     returnKeyType="next"
                     onSubmitEditing={() => authorRef.current?.focus()}
                     blurOnSubmit={false}
                   />
                 </View>
+
+                {/* ── Author / Source ───────────────────────────────── */}
                 <View style={s.ownBookField}>
-                  <Text style={s.ownBookFieldLabel}>AUTHOR</Text>
+                  <Text style={s.ownBookFieldLabel}>{authorLabel}</Text>
                   <TextInput
                     ref={authorRef}
                     style={s.ownBookInput}
                     value={author}
                     onChangeText={setAuthor}
-                    placeholder="Author name"
+                    placeholder={authorPlaceholder}
                     placeholderTextColor={C.inkFaint}
                     returnKeyType="next"
                     onSubmitEditing={() => genreRef.current?.focus()}
                     blurOnSubmit={false}
                   />
                 </View>
+
+                {/* ── URL (conditional) ─────────────────────────────── */}
+                {showUrl && (
+                  <View style={s.ownBookField}>
+                    <Text style={s.ownBookFieldLabel}>LINK</Text>
+                    <TextInput
+                      ref={urlRef}
+                      style={s.ownBookInput}
+                      value={url}
+                      onChangeText={setUrl}
+                      placeholder="https://"
+                      placeholderTextColor={C.inkFaint}
+                      keyboardType="url"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      returnKeyType="next"
+                      blurOnSubmit={false}
+                    />
+                  </View>
+                )}
+
+                {/* ── Topic / Genre ─────────────────────────────────── */}
                 <View style={s.ownBookField}>
-                  <Text style={s.ownBookFieldLabel}>GENRE</Text>
+                  <Text style={s.ownBookFieldLabel}>TOPIC</Text>
                   <TextInput
                     ref={genreRef}
                     style={s.ownBookInput}
                     value={genre}
                     onChangeText={setGenre}
-                    placeholder="e.g. Psychology, Fiction"
+                    placeholder="e.g. Psychology, Politics, Tech"
                     placeholderTextColor={C.inkFaint}
                     returnKeyType="next"
-                    onSubmitEditing={() => pagesRef.current?.focus()}
+                    onSubmitEditing={() => lengthRef.current?.focus()}
                     blurOnSubmit={false}
                   />
                 </View>
-                <View style={s.ownBookField}>
-                  <Text style={s.ownBookFieldLabel}>PAGES</Text>
-                  <TextInput
-                    ref={pagesRef}
-                    style={s.ownBookInput}
-                    value={pages}
-                    onChangeText={setPages}
-                    placeholder="Number of pages"
-                    placeholderTextColor={C.inkFaint}
-                    keyboardType="numeric"
-                    returnKeyType="done"
-                  />
-                </View>
+
+                {/* ── Length (conditional) ──────────────────────────── */}
+                {showLength && (
+                  <View style={s.ownBookField}>
+                    <Text style={s.ownBookFieldLabel}>{lengthLabel}</Text>
+                    <TextInput
+                      ref={lengthRef}
+                      style={s.ownBookInput}
+                      value={length}
+                      onChangeText={setLength}
+                      placeholder={lengthPlaceholder}
+                      placeholderTextColor={C.inkFaint}
+                      keyboardType="numeric"
+                      returnKeyType="done"
+                    />
+                  </View>
+                )}
+
               </View>
 
+              {/* Submit */}
               <TouchableOpacity
                 style={[s.addBtn, !canSave && { opacity: 0.4 }]}
                 disabled={!canSave}
-                onPress={() => { onAdd(entry(), 'reading'); close(); }}
+                onPress={() => { onAdd(buildEntry(), 'reading'); close(); }}
                 activeOpacity={0.85}
               >
                 <Text style={s.addBtnTxt}>Add to library</Text>
@@ -311,11 +446,11 @@ function AddOwnBookSheet({ onAdd, onClose }) {
               <TouchableOpacity
                 style={[s.wantBtn, !canSave && { opacity: 0.4 }]}
                 disabled={!canSave}
-                onPress={() => { onAdd(entry(), 'want_to_read'); close(); }}
+                onPress={() => { onAdd(buildEntry(), 'want_to_read'); close(); }}
                 activeOpacity={0.85}
               >
                 <Text style={s.wantBtnIcon}>🔖</Text>
-                <Text style={s.wantBtnTxt}>Save to Read Later</Text>
+                <Text style={s.wantBtnTxt}>Save for later</Text>
               </TouchableOpacity>
 
               <TouchableOpacity style={s.closeBtn} onPress={close} activeOpacity={0.7}>
@@ -531,6 +666,7 @@ export function DiscoverScreen() {
     description: book.subject?.length
       ? `Subjects: ${book.subject.slice(0, 8).join(', ')}` : '',
     status,
+    format: 'Book', // search results are always books from Open Library
   });
 
   const handleAdd = useCallback((book, status = 'reading') => {
@@ -560,12 +696,12 @@ export function DiscoverScreen() {
     });
   };
 
-  const handleAddOwnBook = useCallback(({ title, author, pages, genre }, status = 'want_to_read') => {
+  const handleAddManualItem = useCallback(({ title, author, pages, genre, format, url }, status = 'want_to_read') => {
     addBook({
       id: Date.now().toString(),
       olKey: null,
       title,
-      author: author || 'Unknown',
+      author: author || (format && format !== 'Book' ? '' : 'Unknown'),
       cover: COVER_KEYS[Math.floor(Math.random() * COVER_KEYS.length)],
       coverId: null,
       pageCount: pages || 0,
@@ -573,6 +709,9 @@ export function DiscoverScreen() {
       genres: genre ? [genre] : [],
       description: '',
       status,
+      // New fields — backwards-compatible additions
+      format: format || 'Book',
+      url:    url || '',
     });
   }, [addBook]);
 
@@ -589,11 +728,11 @@ export function DiscoverScreen() {
 
       {/* ── Header ── */}
       <View style={s.header}>
-        <Text style={s.title}>Find your book</Text>
-        <Text style={s.subtitle}>Search for your book or add it manually to start taking notes</Text>
+        <Text style={s.title}>Discover</Text>
+        <Text style={s.subtitle}>Search the catalogue, or add anything you're reading manually</Text>
       </View>
 
-      {/* ── Search bar + Add your book on same row ── */}
+      {/* ── Search bar + Add reading item on same row ── */}
       <View style={s.searchRow}>
         <View style={s.searchWrap}>
           <Text style={s.searchIconTxt}>🔍</Text>
@@ -664,16 +803,22 @@ export function DiscoverScreen() {
         <View style={s.emptyWrap}>
           <Text style={s.emptyIcon}>📭</Text>
           <Text style={s.emptyTxt}>No results for "{currentQuery}"</Text>
-          <Text style={s.emptySub}>Try the full title, author name, or a keyword</Text>
-          <TouchableOpacity style={s.tryClearBtn} onPress={clear}>
-            <Text style={s.tryClearTxt}>Clear and try again</Text>
+          <Text style={s.emptySub}>Try the full title or a keyword — or add it manually</Text>
+          <TouchableOpacity
+            style={s.tryClearBtn}
+            onPress={() => setShowAddOwn(true)}
+          >
+            <Text style={s.tryClearTxt}>+ Add it manually</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={clear} style={{ marginTop: 14 }}>
+            <Text style={{ fontSize: 13, color: C.inkMuted, fontWeight: '500' }}>Clear and try again</Text>
           </TouchableOpacity>
         </View>
       ) : !searched ? (
         <View style={s.promptWrap}>
           <Text style={s.promptIcon}>🔍</Text>
-          <Text style={s.promptTxt}>Search for a book above</Text>
-          <Text style={s.promptSub}>Or tap Genre to browse by category</Text>
+          <Text style={s.promptTxt}>Find what you're reading</Text>
+          <Text style={s.promptSub}>Search above, browse by genre, or tap + Add to enter anything manually</Text>
         </View>
       ) : (
         // ── Results list ──
@@ -724,8 +869,8 @@ export function DiscoverScreen() {
       )}
 
       {showAddOwn && (
-        <AddOwnBookSheet
-          onAdd={handleAddOwnBook}
+        <AddReadingItemSheet
+          onAdd={handleAddManualItem}
           onClose={() => setShowAddOwn(false)}
         />
       )}
@@ -794,22 +939,33 @@ const s = StyleSheet.create({
   genreGroupItems:  { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   genreItem:        { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: C.cream, borderWidth: 1, borderColor: C.border },
   genreItemTxt:     { fontSize: 13, fontWeight: '500', color: C.ink },
+
+  // Add reading item sheet
   ownOverlay:       { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' },
   ownSheet:         { backgroundColor: C.paper, borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: '90%', shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.12, shadowRadius: 20, elevation: 20 },
   ownHandle:        { alignItems: 'center', paddingVertical: 14 },
   ownHandleBar:     { width: 40, height: 4, borderRadius: 2, backgroundColor: C.creamDark },
   ownScrollContent: { paddingHorizontal: 20, paddingBottom: 40 },
   ownBookHeader:    { paddingHorizontal: 20, paddingBottom: 20 },
-  ownBookTitle:     { fontSize: 20, fontWeight: '700', color: C.ink, letterSpacing: -0.3, marginBottom: 4 },
-  ownBookSub:       { fontSize: 13, color: C.inkMuted },
-  ownBookForm:      { paddingHorizontal: 20, gap: 14, marginBottom: 8 },
+  ownBookTitle:     { fontSize: 22, fontWeight: '700', color: C.ink, letterSpacing: -0.4, marginBottom: 6 },
+  ownBookSub:       { fontSize: 13, color: C.inkMuted, marginBottom: 22, lineHeight: 19 },
+  ownBookForm:      { gap: 16, marginBottom: 16 },
   ownBookField:     { gap: 6 },
   ownBookFieldLabel:{ fontSize: 11, fontWeight: '700', color: C.inkMuted, letterSpacing: 0.5 },
   ownBookInput:     { backgroundColor: C.cream, borderRadius: 12, borderWidth: 1, borderColor: C.border, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: C.ink },
-  promptWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 80 },
+
+  // Format chips inside the manual-add sheet
+  formatChipsRow:   { gap: 6, paddingTop: 8, paddingRight: 4 },
+  formatChip:       { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 11, paddingVertical: 6, borderRadius: 16, backgroundColor: C.white, borderWidth: 1, borderColor: C.border },
+  formatChipActive: { backgroundColor: C.amberPale, borderColor: C.amber },
+  formatChipIcon:   { fontSize: 12 },
+  formatChipTxt:    { fontSize: 12, fontWeight: '500', color: C.inkSoft },
+  formatChipTxtActive: { color: C.amber, fontWeight: '700' },
+
+  promptWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 80, paddingHorizontal: 40 },
   promptIcon: { fontSize: 40, marginBottom: 14 },
-  promptTxt:  { fontSize: 16, fontWeight: '600', color: C.ink, marginBottom: 6 },
-  promptSub:  { fontSize: 13, color: C.inkMuted },
+  promptTxt:  { fontSize: 17, fontWeight: '700', color: C.ink, marginBottom: 8, textAlign: 'center' },
+  promptSub:  { fontSize: 13, color: C.inkMuted, textAlign: 'center', lineHeight: 19 },
 
   // Loading
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
