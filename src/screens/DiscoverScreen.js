@@ -186,6 +186,7 @@ function AddReadingItemSheet({ onAdd, onClose }) {
   const [length,    setLength]    = useState('');     // pages OR minutes (smart)
   const [url,       setUrl]       = useState('');
 
+  const formatRef = useRef(null);
   const titleRef  = useRef(null);
   const authorRef = useRef(null);
   const genreRef  = useRef(null);
@@ -197,6 +198,11 @@ function AddReadingItemSheet({ onAdd, onClose }) {
     Animated.spring(translateY, {
       toValue: 0, useNativeDriver: true, tension: 58, friction: 12,
     }).start();
+    // Auto-focus the first field as the sheet finishes rising.
+    // Delay matches roughly the spring duration so the keyboard
+    // animates up *with* the sheet, not before it.
+    const t = setTimeout(() => formatRef.current?.focus(), 280);
+    return () => clearTimeout(t);
   }, []);
 
   const close = () => {
@@ -269,33 +275,33 @@ function AddReadingItemSheet({ onAdd, onClose }) {
 
   return (
     <Modal visible transparent animationType="none" onRequestClose={close}>
-      <KeyboardAvoidingView
-        style={{ flex: 1, justifyContent: 'flex-end' }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={0}
-      >
+      <View style={s.ownOverlay}>
         <TouchableOpacity
           style={StyleSheet.absoluteFill}
           onPress={close}
           activeOpacity={1}
         />
-        <View style={s.ownOverlay}>
-          <Animated.View style={[s.ownSheet, { transform: [{ translateY }] }]}>
-            {/* Drag handle */}
-            <View {...panResponder.panHandlers} style={s.ownHandle}>
-              <View style={s.ownHandleBar} />
-            </View>
+        <Animated.View style={[s.ownSheet, { transform: [{ translateY }] }]}>
+          {/* Drag handle */}
+          <View {...panResponder.panHandlers} style={s.ownHandle}>
+            <View style={s.ownHandleBar} />
+          </View>
 
-            <ScrollView
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={s.ownScrollContent}
-            >
-              {/* Header */}
-              <Text style={s.ownBookTitle}>Add reading item</Text>
-              <Text style={s.ownBookSub}>
-                Anything you read — books, articles, websites, PDFs. Add it manually if search can't find it.
-              </Text>
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={s.ownScrollContent}
+          >
+            {/* Header — tap to dismiss keyboard */}
+              <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                <View>
+                  <Text style={s.ownBookTitle}>Add reading item</Text>
+                  <Text style={s.ownBookSub}>
+                    Anything you read — books, articles, websites, PDFs. Add it manually if search can't find it.
+                  </Text>
+                </View>
+              </TouchableWithoutFeedback>
 
               <View style={s.ownBookForm}>
 
@@ -303,6 +309,7 @@ function AddReadingItemSheet({ onAdd, onClose }) {
                 <View style={s.ownBookField}>
                   <Text style={s.ownBookFieldLabel}>FORMAT</Text>
                   <TextInput
+                    ref={formatRef}
                     style={s.ownBookInput}
                     value={format}
                     onChangeText={setFormat}
@@ -371,7 +378,10 @@ function AddReadingItemSheet({ onAdd, onClose }) {
                     placeholder={authorPlaceholder}
                     placeholderTextColor={C.inkFaint}
                     returnKeyType="next"
-                    onSubmitEditing={() => genreRef.current?.focus()}
+                    onSubmitEditing={() => {
+                      if (showUrl) urlRef.current?.focus();
+                      else genreRef.current?.focus();
+                    }}
                     blurOnSubmit={false}
                   />
                 </View>
@@ -391,6 +401,7 @@ function AddReadingItemSheet({ onAdd, onClose }) {
                       autoCapitalize="none"
                       autoCorrect={false}
                       returnKeyType="next"
+                      onSubmitEditing={() => genreRef.current?.focus()}
                       blurOnSubmit={false}
                     />
                   </View>
@@ -406,9 +417,12 @@ function AddReadingItemSheet({ onAdd, onClose }) {
                     onChangeText={setGenre}
                     placeholder="e.g. Psychology, Politics, Tech"
                     placeholderTextColor={C.inkFaint}
-                    returnKeyType="next"
-                    onSubmitEditing={() => lengthRef.current?.focus()}
-                    blurOnSubmit={false}
+                    returnKeyType={showLength ? 'next' : 'done'}
+                    onSubmitEditing={() => {
+                      if (showLength) lengthRef.current?.focus();
+                      else Keyboard.dismiss();
+                    }}
+                    blurOnSubmit={!showLength}
                   />
                 </View>
 
@@ -458,8 +472,7 @@ function AddReadingItemSheet({ onAdd, onClose }) {
               </TouchableOpacity>
             </ScrollView>
           </Animated.View>
-        </View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
@@ -913,11 +926,11 @@ const s = StyleSheet.create({
   activeGenreWrap:    { flexDirection: 'row', flexWrap: 'wrap', flex: 1, gap: 6 },
   filterBar:          { borderBottomWidth: 0.5, borderBottomColor: C.border, backgroundColor: C.paper },
   filterBarContent:   { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
-  activeGenrePill:    { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: C.amberPale, borderWidth: 1, borderColor: C.amber },
+  activeGenrePill:    { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 16, paddingVertical: 9, borderRadius: 20, backgroundColor: C.amberPale, borderWidth: 1, borderColor: C.amber },
   activeGenrePillTxt: { fontSize: 13, fontWeight: '600', color: C.amber },
   activeGenrePillX:   { fontSize: 11, color: C.amber, fontWeight: '700' },
-  clearAllPill:       { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: C.cream, borderWidth: 1, borderColor: C.border },
-  clearAllPillTxt:    { fontSize: 12, fontWeight: '500', color: C.inkMuted },
+  clearAllPill:       { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 20, backgroundColor: C.cream, borderWidth: 1, borderColor: C.border },
+  clearAllPillTxt:    { fontSize: 13, fontWeight: '500', color: C.inkMuted },
   genreItemActive:    { backgroundColor: C.ink, borderColor: C.ink },
   genreItemTxtActive: { color: C.white, fontWeight: '600' },
   filterChip:         { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 9, borderRadius: 20, backgroundColor: C.cream, borderWidth: 1, borderColor: C.border },
@@ -945,7 +958,7 @@ const s = StyleSheet.create({
   ownSheet:         { backgroundColor: C.paper, borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: '90%', shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.12, shadowRadius: 20, elevation: 20 },
   ownHandle:        { alignItems: 'center', paddingVertical: 14 },
   ownHandleBar:     { width: 40, height: 4, borderRadius: 2, backgroundColor: C.creamDark },
-  ownScrollContent: { paddingHorizontal: 20, paddingBottom: 40 },
+  ownScrollContent: { paddingHorizontal: 20, paddingBottom: 320 },
   ownBookHeader:    { paddingHorizontal: 20, paddingBottom: 20 },
   ownBookTitle:     { fontSize: 22, fontWeight: '700', color: C.ink, letterSpacing: -0.4, marginBottom: 6 },
   ownBookSub:       { fontSize: 13, color: C.inkMuted, marginBottom: 22, lineHeight: 19 },

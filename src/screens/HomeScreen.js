@@ -6,6 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle } from 'react-native-svg';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useStore } from '../store';
 import { BookCover } from '../components/BookCover';
 import { ReadingTimeline } from '../components/ReadingTimeline';
@@ -13,16 +14,6 @@ import { C } from '../theme';
 
 const { width: SW } = Dimensions.get('window');
 const HERO_W = SW - 40;
-
-// ── Note type metadata (mirrors ReviewScreen) ──────────────────────────
-const NOTE_TYPE_META = {
-  insight:    { icon: '💡', label: 'Insight',    color: '#2874A6' },
-  quote:      { icon: '💬', label: 'Quote',      color: '#6B5B95' },
-  question:   { icon: '🔍', label: 'Question',   color: '#A04000' },
-  action:     { icon: '✅', label: 'Action',     color: '#1E8449' },
-  summary:    { icon: '📌', label: 'Summary',    color: '#76448A' },
-  connection: { icon: '🔗', label: 'Connection', color: '#17A589' },
-};
 
 // ── Default goals (TODO: wire to store when goals slice exists) ────────
 const DEFAULT_GOALS = {
@@ -43,17 +34,6 @@ function startOfWeek() {
   const dayIdx = (d.getDay() + 6) % 7;
   d.setDate(d.getDate() - dayIdx);
   return d;
-}
-function relativeTime(dateStr) {
-  if (!dateStr) return '';
-  const d   = new Date(dateStr);
-  const now = new Date();
-  const diff = (now - d) / 86400000;
-  if (diff < 1)   return 'Today';
-  if (diff < 2)   return 'Yesterday';
-  if (diff < 7)   return `${Math.floor(diff)}d ago`;
-  if (diff < 30)  return `${Math.floor(diff / 7)}w ago`;
-  return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
 }
 
 // ── Progress ring (SVG) ────────────────────────────────────────────────
@@ -173,34 +153,6 @@ function GoalEditorModal({ visible, goal, onSave, onClose }) {
   );
 }
 
-// ── Recent note card ───────────────────────────────────────────────────
-function RecentNoteCard({ note, book, onPress }) {
-  const meta = NOTE_TYPE_META[note.type] || NOTE_TYPE_META.insight;
-
-  return (
-    <TouchableOpacity style={s.noteCard} onPress={onPress} activeOpacity={0.85}>
-      <View style={s.noteCardTop}>
-        <View style={[s.noteTypePill, { backgroundColor: `${meta.color}14` }]}>
-          <Text style={s.noteTypeIcon}>{meta.icon}</Text>
-          <Text style={[s.noteTypeLabel, { color: meta.color }]}>
-            {meta.label}
-          </Text>
-        </View>
-        <Text style={s.noteDate}>{relativeTime(note.date)}</Text>
-      </View>
-      <Text style={s.noteText} numberOfLines={4}>
-        {note.text}
-      </Text>
-      <View style={s.noteFooter}>
-        <Text style={s.noteFooterIcon}>📖</Text>
-        <Text style={s.noteFooterTxt} numberOfLines={1}>
-          {book?.title || 'Unknown book'}
-        </Text>
-      </View>
-    </TouchableOpacity>
-  );
-}
-
 // ── Main screen ────────────────────────────────────────────────────────
 export function HomeScreen({ navigation }) {
   const { books, notes, cards, dueCards, readingBooks } = useStore();
@@ -227,14 +179,6 @@ export function HomeScreen({ navigation }) {
   const notesThisWeek = useMemo(() => {
     const weekStart = startOfWeek();
     return notes.filter(n => n.date && new Date(n.date) >= weekStart).length;
-  }, [notes]);
-
-  // ── Recent notes (most recent 8) ───────────────────────────────────
-  const recentNotes = useMemo(() => {
-    return [...notes]
-      .filter(n => n.date)
-      .sort((a, b) => new Date(b.date) - new Date(a.date))
-      .slice(0, 8);
   }, [notes]);
 
   // ── Greeting ───────────────────────────────────────────────────────
@@ -278,13 +222,30 @@ export function HomeScreen({ navigation }) {
         {/* ── TOP BAR ─────────────────────────────────────────────── */}
         <View style={s.topBar}>
           <Text style={s.greeting}>{greeting}</Text>
+          <TouchableOpacity
+            style={s.profileBtn}
+            onPress={() => navigation.navigate('Profile')}
+            activeOpacity={0.75}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="person-outline" size={20} color={C.ink} />
+          </TouchableOpacity>
         </View>
 
         {/* ── READING TIMELINE ────────────────────────────────────── */}
         <ReadingTimeline notes={notes} cards={cards} books={books} />
 
-        {/* ── YOUR LIBRARY label ──────────────────────────────────── */}
-        <Text style={s.sectionH1}>Your Library</Text>
+        {/* ── YOUR LIBRARY label + Add pill ───────────────────────── */}
+        <View style={s.libraryHeader}>
+          <Text style={s.libraryHeaderTitle}>Your Library</Text>
+          <TouchableOpacity
+            style={s.addPill}
+            onPress={() => navigation.navigate('Discover')}
+            activeOpacity={0.8}
+          >
+            <Text style={s.addPillTxt}>+ Add</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* ── CURRENTLY READING HERO ──────────────────────────────── */}
         {readingBooks.length > 0 ? (
@@ -322,8 +283,15 @@ export function HomeScreen({ navigation }) {
                           cover={book.cover} coverId={book.coverId} width={118} height={168} />
                       </View>
                       <View style={s.heroInfoCol}>
-                        <View style={s.heroBadge}>
-                          <Text style={s.heroBadgeTxt}>NOW READING</Text>
+                        <View style={s.heroBadgeRow}>
+                          <View style={s.heroFormatBadge}>
+                            <Text style={s.heroFormatBadgeTxt} numberOfLines={1}>
+                              {(book.format || 'Book').toUpperCase()}
+                            </Text>
+                          </View>
+                          <View style={s.heroBadge}>
+                            <Text style={s.heroBadgeTxt}>NOW READING</Text>
+                          </View>
                         </View>
                         <Text style={s.heroTitle} numberOfLines={3}>{book.title}</Text>
                         <Text style={s.heroAuthor}>{book.author}</Text>
@@ -402,14 +370,7 @@ export function HomeScreen({ navigation }) {
           </TouchableOpacity>
         )}
 
-        {/* ── Goals subsection ───────────────────────────────────── */}
-        <View style={s.subSectionHead}>
-          <Text style={s.subSectionTitle}>🎯  Goals</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('FinishedBooks')} activeOpacity={0.6}>
-            <Text style={s.subSectionLink}>View progress →</Text>
-          </TouchableOpacity>
-        </View>
-
+        {/* ── Goals ──────────────────────────────────────────────── */}
         <View style={s.goalsWrap}>
           {goalsConfig.map(g => (
             <GoalCard
@@ -423,8 +384,6 @@ export function HomeScreen({ navigation }) {
             />
           ))}
         </View>
-
-        
 
         {/* ── REVIEW PROMPT ───────────────────────────────────────── */}
         {dueCards.length > 0 && (
@@ -513,23 +472,43 @@ const s = StyleSheet.create({
 
   // Top bar
   topBar: {
-    flexDirection: 'row', alignItems: 'flex-start',
+    flexDirection: 'row', alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20, paddingTop: 18, paddingBottom: 16,
   },
   greeting: { fontSize: 30, color: C.ink, fontWeight: '700', letterSpacing: -0.6 },
+  profileBtn: {
+    width: 38, height: 38, borderRadius: 19,
+    backgroundColor: C.cream,
+    borderWidth: 1, borderColor: C.border,
+    alignItems: 'center', justifyContent: 'center',
+  },
 
   // Section headers
   sectionH1: { fontSize: 22, fontWeight: '700', color: C.ink, letterSpacing: -0.4, paddingHorizontal: 20, marginBottom: 12 },
-  sectionSub: { fontSize: 13, color: C.inkMuted, paddingHorizontal: 20, marginBottom: 0, marginTop: -8, lineHeight: 18 },
 
-  hubHeader: { marginTop: 8, marginBottom: 12 },
-  subSectionHead: {
-    flexDirection: 'row', alignItems: 'baseline',
-    justifyContent: 'space-between', paddingHorizontal: 20, marginTop: 12, marginBottom: 12,
+  // Your Library heading row (title + Add pill)
+  libraryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    marginBottom: 12,
   },
-  subSectionTitle: { fontSize: 22, fontWeight: '700', color: C.ink, letterSpacing: -0.2 },
-  subSectionLink:  { fontSize: 12, color: C.amber, fontWeight: '600' },
+  libraryHeaderTitle: {
+    fontSize: 22, fontWeight: '700', color: C.ink, letterSpacing: -0.4,
+  },
+  addPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: C.amberPale,
+    borderWidth: 1,
+    borderColor: C.amber,
+  },
+  addPillTxt: {
+    fontSize: 13, fontWeight: '600', color: C.amber, letterSpacing: -0.1,
+  },
 
   // Hero card (unchanged)
   heroCard: {
@@ -547,10 +526,24 @@ const s = StyleSheet.create({
     shadowOpacity: 0.4, shadowRadius: 16, elevation: 12,
   },
   heroInfoCol: { flex: 1, paddingTop: 4 },
+  heroBadgeRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    marginBottom: 10,
+  },
+  heroFormatBadge: {
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    paddingHorizontal: 10, paddingVertical: 4,
+    borderRadius: 20,
+    borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.18)',
+  },
+  heroFormatBadgeTxt: {
+    fontSize: 9, color: 'rgba(255,255,255,0.85)',
+    fontWeight: '700', letterSpacing: 1.5,
+  },
   heroBadge: {
     backgroundColor: 'rgba(200,131,42,0.25)',
     alignSelf: 'flex-start', paddingHorizontal: 10,
-    paddingVertical: 4, borderRadius: 20, marginBottom: 10,
+    paddingVertical: 4, borderRadius: 20,
   },
   heroBadgeTxt: { fontSize: 9, color: '#F0C878', fontWeight: '700', letterSpacing: 1.8 },
   heroTitle: {
@@ -623,82 +616,6 @@ const s = StyleSheet.create({
   goalTarget: { fontSize: 13, color: C.inkMuted, fontWeight: '500' },
   goalReached: { fontSize: 11, color: '#1E8449', fontWeight: '600', marginTop: 2 },
   goalEdit: { fontSize: 18, color: C.inkFaint },
-
-  // ── Recent Notes ─────────────────────────────────────────────────
-  notesScroll: { paddingHorizontal: 20, paddingVertical: 4, gap: 12 },
-  noteCard: {
-    width: 224,
-    backgroundColor: C.white,
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: C.border,
-    minHeight: 168,
-    justifyContent: 'space-between',
-  },
-  noteCardTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  noteTypePill: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 8, paddingVertical: 4,
-    borderRadius: 12,
-  },
-  noteTypeIcon: { fontSize: 11 },
-  noteTypeLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 0.4 },
-  noteDate: { fontSize: 11, color: C.inkFaint, fontWeight: '500' },
-  noteText: {
-    flex: 1,
-    fontSize: 13,
-    color: C.inkSoft,
-    lineHeight: 19,
-    marginBottom: 12,
-  },
-  noteFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingTop: 10,
-    borderTopWidth: 0.5,
-    borderTopColor: C.border,
-  },
-  noteFooterIcon: { fontSize: 11 },
-  noteFooterTxt: {
-    fontSize: 11, color: C.inkMuted, fontWeight: '500', flex: 1,
-  },
-
-  notesTerminal: {
-    width: 140,
-    backgroundColor: C.cream,
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: C.border,
-    borderStyle: 'dashed',
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 168,
-  },
-  notesTerminalIcon: { fontSize: 22, color: C.amber, marginBottom: 8, fontWeight: '600' },
-  notesTerminalTxt: { fontSize: 13, color: C.ink, fontWeight: '600', textAlign: 'center', marginBottom: 4 },
-  notesTerminalCount: { fontSize: 11, color: C.inkMuted },
-
-  notesEmpty: {
-    marginHorizontal: 20,
-    backgroundColor: C.cream,
-    borderRadius: 18,
-    padding: 28,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: C.border,
-    borderStyle: 'dashed',
-  },
-  notesEmptyIcon: { fontSize: 32, marginBottom: 10 },
-  notesEmptyTitle: { fontSize: 15, fontWeight: '700', color: C.ink, marginBottom: 6 },
-  notesEmptySub: { fontSize: 12, color: C.inkMuted, textAlign: 'center', lineHeight: 18 },
 
   // ── Review banner ────────────────────────────────────────────────
   reviewBanner: {

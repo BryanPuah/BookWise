@@ -23,6 +23,7 @@ function LibraryStack() {
       <Stack.Screen name="LibraryHome"   component={HomeScreen} />
       <Stack.Screen name="BookDetail"    component={BookDetailScreen} />
       <Stack.Screen name="FinishedBooks" component={FinishedBooksScreen} />
+      <Stack.Screen name="Profile"       component={ReviewScreen} />
     </Stack.Navigator>
   );
 }
