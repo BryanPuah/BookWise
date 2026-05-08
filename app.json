@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "Bookwise",
+    "slug": "bookwise",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#1C1814"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.yourname.bookwise"
+    },
+    "android": {
+      "package": "com.yourname.bookwise",
+      "adaptiveIcon": {
+        "backgroundColor": "#1C1814"
+      }
+    },
+    "plugins": [
+      "expo-asset"
+    ]
+  }
+}
