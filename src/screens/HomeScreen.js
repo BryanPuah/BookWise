@@ -1,11 +1,10 @@
 import React, { useRef, useState, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, Dimensions,
-  Modal, TextInput, Alert,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Circle } from 'react-native-svg';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useStore } from '../store';
 import { BookCover } from '../components/BookCover';
@@ -16,140 +15,90 @@ const { width: SW } = Dimensions.get('window');
 const HERO_W = SW - 40;
 
 // ── Default goals (TODO: wire to store when goals slice exists) ────────
-const DEFAULT_GOALS = {
-  booksPerYear: 24,
-  notesPerWeek: 5,
-  minutesPerDay: 30, // not currently tracked — placeholder for future
+// ── Range definitions — single source of truth for label/order ────────
+const RANGES = ['day', 'week', 'month', 'year'];
+const RANGE_META = {
+  day:   { label: 'today',      shortLabel: 'Today' },
+  week:  { label: 'this week',  shortLabel: 'This week' },
+  month: { label: 'this month', shortLabel: 'This month' },
+  year:  { label: 'this year',  shortLabel: 'This year' },
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────
-function startOfYear() {
-  const d = new Date();
-  return new Date(d.getFullYear(), 0, 1);
-}
-function startOfWeek() {
+function startOfRange(range) {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
-  // Monday-start week
-  const dayIdx = (d.getDay() + 6) % 7;
-  d.setDate(d.getDate() - dayIdx);
-  return d;
+  if (range === 'day')   return d;
+  if (range === 'week') {
+    // Monday-start week
+    const dayIdx = (d.getDay() + 6) % 7;
+    d.setDate(d.getDate() - dayIdx);
+    return d;
+  }
+  if (range === 'month') return new Date(d.getFullYear(), d.getMonth(), 1);
+  /* year */             return new Date(d.getFullYear(), 0, 1);
 }
 
-// ── Progress ring (SVG) ────────────────────────────────────────────────
-function ProgressRing({ size = 56, strokeWidth = 5, progress = 0, color = C.amber }) {
-  const radius        = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const clamped       = Math.max(0, Math.min(1, progress));
-  const dashOffset    = circumference * (1 - clamped);
-
+// ── Range picker modal ────────────────────────────────────────────────
+function RangePickerModal({ visible, currentRange, onSelect, onClose }) {
   return (
-    <Svg width={size} height={size}>
-      <Circle
-        cx={size / 2}
-        cy={size / 2}
-        r={radius}
-        stroke="rgba(24,19,15,0.08)"
-        strokeWidth={strokeWidth}
-        fill="none"
-      />
-      <Circle
-        cx={size / 2}
-        cy={size / 2}
-        r={radius}
-        stroke={color}
-        strokeWidth={strokeWidth}
-        fill="none"
-        strokeDasharray={circumference}
-        strokeDashoffset={dashOffset}
-        strokeLinecap="round"
-        rotation="-90"
-        origin={`${size / 2}, ${size / 2}`}
-      />
-    </Svg>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <TouchableOpacity style={rp.backdrop} activeOpacity={1} onPress={onClose}>
+        <View style={rp.card}>
+          <Text style={rp.title}>VIEW BY</Text>
+          {RANGES.map(range => {
+            const active = range === currentRange;
+            return (
+              <TouchableOpacity
+                key={range}
+                style={[rp.row, active && rp.rowActive]}
+                onPress={() => { onSelect(range); onClose(); }}
+                activeOpacity={0.65}
+              >
+                <Text style={[rp.rowTxt, active && rp.rowTxtActive]}>
+                  {RANGE_META[range].shortLabel}
+                </Text>
+                {active && <Ionicons name="checkmark" size={18} color={C.amber} />}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </TouchableOpacity>
+    </Modal>
   );
 }
 
 // ── Goal card ──────────────────────────────────────────────────────────
-function GoalCard({ icon, label, current, target, unit, onEdit }) {
-  const progress = target > 0 ? current / target : 0;
-  const pct      = Math.round(Math.min(progress, 1) * 100);
-  const reached  = current >= target;
+function GoalCard({ icon, baseLabel, current, range, onChangeRange }) {
+  const meta = RANGE_META[range];
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   return (
-    <TouchableOpacity style={s.goalCard} onPress={onEdit} activeOpacity={0.85}>
-      <View style={s.goalRingWrap}>
-        <ProgressRing size={56} progress={progress} color={reached ? '#1E8449' : C.amber} />
-        <View style={s.goalRingInner}>
-          <Text style={s.goalRingPct}>{pct}</Text>
-        </View>
-      </View>
-      <View style={s.goalBody}>
-        <View style={s.goalHeader}>
-          <Text style={s.goalIcon}>{icon}</Text>
-          <Text style={s.goalLabel}>{label}</Text>
-        </View>
-        <Text style={s.goalProgress}>
-          <Text style={s.goalCurrent}>{current}</Text>
-          <Text style={s.goalTarget}> / {target} {unit}</Text>
-        </Text>
-        {reached && <Text style={s.goalReached}>✓ Goal reached</Text>}
-      </View>
-      <Text style={s.goalEdit}>⚙</Text>
-    </TouchableOpacity>
-  );
-}
-
-// ── Goal editor modal ──────────────────────────────────────────────────
-function GoalEditorModal({ visible, goal, onSave, onClose }) {
-  const [value, setValue] = useState('');
-
-  React.useEffect(() => {
-    if (visible && goal) setValue(String(goal.target));
-  }, [visible, goal]);
-
-  if (!goal) return null;
-
-  const handleSave = () => {
-    const n = parseInt(value, 10);
-    if (Number.isNaN(n) || n <= 0) {
-      Alert.alert('Invalid value', 'Please enter a positive number.');
-      return;
-    }
-    onSave(n);
-    onClose();
-  };
-
-  return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={ge.overlay}>
-        <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} activeOpacity={1} />
-        <View style={ge.card}>
-          <Text style={ge.title}>{goal.icon}  {goal.label}</Text>
-          <Text style={ge.sub}>What's your target?</Text>
-          <View style={ge.inputRow}>
-            <TextInput
-              value={value}
-              onChangeText={setValue}
-              keyboardType="number-pad"
-              style={ge.input}
-              autoFocus
-              selectTextOnFocus
-              maxLength={4}
-            />
-            <Text style={ge.unit}>{goal.unit}</Text>
+    <>
+      <TouchableOpacity
+        style={s.goalCard}
+        onPress={() => setPickerOpen(true)}
+        activeOpacity={0.7}
+      >
+        <View style={s.goalBody}>
+          <View style={s.goalLabelWrap}>
+            <Text style={s.goalIcon}>{icon}</Text>
+            <Text style={s.goalLabel} numberOfLines={1}>
+              {baseLabel} {meta.label}
+            </Text>
           </View>
-          <View style={ge.btnRow}>
-            <TouchableOpacity style={ge.btnGhost} onPress={onClose} activeOpacity={0.7}>
-              <Text style={ge.btnGhostTxt}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={ge.btnPrimary} onPress={handleSave} activeOpacity={0.85}>
-              <Text style={ge.btnPrimaryTxt}>Save</Text>
-            </TouchableOpacity>
-          </View>
+          <Text style={s.goalCountNum}>{current}</Text>
         </View>
-      </View>
-    </Modal>
+        <Ionicons name="chevron-forward" size={18} color={C.inkFaint} />
+      </TouchableOpacity>
+
+      <RangePickerModal
+        visible={pickerOpen}
+        currentRange={range}
+        onSelect={onChangeRange}
+        onClose={() => setPickerOpen(false)}
+      />
+    </>
   );
 }
 
@@ -159,27 +108,27 @@ export function HomeScreen({ navigation }) {
   const [activeIdx, setActiveIdx] = useState(0);
   const heroScrollRef = useRef(null);
 
-  // Goals — local state for now. TODO: wire to store when goals slice exists.
-  const [goalTargets, setGoalTargets] = useState(DEFAULT_GOALS);
-  const [editingGoal, setEditingGoal] = useState(null);
+  // Per-card active range
+  const [booksRange, setBooksRange] = useState('year');
+  const [notesRange, setNotesRange] = useState('week');
 
   const finished   = books.filter(b => b.status === 'finished');
   const wantToRead = books.filter(b => b.status === 'want_to_read');
 
-  // ── Goal progress (computed from real data where possible) ─────────
-  const booksThisYear = useMemo(() => {
-    const yearStart = startOfYear();
+  // ── Goal counts (range-aware, computed from real data) ────────────
+  // Books count reflects books marked as finished within the active range.
+  const booksInRange = useMemo(() => {
+    const start = startOfRange(booksRange);
     return finished.filter(b => {
-      // Try to use finishedAt, dateCompleted, or date — fallback gracefully
       const d = b.finishedAt || b.dateCompleted || b.date;
-      return d && new Date(d) >= yearStart;
+      return d && new Date(d) >= start;
     }).length;
-  }, [finished]);
+  }, [finished, booksRange]);
 
-  const notesThisWeek = useMemo(() => {
-    const weekStart = startOfWeek();
-    return notes.filter(n => n.date && new Date(n.date) >= weekStart).length;
-  }, [notes]);
+  const notesInRange = useMemo(() => {
+    const start = startOfRange(notesRange);
+    return notes.filter(n => n.date && new Date(n.date) >= start).length;
+  }, [notes, notesRange]);
 
   // ── Greeting ───────────────────────────────────────────────────────
   const hour     = new Date().getHours();
@@ -190,30 +139,20 @@ export function HomeScreen({ navigation }) {
     {
       id: 'books',
       icon: '📚',
-      label: 'Books this year',
-      current: booksThisYear,
-      target: goalTargets.booksPerYear,
-      unit: 'books',
+      baseLabel: 'Books finished',
+      current: booksInRange,
+      range: booksRange,
+      onChangeRange: setBooksRange,
     },
     {
       id: 'notes',
       icon: '✍️',
-      label: 'Notes this week',
-      current: notesThisWeek,
-      target: goalTargets.notesPerWeek,
-      unit: 'notes',
+      baseLabel: 'Notes captured',
+      current: notesInRange,
+      range: notesRange,
+      onChangeRange: setNotesRange,
     },
   ];
-
-  const handleSaveGoal = (newTarget) => {
-    if (!editingGoal) return;
-    if (editingGoal.id === 'books') {
-      setGoalTargets(g => ({ ...g, booksPerYear: newTarget }));
-    } else if (editingGoal.id === 'notes') {
-      setGoalTargets(g => ({ ...g, notesPerWeek: newTarget }));
-    }
-    // TODO: persist to store
-  };
 
   return (
     <SafeAreaView style={s.safe} edges={['top']}>
@@ -376,11 +315,10 @@ export function HomeScreen({ navigation }) {
             <GoalCard
               key={g.id}
               icon={g.icon}
-              label={g.label}
+              baseLabel={g.baseLabel}
               current={g.current}
-              target={g.target}
-              unit={g.unit}
-              onEdit={() => setEditingGoal(g)}
+              range={g.range}
+              onChangeRange={g.onChangeRange}
             />
           ))}
         </View>
@@ -454,14 +392,6 @@ export function HomeScreen({ navigation }) {
         </View>
 
       </ScrollView>
-
-      {/* Goal editor modal */}
-      <GoalEditorModal
-        visible={!!editingGoal}
-        goal={editingGoal}
-        onSave={handleSaveGoal}
-        onClose={() => setEditingGoal(null)}
-      />
     </SafeAreaView>
   );
 }
@@ -593,29 +523,27 @@ const s = StyleSheet.create({
   goalCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    gap: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    gap: 12,
     borderBottomWidth: 0.5,
     borderBottomColor: C.border,
   },
-  goalRingWrap: {
-    width: 56, height: 56,
-    alignItems: 'center', justifyContent: 'center',
+  goalBody: {
+    flex: 1,
   },
-  goalRingInner: {
-    position: 'absolute', alignItems: 'center', justifyContent: 'center',
+  goalLabelWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    marginBottom: 6,
   },
-  goalRingPct: { fontSize: 13, fontWeight: '800', color: C.ink, letterSpacing: -0.3 },
-  goalBody: { flex: 1 },
-  goalHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
-  goalIcon: { fontSize: 14 },
-  goalLabel: { fontSize: 13, fontWeight: '600', color: C.ink, letterSpacing: -0.1 },
-  goalProgress: { fontSize: 13 },
-  goalCurrent: { fontSize: 16, fontWeight: '700', color: C.ink },
-  goalTarget: { fontSize: 13, color: C.inkMuted, fontWeight: '500' },
-  goalReached: { fontSize: 11, color: '#1E8449', fontWeight: '600', marginTop: 2 },
-  goalEdit: { fontSize: 18, color: C.inkFaint },
+  goalIcon:  { fontSize: 15 },
+  goalLabel: { fontSize: 13, fontWeight: '600', color: C.inkSoft, letterSpacing: -0.1 },
+  goalCountNum: {
+    fontSize: 36, fontWeight: '800', color: C.ink,
+    letterSpacing: -1.2, lineHeight: 40,
+  },
 
   // ── Review banner ────────────────────────────────────────────────
   reviewBanner: {
@@ -657,6 +585,50 @@ const s = StyleSheet.create({
 });
 
 // ── Goal editor styles ───────────────────────────────────────────────
+// ── Range picker styles ───────────────────────────────────────────────
+const rp = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+  },
+  card: {
+    width: '100%',
+    maxWidth: 280,
+    backgroundColor: C.paper,
+    borderRadius: 16,
+    paddingVertical: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    elevation: 16,
+  },
+  title: {
+    fontSize: 11, fontWeight: '700',
+    color: C.inkMuted, letterSpacing: 1,
+    paddingHorizontal: 16, paddingVertical: 10,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 13,
+  },
+  rowActive: {
+    backgroundColor: C.amberPale,
+  },
+  rowTxt: {
+    fontSize: 15, fontWeight: '500', color: C.ink, letterSpacing: -0.2,
+  },
+  rowTxtActive: {
+    color: C.amber, fontWeight: '700',
+  },
+});
+
+// ── Goal editor styles ────────────────────────────────────────────────
 const ge = StyleSheet.create({
   overlay: {
     flex: 1,

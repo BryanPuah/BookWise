@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { StoreProvider, useStore } from './src/store';
@@ -12,6 +12,7 @@ import { BookDetailScreen }    from './src/screens/BookDetailScreen';
 import { NotesScreen }         from './src/screens/NotesScreen';
 import { ReviewScreen }        from './src/screens/ReviewScreen';
 import { DiscoverScreen }      from './src/screens/DiscoverScreen';
+import { AddNoteModal }        from './src/components/AddNoteModal';
 import { C } from './src/theme';
 
 const Tab   = createBottomTabNavigator();
@@ -37,137 +38,134 @@ function DiscoverStack() {
   );
 }
 
-// ── Tab icon — Ionicons vector icon + label ────────────────────────────
-function TabIcon({ name, nameActive, label, active, badgeCount }) {
+// ── Tab icon — Ionicons vector icon ────────────────────────────────────
+function TabIcon({ name, nameActive, active }) {
   const iconName  = active ? nameActive : name;
   const iconColor = active ? C.amber : '#6B6560';
-  const iconSize  = 24;
 
   return (
     <View style={ti.wrap}>
-      {/* Subtle pill behind active icon */}
       {active && <View style={ti.pill} />}
-
       <View style={ti.iconWrap}>
-        <Ionicons name={iconName} size={iconSize} color={iconColor} />
-        {/* Badge for review count */}
-        {badgeCount > 0 && (
-          <View style={ti.badge}>
-            <Text style={ti.badgeTxt}>
-              {badgeCount > 9 ? '9+' : badgeCount}
-            </Text>
-          </View>
-        )}
+        <Ionicons name={iconName} size={24} color={iconColor} />
       </View>
-
     </View>
   );
 }
 
 const ti = StyleSheet.create({
-  wrap:       { alignItems: 'center', width: 52, paddingTop: 6 },
-  pill:       {
+  wrap:     { alignItems: 'center', width: 52, paddingTop: 6 },
+  pill:     {
     position: 'absolute', top: 2,
     width: 44, height: 30,
     backgroundColor: 'rgba(184,114,10,0.10)',
     borderRadius: 10,
   },
-  iconWrap:   { position: 'relative' },
-
-  badge:      {
-    position: 'absolute', top: -5, right: -8,
-    backgroundColor: C.amber,
-    borderRadius: 8, minWidth: 16, height: 16,
-    alignItems: 'center', justifyContent: 'center',
-    paddingHorizontal: 3,
-    borderWidth: 1.5, borderColor: C.white,
-  },
-  badgeTxt:   { fontSize: 9, color: C.white, fontWeight: '700' },
+  iconWrap: { position: 'relative' },
 });
 
 // ── Tab navigator ──────────────────────────────────────────────────────
 function Tabs() {
-  const { dueCards } = useStore();
+  // Lifted to navigator level so the modal floats above any tab
+  const { books, addNote } = useStore();
+  const [showCapture, setShowCapture] = useState(false);
+
+  // Mirrors NotesScreen.handleSave so the saved-note shape is identical
+  const handleSave = (data) => {
+    addNote({
+      id:        Date.now().toString(),
+      bookId:    data.bookId,
+      bookTitle: data.bookTitle,
+      type:      data.type,
+      text:      data.text,
+      thinking:  data.thinking,
+      page:      data.page,
+      chapter:   data.chapter,
+      isQuote:   data.type === 'quote',
+      starred:   false,
+      date:      new Date().toISOString().slice(0, 10),
+    });
+  };
 
   return (
-    <Tab.Navigator
-      id="MainTabs"
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle: {
-          backgroundColor: C.white,
-          borderTopWidth: 0.5,
-          borderTopColor: 'rgba(24,19,15,0.10)',
-          height: 78,
-          paddingBottom: 10,
-          paddingTop: 4,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: -3 },
-          shadowOpacity: 0.06,
-          shadowRadius: 12,
-          elevation: 16,
-        },
-        tabBarShowLabel: false,
-      }}
-    >
-      <Tab.Screen
-        name="Library"
-        component={LibraryStack}
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon
-              name="home-outline"
-              nameActive="home"
-              label="Library"
-              active={focused}
-            />
-          ),
+    <>
+      <Tab.Navigator
+        id="MainTabs"
+        screenOptions={{
+          headerShown: false,
+          tabBarStyle: {
+            backgroundColor: C.white,
+            borderTopWidth: 0.5,
+            borderTopColor: 'rgba(24,19,15,0.10)',
+            height: 78,
+            paddingBottom: 10,
+            paddingTop: 4,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: -3 },
+            shadowOpacity: 0.06,
+            shadowRadius: 12,
+            elevation: 16,
+          },
+          tabBarShowLabel: false,
         }}
+      >
+        <Tab.Screen
+          name="Library"
+          component={LibraryStack}
+          options={{
+            tabBarIcon: ({ focused }) => (
+              <TabIcon name="home-outline" nameActive="home" active={focused} />
+            ),
+          }}
+        />
+        <Tab.Screen
+          name="Discover"
+          component={DiscoverStack}
+          options={{
+            tabBarIcon: ({ focused }) => (
+              <TabIcon name="search-outline" nameActive="search" active={focused} />
+            ),
+          }}
+        />
+        {/* Capture tab — replaces the old Review tab.
+            Tapping opens the AddNoteModal directly without navigating.
+            React Navigation requires `component`, so ReviewScreen stays
+            referenced as a placeholder; the listener's preventDefault
+            stops it from ever actually rendering. */}
+        <Tab.Screen
+          name="Capture"
+          component={ReviewScreen}
+          listeners={{
+            tabPress: (e) => {
+              e.preventDefault();
+              setShowCapture(true);
+            },
+          }}
+          options={{
+            tabBarIcon: ({ focused }) => (
+              <TabIcon name="add-outline" nameActive="add" active={focused} />
+            ),
+          }}
+        />
+        <Tab.Screen
+          name="Notes"
+          component={NotesScreen}
+          options={{
+            tabBarIcon: ({ focused }) => (
+              <TabIcon name="create-outline" nameActive="create" active={focused} />
+            ),
+          }}
+        />
+      </Tab.Navigator>
+
+      {/* Modal mounted at navigator level — visible above any tab */}
+      <AddNoteModal
+        visible={showCapture}
+        books={books}
+        onSave={handleSave}
+        onClose={() => setShowCapture(false)}
       />
-      <Tab.Screen
-        name="Discover"
-        component={DiscoverStack}
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon
-              name="search-outline"
-              nameActive="search"
-              label="Discover"
-              active={focused}
-            />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="Notes"
-        component={NotesScreen}
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon
-              name="create-outline"
-              nameActive="create"
-              label="Notes"
-              active={focused}
-            />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="Review"
-        component={ReviewScreen}
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon
-              name="layers-outline"
-              nameActive="layers"
-              label="Review"
-              active={focused}
-              badgeCount={dueCards.length}
-            />
-          ),
-        }}
-      />
-    </Tab.Navigator>
+    </>
   );
 }
 
