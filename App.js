@@ -2,9 +2,14 @@ import React, { useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import {
+  useFonts,
+  DMSerifDisplay_400Regular,
+  DMSerifDisplay_400Regular_Italic,
+} from '@expo-google-fonts/dm-serif-display';
 import { StoreProvider, useStore } from './src/store';
 import { HomeScreen }          from './src/screens/HomeScreen';
 import { FinishedBooksScreen } from './src/screens/FinishedBooksScreen';
@@ -38,10 +43,10 @@ function DiscoverStack() {
   );
 }
 
-// ── Tab icon — Ionicons vector icon ────────────────────────────────────
+// ── Tab icon — Figma uses sage-pale pill behind active icon ───────────
 function TabIcon({ name, nameActive, active }) {
   const iconName  = active ? nameActive : name;
-  const iconColor = active ? C.amber : '#6B6560';
+  const iconColor = active ? C.ink : C.inkMuted;
 
   return (
     <View style={ti.wrap}>
@@ -58,7 +63,7 @@ const ti = StyleSheet.create({
   pill:     {
     position: 'absolute', top: 2,
     width: 44, height: 30,
-    backgroundColor: 'rgba(184,114,10,0.10)',
+    backgroundColor: C.sagePale,
     borderRadius: 10,
   },
   iconWrap: { position: 'relative' },
@@ -66,11 +71,9 @@ const ti = StyleSheet.create({
 
 // ── Tab navigator ──────────────────────────────────────────────────────
 function Tabs() {
-  // Lifted to navigator level so the modal floats above any tab
   const { books, addNote } = useStore();
   const [showCapture, setShowCapture] = useState(false);
 
-  // Mirrors NotesScreen.handleSave so the saved-note shape is identical
   const handleSave = (data) => {
     addNote({
       id:        Date.now().toString(),
@@ -96,7 +99,7 @@ function Tabs() {
           tabBarStyle: {
             backgroundColor: C.white,
             borderTopWidth: 0.5,
-            borderTopColor: 'rgba(24,19,15,0.10)',
+            borderTopColor: C.border,
             height: 78,
             paddingBottom: 10,
             paddingTop: 4,
@@ -127,11 +130,8 @@ function Tabs() {
             ),
           }}
         />
-        {/* Capture tab — replaces the old Review tab.
-            Tapping opens the AddNoteModal directly without navigating.
-            React Navigation requires `component`, so ReviewScreen stays
-            referenced as a placeholder; the listener's preventDefault
-            stops it from ever actually rendering. */}
+        {/* Capture tab — opens AddNoteModal directly. ReviewScreen is a
+            placeholder; the listener preventDefault stops it rendering. */}
         <Tab.Screen
           name="Capture"
           component={ReviewScreen}
@@ -158,7 +158,6 @@ function Tabs() {
         />
       </Tab.Navigator>
 
-      {/* Modal mounted at navigator level — visible above any tab */}
       <AddNoteModal
         visible={showCapture}
         books={books}
@@ -171,6 +170,19 @@ function Tabs() {
 
 // ── Root ───────────────────────────────────────────────────────────────
 export default function App() {
+  const [fontsLoaded] = useFonts({
+    DMSerifDisplay_400Regular,
+    DMSerifDisplay_400Regular_Italic,
+  });
+
+  if (!fontsLoaded) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.paper }}>
+        <ActivityIndicator size="small" color={C.ink} />
+      </View>
+    );
+  }
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <StoreProvider>

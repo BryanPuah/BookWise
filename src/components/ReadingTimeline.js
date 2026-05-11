@@ -51,17 +51,12 @@ const HEAT_COLORS = [
   'rgba(217,119,6,0.75)',
 ];
 
-
 // ── Drag-to-dismiss hook ───────────────────────────────────────────────
-// Single Animated.Value (translateY) drives ALL sheet motion:
-// open spring, live drag tracking, snap-back, and dismiss.
-// Never reset mid-drag. No Animated.add. No dual values.
 function useDragToDismiss({ onClose }) {
-  // translateY is the single source of truth for sheet position
   const translateY  = useRef(new Animated.Value(SH)).current;
   const isScrolled  = useRef(false);
   const dragging    = useRef(false);
-  const dragStart   = useRef(0); // translateY value when gesture begins
+  const dragStart   = useRef(0);
 
   const open = () => {
     translateY.setValue(SH);
@@ -84,10 +79,8 @@ function useDragToDismiss({ onClose }) {
     }).start();
   };
 
-  // On gesture start, record current translateY so drag is relative to it
   const onGrant = () => {
     dragging.current = true;
-    // Stop any running animation and read current value
     translateY.stopAnimation(val => {
       dragStart.current = val;
     });
@@ -96,7 +89,6 @@ function useDragToDismiss({ onClose }) {
   const onMove = (_, g) => {
     if (!dragging.current) return;
     const next = dragStart.current + g.dy;
-    // Clamp: can only drag down (positive), rubber-band resistance above 80
     if (next <= 0) {
       translateY.setValue(0);
     } else if (next > 80) {
@@ -121,7 +113,6 @@ function useDragToDismiss({ onClose }) {
     snapBack();
   };
 
-  // overlayHandlers — on header content area, passes taps through
   const overlayPR = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => false,
     onStartShouldSetPanResponderCapture: () => false,
@@ -135,7 +126,6 @@ function useDragToDismiss({ onClose }) {
     onPanResponderTerminate: onTerminate,
   })).current;
 
-  // handlePR — on the handle bar, always claims touch
   const handlePR = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
@@ -212,16 +202,6 @@ function CalendarModal({ visible, notesByKey, onClose, onSelectDay }) {
   const maxCount = useMemo(() =>
     Math.max(1, ...Object.values(notesByKey)), [notesByKey]);
 
-  const cellBg = (count) => {
-    if (count === 0) return 'transparent';
-    const ratio = count / maxCount;
-    if (ratio < 0.25) return '#FEF3C7';
-    if (ratio < 0.5)  return '#FDE68A';
-    if (ratio < 0.75) return '#F59E0B';
-    return '#D97706';
-  };
-
-  // ── Flexible date-range stats engine ──────────────────────────────
   const RANGES = [
     { id: '7d',    label: '7D' },
     { id: '30d',   label: '30D' },
@@ -251,19 +231,16 @@ function CalendarModal({ visible, notesByKey, onClose, onSelectDay }) {
     return false;
   }, [activeRange, viewYear, viewMonth]);
 
-  // Notes in range
   const rangeNotes = useMemo(() =>
     Object.entries(notesByKey)
       .filter(([k]) => rangeFilter(k))
       .reduce((acc, [, v]) => acc + v, 0),
   [notesByKey, rangeFilter]);
 
-  // Active days in range
   const activeDaysInRange = useMemo(() =>
     Object.keys(notesByKey).filter(k => notesByKey[k] > 0 && rangeFilter(k)).length,
   [notesByKey, rangeFilter]);
 
-  // Active days this week (Mon–today, always computed regardless of range)
   const activeDaysThisWeek = useMemo(() => {
     const now = new Date(); now.setHours(0,0,0,0);
     const mon = new Date(now);
@@ -274,11 +251,9 @@ function CalendarModal({ visible, notesByKey, onClose, onSelectDay }) {
     }).length;
   }, [notesByKey]);
 
-  // Current streak — consecutive active days ending today or yesterday
   const currentStreak = useMemo(() => {
     let streak = 0;
     const cursor = new Date(); cursor.setHours(0,0,0,0);
-    // If today has no notes, start from yesterday
     if (!notesByKey[dateKey(cursor)]) cursor.setDate(cursor.getDate() - 1);
     while (notesByKey[dateKey(cursor)]) {
       streak++;
@@ -287,20 +262,6 @@ function CalendarModal({ visible, notesByKey, onClose, onSelectDay }) {
     return streak;
   }, [notesByKey]);
 
-  // Month stats for the bottom summary (always "current viewed month")
-  const monthNotes = useMemo(() =>
-    Object.entries(notesByKey)
-      .filter(([k]) => { const d = new Date(k); return d.getFullYear()===viewYear && d.getMonth()===viewMonth; })
-      .reduce((acc, [, v]) => acc + v, 0),
-  [notesByKey, viewYear, viewMonth]);
-
-  const activeDays = useMemo(() =>
-    Object.keys(notesByKey).filter(k => {
-      const d = new Date(k);
-      return d.getFullYear()===viewYear && d.getMonth()===viewMonth && notesByKey[k]>0;
-    }).length,
-  [notesByKey, viewYear, viewMonth]);
-
   const [showYearPicker, setShowYearPicker]   = useState(false);
   const [showMonthPicker, setShowMonthPicker] = useState(false);
   const yearScrollRef  = useRef(null);
@@ -308,9 +269,8 @@ function CalendarModal({ visible, notesByKey, onClose, onSelectDay }) {
   const years = [];
   for (let y = 1900; y <= today.getFullYear() + 10; y++) years.push(y);
 
-  // Swipe PanResponder — horizontal only on grid area
-  const swipeX    = useRef(0);
-  const swipePR   = useRef(PanResponder.create({
+  const swipeX = useRef(0);
+  const swipePR = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => false,
     onMoveShouldSetPanResponder: (_, g) =>
       Math.abs(g.dx) > 8 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
@@ -321,14 +281,12 @@ function CalendarModal({ visible, notesByKey, onClose, onSelectDay }) {
     onPanResponderRelease: (_, g) => {
       const THRESHOLD = SW * 0.25;
       if (g.dx < -THRESHOLD || (g.vx < -0.5 && g.dx < -20)) {
-        // Swipe left → next month
         Animated.timing(swipeAnim, { toValue: -SW, duration: 180, useNativeDriver: true }).start(() => {
           nextMonth();
           swipeAnim.setValue(SW);
           Animated.spring(swipeAnim, { toValue: 0, tension: 100, friction: 14, useNativeDriver: true }).start();
         });
       } else if (g.dx > THRESHOLD || (g.vx > 0.5 && g.dx > 20)) {
-        // Swipe right → prev month
         Animated.timing(swipeAnim, { toValue: SW, duration: 180, useNativeDriver: true }).start(() => {
           prevMonth();
           swipeAnim.setValue(-SW);
@@ -348,24 +306,18 @@ function CalendarModal({ visible, notesByKey, onClose, onSelectDay }) {
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={handleClose}>
       <View style={cal.overlay}>
-        {/* Blurred dark backdrop */}
         <Animated.View style={[cal.backdrop, { opacity: drag.backdropOpacity }]} pointerEvents="none" />
         <TouchableOpacity style={StyleSheet.absoluteFill} onPress={handleClose} activeOpacity={1} />
-
         <Animated.View style={[cal.sheet, { transform: [{ translateY: drag.translateY }] }]}>
 
-          {/* ── DRAG ZONE — covers entire header ── */}
           <View style={{ position: 'relative' }}>
             <View {...drag.overlayHandlers} style={cal.dragOverlay} pointerEvents="box-none" />
 
-            {/* Handle pill */}
             <View {...drag.panHandlers} style={cal.handleWrap}>
               <View style={cal.handle} />
             </View>
 
-            {/* Month/Year header */}
             <View style={cal.topBar}>
-              {/* Left: month + year stacked */}
               <View style={cal.topBarLeft}>
                 <TouchableOpacity
                   style={cal.monthYearBtn}
@@ -377,7 +329,6 @@ function CalendarModal({ visible, notesByKey, onClose, onSelectDay }) {
                 </TouchableOpacity>
               </View>
 
-              {/* Right: today + chevrons */}
               <View style={cal.topBarRight}>
                 <TouchableOpacity
                   style={cal.todayChip}
@@ -395,7 +346,6 @@ function CalendarModal({ visible, notesByKey, onClose, onSelectDay }) {
               </View>
             </View>
 
-            {/* Month picker grid */}
             {showMonthPicker && !showYearPicker && (
               <View style={cal.monthGrid}>
                 {MONTH_NAMES_SHORT.map((name, i) => (
@@ -408,7 +358,6 @@ function CalendarModal({ visible, notesByKey, onClose, onSelectDay }) {
                     <Text style={[cal.monthCellTxt, i === viewMonth && cal.monthCellTxtOn]}>{name}</Text>
                   </TouchableOpacity>
                 ))}
-                {/* Year row inside month picker */}
                 <TouchableOpacity
                   style={cal.yearRow}
                   onPress={() => { setShowMonthPicker(false); setShowYearPicker(true); }}
@@ -419,7 +368,6 @@ function CalendarModal({ visible, notesByKey, onClose, onSelectDay }) {
               </View>
             )}
 
-            {/* Year picker */}
             {showYearPicker && (
               <View style={cal.yearPickerWrap}>
                 <ScrollView
@@ -447,7 +395,6 @@ function CalendarModal({ visible, notesByKey, onClose, onSelectDay }) {
               </View>
             )}
 
-            {/* Day-of-week headers */}
             <View style={cal.dowRow}>
               {['S','M','T','W','T','F','S'].map((d, i) => (
                 <Text key={i} style={[cal.dowTxt, (i===0||i===6) && cal.dowWknd]}>{d}</Text>
@@ -455,12 +402,9 @@ function CalendarModal({ visible, notesByKey, onClose, onSelectDay }) {
             </View>
           </View>
 
-          {/* Thin separator */}
           <View style={cal.sep} />
 
-          {/* ── Stats header ── */}
           <View style={cal.statsHeader}>
-            {/* Streak + week — always visible */}
             <View style={cal.statsLeft}>
               <View style={cal.statBubble}>
                 <Text style={cal.statBubbleIcon}>🔥</Text>
@@ -474,7 +418,6 @@ function CalendarModal({ visible, notesByKey, onClose, onSelectDay }) {
               </View>
             </View>
 
-            {/* Range filter pills */}
             <View style={cal.rangeRow}>
               {RANGES.map(r => (
                 <TouchableOpacity
@@ -490,7 +433,6 @@ function CalendarModal({ visible, notesByKey, onClose, onSelectDay }) {
               ))}
             </View>
 
-            {/* Range summary */}
             <View style={cal.rangeStats}>
               <View style={cal.rangeStat}>
                 <Text style={cal.rangeStatNum}>{rangeNotes}</Text>
@@ -505,14 +447,12 @@ function CalendarModal({ visible, notesByKey, onClose, onSelectDay }) {
           </View>
           <View style={cal.sep} />
 
-          {/* Calendar body */}
           <ScrollView
             ref={scrollRef}
             showsVerticalScrollIndicator={false}
             onScroll={e => drag.setScrolled(e.nativeEvent.contentOffset.y > 4)}
             scrollEventThrottle={16}
           >
-            {/* Swipeable grid */}
             <Animated.View
               {...swipePR.panHandlers}
               style={[cal.grid, { transform: [{ translateX: swipeAnim }] }]}
@@ -522,7 +462,6 @@ function CalendarModal({ visible, notesByKey, onClose, onSelectDay }) {
                 const { date, key, count, isToday, isFuture } = item;
                 const isWknd = date.getDay() === 0 || date.getDay() === 6;
 
-                // Streak shading intensity
                 const intensity = count === 0 ? 0
                   : count === 1 ? 0.25
                   : count <= 3 ? 0.50
@@ -537,14 +476,12 @@ function CalendarModal({ visible, notesByKey, onClose, onSelectDay }) {
                     onPress={() => { handleClose(); onSelectDay(key); }}
                     activeOpacity={0.7}
                   >
-                    {/* Today circle */}
                     {isToday && (
                       <View style={[cal.todayCircle, {
                         width: CELL_SIZE - 8, height: CELL_SIZE - 8,
                         borderRadius: (CELL_SIZE - 8) / 2,
                       }]} />
                     )}
-                    {/* Note streak fill — circle with opacity based on count */}
                     {count > 0 && !isToday && (
                       <View style={{
                         position: 'absolute',
@@ -568,7 +505,6 @@ function CalendarModal({ visible, notesByKey, onClose, onSelectDay }) {
               })}
             </Animated.View>
 
-            {/* Done button */}
             <TouchableOpacity style={cal.doneBtn} onPress={handleClose} activeOpacity={0.85}>
               <Text style={cal.doneTxt}>Done</Text>
             </TouchableOpacity>
@@ -627,7 +563,6 @@ function SessionModal({ visible, day, data, onClose }) {
 
           {/* Header — gradient with drag overlay on top */}
           <View style={{ position: 'relative' }}>
-            {/* Transparent overlay — captures drag across entire gradient header */}
             <View
               {...drag.overlayHandlers}
               style={sm.dragOverlay}
@@ -637,7 +572,6 @@ function SessionModal({ visible, day, data, onClose }) {
               colors={score >= 3 ? [C.heroTop, C.heroBot] : ['#1A1A2E', '#16213E']}
               style={sm.headerGrad}
             >
-              {/* Handle bar */}
               <View {...drag.panHandlers} style={sm.handleWrap}>
                 <View style={sm.handle} />
               </View>
@@ -672,7 +606,7 @@ function SessionModal({ visible, day, data, onClose }) {
                 </View>
               )}
             </LinearGradient>
-          </View>{/* end header area */}
+          </View>
 
           <ScrollView
             ref={scrollRef}
@@ -702,19 +636,16 @@ function SessionModal({ visible, day, data, onClose }) {
             {noteList.length > 0 && (
               <View style={sm.section}>
                 <Text style={sm.sectionTitle}>NOTES  ·  {noteList.length}</Text>
-                {noteList.slice(0, 5).map((n, i) => (
+                {noteList.map((n, i) => (
                   <View key={i} style={sm.noteRow}>
                     <Text style={sm.noteIcon}>{
                       n.type === 'quote' ? '💬' : n.type === 'insight' ? '💡' :
                       n.type === 'question' ? '🔍' : n.type === 'action' ? '✅' :
                       n.type === 'summary' ? '📌' : '🔗'
                     }</Text>
-                    <Text style={sm.noteText} numberOfLines={2}>{n.text}</Text>
+                    <Text style={sm.noteText}>{n.text}</Text>
                   </View>
                 ))}
-                {noteList.length > 5 && (
-                  <Text style={sm.noteMore}>+{noteList.length - 5} more</Text>
-                )}
               </View>
             )}
             {!isFuture && noteList.length === 0 && books.length === 0 && (
@@ -727,7 +658,7 @@ function SessionModal({ visible, day, data, onClose }) {
             <TouchableOpacity style={sm.closeBtn} onPress={handleClose} activeOpacity={0.8}>
               <Text style={sm.closeBtnTxt}>Close</Text>
             </TouchableOpacity>
-            <View style={{ height: 32 }} />
+            <View style={{ height: 80 }} />
           </ScrollView>
         </Animated.View>
       </View>
@@ -779,7 +710,7 @@ function DayPill({ day, isToday, isFuture, data, onPress }) {
 export function ReadingTimeline({ notes, cards, books }) {
   const scrollRef       = useRef(null);
   const [showCalendar, setShowCalendar] = useState(false);
-  const [sessionDay, setSessionDay]     = useState(null);   // index or null
+  const [sessionDay, setSessionDay]     = useState(null);
   const [sessionVisible, setSessionVisible] = useState(false);
 
   const today    = new Date();
@@ -824,7 +755,6 @@ export function ReadingTimeline({ notes, cards, books }) {
     return () => clearTimeout(t);
   }, []);
 
-  // FIX: open session — always reset visibility first so modal re-mounts
   const openSession = useCallback((index) => {
     setSessionVisible(false);
     setSessionDay(null);
@@ -846,7 +776,6 @@ export function ReadingTimeline({ notes, cards, books }) {
         const offset = Math.max(0, idx * (DAY_WIDTH + DAY_GAP) - SW * 0.4);
         scrollRef.current.scrollToOffset({ offset, animated: true });
       }
-      // Wait for calendar close animation (~220ms) then open session
       setTimeout(() => openSession(idx), 260);
     }
   }, [days, openSession]);
@@ -866,8 +795,6 @@ export function ReadingTimeline({ notes, cards, books }) {
           <Text style={t.legendTxt}>Notes</Text>
         </View>
       </View>
-
-
 
       <FlatList
         ref={scrollRef}
@@ -938,20 +865,17 @@ const dp = StyleSheet.create({
   monthLbl:     { fontSize: 7, color: C.amber, fontWeight: '700', letterSpacing: 0.3, height: 11, textAlign: 'center' },
 });
 
-const cal = StyleSheet.create({ 
-  // Sheet
+const cal = StyleSheet.create({
   overlay:   { flex: 1, justifyContent: 'flex-end' },
   backdrop:  { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.45)' },
   sheet:     { backgroundColor: '#FAFAFA', borderTopLeftRadius: 28, borderTopRightRadius: 28,
                maxHeight: SH * 0.88, shadowColor: '#000', shadowOffset: { width: 0, height: -6 },
                shadowOpacity: 0.1, shadowRadius: 20, elevation: 20 },
 
-  // Drag
   dragOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10 },
   handleWrap:  { paddingVertical: 14, alignItems: 'center' },
   handle:      { width: 40, height: 4, borderRadius: 2, backgroundColor: '#D1D1D6' },
 
-  // Top bar — month/year left, controls right
   topBar:      { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 16 },
   topBarLeft:  { flex: 1 },
   topBarRight: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: 4 },
@@ -963,7 +887,6 @@ const cal = StyleSheet.create({
   chevron:     { width: 32, height: 32, borderRadius: 16, backgroundColor: '#F2F2F7', alignItems: 'center', justifyContent: 'center' },
   chevronTxt:  { fontSize: 18, color: '#1C1C1E', lineHeight: 22 },
 
-  // Month picker
   monthGrid:   { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, paddingBottom: 8, gap: 8 },
   monthCell:   { width: (SW - 80) / 4, paddingVertical: 10, borderRadius: 12, alignItems: 'center', backgroundColor: '#F2F2F7' },
   monthCellOn: { backgroundColor: '#1C1C1E' },
@@ -972,7 +895,6 @@ const cal = StyleSheet.create({
   yearRow:     { width: '100%', paddingVertical: 10, alignItems: 'center' },
   yearRowTxt:  { fontSize: 13, color: C.amber, fontWeight: '600' },
 
-  // Year picker
   yearPickerWrap: { maxHeight: 200, marginHorizontal: 16, marginBottom: 8, borderRadius: 16,
                     backgroundColor: '#F2F2F7', overflow: 'hidden' },
   yearItem:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, height: 44 },
@@ -981,37 +903,23 @@ const cal = StyleSheet.create({
   yearItemTxtOn: { color: C.amber, fontWeight: '700' },
   yearCheck:   { fontSize: 14, color: C.amber, fontWeight: '700' },
 
-  // Day headers
   dowRow:    { flexDirection: 'row', paddingHorizontal: 16, paddingBottom: 8 },
   dowTxt:    { flex: 1, textAlign: 'center', fontSize: 11, fontWeight: '700', color: '#8E8E93', letterSpacing: 0.5 },
   dowWknd:   { color: '#FF3B30' },
 
   sep: { height: 0.5, backgroundColor: '#E5E5EA', marginHorizontal: 16 },
 
-  // Grid
   grid:      { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, paddingTop: 6, paddingBottom: 8 },
   cell:      { alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
-  heatBg:    { position: 'absolute', borderRadius: 10 },
   todayCircle: { position: 'absolute', backgroundColor: C.amber },
   dayNum:    { fontSize: 16, fontWeight: '400', color: '#1C1C1E', zIndex: 1 },
   dayNumToday: { color: '#FFFFFF', fontWeight: '800' },
   dayNumWknd:  { color: '#FF3B30' },
   dayNumFuture:{ color: '#C7C7CC' },
-  dayNumActive:{ fontWeight: '700', color: '#1C1C1E' },
-  actDot:    { width: 4, height: 4, borderRadius: 2, backgroundColor: C.amber, marginTop: 2, zIndex: 1 },
 
-  // Stats
-  statsRow:   { flexDirection: 'row', marginHorizontal: 16, marginTop: 16, backgroundColor: '#F2F2F7', borderRadius: 20, overflow: 'hidden' },
-  statPill:   { flex: 1, alignItems: 'center', paddingVertical: 16 },
-  statDivider:{ width: 0.5, backgroundColor: '#C7C7CC' },
-  statBig:    { fontSize: 28, fontWeight: '800', color: '#1C1C1E', letterSpacing: -1 },
-  statSub:    { fontSize: 11, color: '#8E8E93', marginTop: 2, fontWeight: '500' },
-
-  // Done
   doneBtn:    { marginHorizontal: 16, marginTop: 14, backgroundColor: '#1C1C1E', borderRadius: 16, paddingVertical: 15, alignItems: 'center' },
   doneTxt:    { color: '#FFFFFF', fontSize: 16, fontWeight: '700', letterSpacing: -0.3 },
 
-  // Stats header
   statsHeader:    { paddingHorizontal: 16, paddingVertical: 12, gap: 12 },
   statsLeft:      { flexDirection: 'row', gap: 10 },
   statBubble:     { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#F2F2F7', borderRadius: 14, paddingHorizontal: 12, paddingVertical: 10 },
@@ -1028,23 +936,13 @@ const cal = StyleSheet.create({
   rangeStatDiv:   { width: 0.5, backgroundColor: '#C7C7CC' },
   rangeStatNum:   { fontSize: 22, fontWeight: '800', color: '#1C1C1E', letterSpacing: -0.5 },
   rangeStatLbl:   { fontSize: 10, color: '#8E8E93', fontWeight: '500', marginTop: 2 },
-
-  // Legacy stubs to avoid undefined ref errors
-  navPill: {}, navPillActive: {}, navPillTxt: {}, navPillTxtActive: {}, navPillChevron: {},
-  pickerGrid: {}, pickerGridCell: {}, pickerGridCellActive: {}, pickerGridTxt: {}, pickerGridTxtActive: {},
-  header: {}, navRow: {}, navBtn: {}, navArrow: '', dayNamesRow: {}, dayNameHdr: {},
-  divider: {}, body: {}, cellInner: {}, cellToday: {}, cellFuture: {}, cellTxt: {},
-  cellTxtToday: {}, cellTxtFuture: {}, countDot: {}, summaryRow: {}, summaryStat: {},
-  summaryDivider: {}, summaryNum: {}, summaryLbl: {}, closeBtn: {}, closeBtnTxt: {},
-  yearPickerScroll: {}, yearPickerRow: {}, yearPickerRowActive: {}, yearPickerRowTxt: {},
-  yearPickerRowTxtActive: {}, yearPickerCheck: {}, yearPill: {}, yearPillActive: {},
-  yearPillTxt: {}, yearPillTxtActive: {},
 });
 
 const sm = StyleSheet.create({
   overlay:  { flex: 1, justifyContent: 'flex-end' },
   backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.45)' },
-  sheet:    { backgroundColor: C.paper, borderTopLeftRadius: 26, borderTopRightRadius: 26, maxHeight: SH * 0.82 },
+  // CHANGED: maxHeight → height, 0.82 → 0.92 — sheet now fills 92% of screen
+  sheet:    { backgroundColor: C.paper, borderTopLeftRadius: 26, borderTopRightRadius: 26, height: SH * 0.92 },
   handle:    { width: 44, height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.4)', alignSelf: 'center' },
   handleWrap:{ paddingVertical: 16, alignItems: 'center' },
   dragOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10 },
@@ -1058,7 +956,8 @@ const sm = StyleSheet.create({
   stat:       { flex: 1, alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.08)', paddingVertical: 10, borderRadius: 10 },
   statNum:    { fontSize: 22, fontWeight: '800', color: C.white },
   statLbl:    { fontSize: 10, color: 'rgba(255,255,255,0.45)', marginTop: 2 },
-  body:       { paddingHorizontal: 20 },
+  // CHANGED: added flex: 1 — body fills remaining sheet space and scrolls
+  body:       { flex: 1, paddingHorizontal: 20 },
   reflCard:   { backgroundColor: C.amberPale, borderRadius: 14, padding: 14, marginTop: 18, marginBottom: 14, borderWidth: 1, borderColor: 'rgba(217,119,6,0.12)' },
   reflLabel:  { fontSize: 11, fontWeight: '700', color: C.amber, letterSpacing: 0.5, marginBottom: 6 },
   reflText:   { fontSize: 14, color: C.inkSoft, lineHeight: 21 },
@@ -1068,10 +967,10 @@ const sm = StyleSheet.create({
   bookDot:    { width: 7, height: 7, borderRadius: 4, backgroundColor: C.amber },
   bookTitle:  { fontSize: 14, fontWeight: '600', color: C.ink },
   bookAuthor: { fontSize: 11, color: C.inkMuted },
-  noteRow:    { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 8, backgroundColor: C.cream, borderRadius: 10, padding: 10 },
-  noteIcon:   { fontSize: 14 },
-  noteText:   { flex: 1, fontSize: 13, color: C.inkSoft, lineHeight: 19 },
-  noteMore:   { fontSize: 12, color: C.inkMuted, textAlign: 'center', marginTop: 4 },
+  noteRow:    { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 8, backgroundColor: C.cream, borderRadius: 10, padding: 12 },
+  noteIcon:   { fontSize: 14, marginTop: 2 },
+  // CHANGED: removed numberOfLines truncation (in JSX) and improved line height
+  noteText:   { flex: 1, fontSize: 13, color: C.inkSoft, lineHeight: 20 },
   empty:      { alignItems: 'center', paddingTop: 28, paddingBottom: 12 },
   emptyIcon:  { fontSize: 34, marginBottom: 8 },
   emptyTxt:   { fontSize: 14, fontWeight: '600', color: C.ink, marginBottom: 4 },
