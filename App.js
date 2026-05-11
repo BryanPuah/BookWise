@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
-import { View, StyleSheet, ActivityIndicator } from 'react-native';
+import {
+  View, Text, StyleSheet, ActivityIndicator, TouchableOpacity,
+} from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import {
@@ -17,7 +19,7 @@ import { BookDetailScreen }    from './src/screens/BookDetailScreen';
 import { NotesScreen }         from './src/screens/NotesScreen';
 import { ReviewScreen }        from './src/screens/ReviewScreen';
 import { DiscoverScreen }      from './src/screens/DiscoverScreen';
-import { AddNoteModal }        from './src/components/AddNoteModal';
+import { RichNoteEditor }      from './src/components/RichNoteEditor';
 import { C } from './src/theme';
 
 const Tab   = createBottomTabNavigator();
@@ -43,30 +45,70 @@ function DiscoverStack() {
   );
 }
 
-// ── Tab icon — Figma uses sage-pale pill behind active icon ───────────
-function TabIcon({ name, nameActive, active }) {
+// ── Tab item — icon + label, sage pill behind both when active ────────
+function TabItem({ name, nameActive, label, active }) {
   const iconName  = active ? nameActive : name;
   const iconColor = active ? C.ink : C.inkMuted;
 
   return (
-    <View style={ti.wrap}>
-      {active && <View style={ti.pill} />}
-      <View style={ti.iconWrap}>
-        <Ionicons name={iconName} size={24} color={iconColor} />
-      </View>
+    <View style={[ti.item, active && ti.itemActive]}>
+      <Ionicons name={iconName} size={20} color={iconColor} />
+      <Text style={[ti.label, active && ti.labelActive]}>{label}</Text>
     </View>
   );
 }
 
 const ti = StyleSheet.create({
-  wrap:     { alignItems: 'center', width: 52, paddingTop: 6 },
-  pill:     {
-    position: 'absolute', top: 2,
-    width: 44, height: 30,
-    backgroundColor: C.sagePale,
-    borderRadius: 10,
+  item: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 14,
+    gap: 3,
   },
-  iconWrap: { position: 'relative' },
+  itemActive: {
+    backgroundColor: C.sagePale,
+  },
+  label: {
+    fontSize: 10,
+    color: C.inkMuted,
+    fontWeight: '500',
+  },
+  labelActive: {
+    color: C.ink,
+    fontWeight: '600',
+  },
+});
+
+// ── Floating "+" FAB ──────────────────────────────────────────────────
+function CaptureFAB({ onPress }) {
+  return (
+    <TouchableOpacity
+      style={fab.btn}
+      onPress={onPress}
+      activeOpacity={0.85}
+    >
+      <Ionicons name="add" size={28} color={C.white} />
+    </TouchableOpacity>
+  );
+}
+
+const fab = StyleSheet.create({
+  btn: {
+    position: 'absolute',
+    right: 20,
+    bottom: 96, // sits above the tab bar
+    width: 56, height: 56,
+    borderRadius: 14, // rounded-square per Figma
+    backgroundColor: C.ink,
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.22,
+    shadowRadius: 12,
+    elevation: 10,
+  },
 });
 
 // ── Tab navigator ──────────────────────────────────────────────────────
@@ -79,11 +121,14 @@ function Tabs() {
       id:        Date.now().toString(),
       bookId:    data.bookId,
       bookTitle: data.bookTitle,
+      title:     data.title || '',
+      blocks:    data.blocks || [],
+      types:     data.types || [data.type || 'insight'],
       type:      data.type,
       text:      data.text,
-      thinking:  data.thinking,
-      page:      data.page,
-      chapter:   data.chapter,
+      thinking:  data.thinking || '',
+      page:      data.page || '',
+      chapter:   data.chapter || '',
       isQuote:   data.type === 'quote',
       starred:   false,
       date:      new Date().toISOString().slice(0, 10),
@@ -91,7 +136,7 @@ function Tabs() {
   };
 
   return (
-    <>
+    <View style={{ flex: 1 }}>
       <Tab.Navigator
         id="MainTabs"
         screenOptions={{
@@ -101,15 +146,15 @@ function Tabs() {
             borderTopWidth: 0.5,
             borderTopColor: C.border,
             height: 78,
-            paddingBottom: 10,
-            paddingTop: 4,
+            paddingBottom: 14,
+            paddingTop: 8,
             shadowColor: '#000',
             shadowOffset: { width: 0, height: -3 },
             shadowOpacity: 0.06,
             shadowRadius: 12,
             elevation: 16,
           },
-          tabBarShowLabel: false,
+          tabBarShowLabel: false, // our TabItem handles its own label
         }}
       >
         <Tab.Screen
@@ -117,7 +162,7 @@ function Tabs() {
           component={LibraryStack}
           options={{
             tabBarIcon: ({ focused }) => (
-              <TabIcon name="home-outline" nameActive="home" active={focused} />
+              <TabItem name="newspaper-outline" nameActive="newspaper" label="Library" active={focused} />
             ),
           }}
         />
@@ -126,24 +171,7 @@ function Tabs() {
           component={DiscoverStack}
           options={{
             tabBarIcon: ({ focused }) => (
-              <TabIcon name="search-outline" nameActive="search" active={focused} />
-            ),
-          }}
-        />
-        {/* Capture tab — opens AddNoteModal directly. ReviewScreen is a
-            placeholder; the listener preventDefault stops it rendering. */}
-        <Tab.Screen
-          name="Capture"
-          component={ReviewScreen}
-          listeners={{
-            tabPress: (e) => {
-              e.preventDefault();
-              setShowCapture(true);
-            },
-          }}
-          options={{
-            tabBarIcon: ({ focused }) => (
-              <TabIcon name="add-outline" nameActive="add" active={focused} />
+              <TabItem name="search-outline" nameActive="search" label="Explore" active={focused} />
             ),
           }}
         />
@@ -152,19 +180,31 @@ function Tabs() {
           component={NotesScreen}
           options={{
             tabBarIcon: ({ focused }) => (
-              <TabIcon name="create-outline" nameActive="create" active={focused} />
+              <TabItem name="reader-outline" nameActive="reader" label="Notes" active={focused} />
+            ),
+          }}
+        />
+        <Tab.Screen
+          name="Profile"
+          component={ReviewScreen}
+          options={{
+            tabBarIcon: ({ focused }) => (
+              <TabItem name="person-outline" nameActive="person" label="Profile" active={focused} />
             ),
           }}
         />
       </Tab.Navigator>
 
-      <AddNoteModal
+      <CaptureFAB onPress={() => setShowCapture(true)} />
+
+      <RichNoteEditor
         visible={showCapture}
         books={books}
-        onSave={handleSave}
+        initialNote={null}
+        onSave={(data) => { handleSave(data); setShowCapture(false); }}
         onClose={() => setShowCapture(false)}
       />
-    </>
+    </View>
   );
 }
 
