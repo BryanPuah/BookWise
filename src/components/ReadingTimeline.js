@@ -2,10 +2,13 @@ import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react'
 import {
   View, Text, TouchableOpacity, StyleSheet,
   Modal, Animated, Dimensions, FlatList, ScrollView,
-  PanResponder,
+  PanResponder, TextInput,
 } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { C } from '../theme';
+import { useStore } from '../store';
+import { GoalEditor } from '../screens/GoalsScreen';
+import { C, F } from '../theme';
 
 const { width: SW, height: SH } = Dimensions.get('window');
 const DAY_WIDTH  = 50;
@@ -152,26 +155,309 @@ function useDragToDismiss({ onClose }) {
   };
 }
 
-// ── Full Calendar Modal ────────────────────────────────────────────────
+// ── Calendar Modal — clean iOS-style date picker ─────────────────────
+// ── Year + Month picker — two vertical scroll columns, taps to confirm ──
+// Used inside CalendarModal. When the user taps the calendar's title, the
+// day grid is replaced by this component. Tapping a year updates the year
+// in the parent (and the picker stays open so they can pick a month).
+// Tapping a month commits the change and dismisses the picker.
+function YearMonthPicker({ selectedYear, selectedMonth, onPickYear, onPickMonth, onCenterChange, height }) {
+  const yearScrollRef = useRef(null);
+  const monthScrollRef = useRef(null);
+  const ROW_HEIGHT = 44;
+  // Default to ~6 rows visible; caller can pass a taller value when the
+  // calendar sheet is expanded so more rows are visible at once.
+  const PICKER_HEIGHT = height ?? 264;
+
+  // Build a year range — 60 back through 60 forward — generous but not unwieldy.
+  // The current year sits in the middle so scrolling either way works.
+  const thisYear = new Date().getFullYear();
+  const years = useMemo(() => {
+    const arr = [];
+    for (let y = thisYear - 60; y <= thisYear + 60; y++) arr.push(y);
+    return arr;
+  }, [thisYear]);
+
+  // Which row is currently centred in each scroll view (visual highlight only).
+  // Starts at the committed selection so the initial paint shows the right row.
+  const [centeredYearIdx,  setCenteredYearIdx]  = useState(years.indexOf(selectedYear));
+  const [centeredMonthIdx, setCenteredMonthIdx] = useState(selectedMonth);
+
+  // Convert a scroll offset to the index of the row centred in the viewport.
+  const offsetToIndex = (offset, maxIdx) => {
+    const idx = Math.round(offset / ROW_HEIGHT);
+    return Math.max(0, Math.min(maxIdx, idx));
+  };
+
+  const onYearScroll = (e) => {
+    const idx = offsetToIndex(e.nativeEvent.contentOffset.y, years.length - 1);
+    if (idx !== centeredYearIdx) {
+      setCenteredYearIdx(idx);
+      onCenterChange?.(years[idx], centeredMonthIdx);
+    }
+  };
+  const onMonthScroll = (e) => {
+    const idx = offsetToIndex(e.nativeEvent.contentOffset.y, 11);
+    if (idx !== centeredMonthIdx) {
+      setCenteredMonthIdx(idx);
+      onCenterChange?.(years[centeredYearIdx], idx);
+    }
+  };
+
+  // Auto-scroll to selections when the picker opens, and re-centre whenever
+  // the picker height changes (e.g. when the sheet expands)
+  useEffect(() => {
+    const idx = years.indexOf(selectedYear);
+    if (idx >= 0 && yearScrollRef.current) {
+      const offset = idx * ROW_HEIGHT;
+      setTimeout(() => yearScrollRef.current?.scrollTo({ y: offset, animated: false }), 30);
+    }
+    if (monthScrollRef.current) {
+      const offset = selectedMonth * ROW_HEIGHT;
+      setTimeout(() => monthScrollRef.current?.scrollTo({ y: offset, animated: false }), 30);
+    }
+  }, [PICKER_HEIGHT]);
+
+  return (
+    <View style={ymp.wrap}>
+      <View style={ymp.columns}>
+        {/* Years */}
+        <ScrollView
+          ref={yearScrollRef}
+          showsVerticalScrollIndicator={false}
+          style={[ymp.column, { height: PICKER_HEIGHT }]}
+          contentContainerStyle={{ paddingVertical: PICKER_HEIGHT / 2 - ROW_HEIGHT / 2 }}
+          onScroll={onYearScroll}
+          scrollEventThrottle={16}
+          snapToInterval={ROW_HEIGHT}
+          decelerationRate="fast"
+        >
+          {years.map((y, i) => (
+            <TouchableOpacity
+              key={y}
+              style={[ymp.row, { height: ROW_HEIGHT }]}
+              onPress={() => onPickYear(y)}
+              activeOpacity={0.6}
+            >
+              <Text style={[
+                ymp.rowTxt,
+                i === centeredYearIdx && ymp.rowTxtActive,
+              ]}>
+                {y}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        <View style={ymp.divider} />
+
+        {/* Months */}
+        <ScrollView
+          ref={monthScrollRef}
+          showsVerticalScrollIndicator={false}
+          style={[ymp.column, { height: PICKER_HEIGHT }]}
+          contentContainerStyle={{ paddingVertical: PICKER_HEIGHT / 2 - ROW_HEIGHT / 2 }}
+          onScroll={onMonthScroll}
+          scrollEventThrottle={16}
+          snapToInterval={ROW_HEIGHT}
+          decelerationRate="fast"
+        >
+          {MONTH_NAMES_FULL.map((name, i) => (
+            <TouchableOpacity
+              key={name}
+              style={[ymp.row, { height: ROW_HEIGHT }]}
+              onPress={() => onPickMonth(i)}
+              activeOpacity={0.6}
+            >
+              <Text style={[
+                ymp.rowTxt,
+                i === centeredMonthIdx && ymp.rowTxtActive,
+              ]}>
+                {name}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+
+      {/* Centre indicator — two thin horizontal lines bracketing the centred row.
+          Classic iOS UIPickerView pattern. Lines span the full picker width
+          (both columns) so the centred year and month are visually paired. */}
+      <View style={[ymp.centreLine, {
+        top: PICKER_HEIGHT / 2 - ROW_HEIGHT / 2,
+      }]} pointerEvents="none" />
+      <View style={[ymp.centreLine, {
+        top: PICKER_HEIGHT / 2 + ROW_HEIGHT / 2,
+      }]} pointerEvents="none" />
+    </View>
+  );
+}
+
+const ymp = StyleSheet.create({
+  wrap: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    position: 'relative',
+  },
+  columns: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 0,
+  },
+  column: {
+    flex: 1,
+  },
+  row: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rowTxt: {
+    fontSize: 16,
+    color: C.inkFaint,
+    fontWeight: '500',
+  },
+  rowTxtActive: {
+    color: C.ink,
+    fontWeight: '700',
+    fontSize: 18,
+  },
+  divider: {
+    width: 0.5,
+    height: '100%',
+    backgroundColor: C.border,
+  },
+  centreLine: {
+    position: 'absolute',
+    left: 20, right: 20,
+    height: 0.5,
+    backgroundColor: C.borderMid,
+  },
+});
+
+
 function CalendarModal({ visible, notesByKey, onClose, onSelectDay }) {
   const today = new Date();
   const [viewYear, setViewYear]   = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
-  const scrollRef = useRef(null);
+  const [selectedKey, setSelectedKey] = useState(null);
+  // When true, the day grid swaps out for the year + month picker.
+  const [pickerOpen, setPickerOpen] = useState(false);
+  // Tracks the row currently centred in the picker (driven by scrolling).
+  // Done button commits these values; abandon picker without committing
+  // by tapping the title again.
+  const [pendingYear,  setPendingYear]  = useState(today.getFullYear());
+  const [pendingMonth, setPendingMonth] = useState(today.getMonth());
+  // Expanded state — when true, calendar sheet grows to ~92% screen height.
+  // Toggled by dragging the handle up (to expand) or down (to collapse).
+  const [expanded, setExpanded] = useState(false);
   const drag = useDragToDismiss({ onClose });
+
+  // Sheet height — animated between compact and expanded values.
+  // Driven entirely by the drag handler (no useEffect animation) to avoid
+  // running animations on non-attached nodes during mount/visibility flips.
+  const COMPACT_HEIGHT  = SH * 0.62;
+  const EXPANDED_HEIGHT = SH * 0.92;
+  const sheetHeight = useRef(new Animated.Value(COMPACT_HEIGHT)).current;
+  // Keep `expanded` in a ref so the PanResponder (created once) can read the
+  // latest value without stale-closure bugs.
+  const expandedRef = useRef(expanded);
+  expandedRef.current = expanded;
+
+  // Animate height to the compact/expanded value. Used by gesture release.
+  const springTo = (toValue) => {
+    Animated.spring(sheetHeight, {
+      toValue,
+      useNativeDriver: false,
+      tension: 80,
+      friction: 13,
+    }).start();
+  };
+
+  // Custom pan responder on the drag handle.
+  // - Drag UP past threshold  → expand (or stay expanded)
+  // - Drag DOWN past threshold while EXPANDED → collapse to compact
+  // - Drag DOWN past threshold while COMPACT  → dismiss the modal
+  //
+  // CRITICAL: we capture the start height once on grant, then compute the
+  // target height from (startHeight - g.dy) on each move. g.dy is cumulative
+  // from the start of the gesture, so this gives a consistent reading. Doing
+  // (sheetHeight.__getValue() - g.dy) on every move drifts catastrophically
+  // because the value updates each tick — that was the source of the jank.
+  const dragStartHeight = useRef(COMPACT_HEIGHT);
+  const lastMoveTime    = useRef(0);
+
+  const handlePR = useRef(PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dy) > 4,
+    onPanResponderGrant: () => {
+      // Snapshot the height at the moment the gesture starts
+      dragStartHeight.current = sheetHeight.__getValue();
+      lastMoveTime.current = 0;
+    },
+    onPanResponderMove: (_, g) => {
+      // Throttle to ~60fps so we don't flood the JS-native bridge
+      const now = Date.now();
+      if (now - lastMoveTime.current < 16) return;
+      lastMoveTime.current = now;
+
+      const next = Math.max(
+        COMPACT_HEIGHT * 0.5,
+        Math.min(EXPANDED_HEIGHT, dragStartHeight.current - g.dy),
+      );
+      sheetHeight.setValue(next);
+    },
+    onPanResponderRelease: (_, g) => {
+      // Decide using actual finger displacement, not animated value drift
+      if (g.dy < -50) {
+        setExpanded(true);
+        springTo(EXPANDED_HEIGHT);
+      } else if (g.dy > 80) {
+        if (expandedRef.current) {
+          setExpanded(false);
+          springTo(COMPACT_HEIGHT);
+        } else {
+          drag.dismiss(() => onClose());
+        }
+      } else {
+        // Small drag — snap back to whichever state we were in
+        springTo(expandedRef.current ? EXPANDED_HEIGHT : COMPACT_HEIGHT);
+      }
+    },
+  })).current;
 
   useEffect(() => {
     if (visible) {
       setViewYear(today.getFullYear());
       setViewMonth(today.getMonth());
+      setSelectedKey(null);
+      setPickerOpen(false);
+      setExpanded(false);
+      sheetHeight.setValue(COMPACT_HEIGHT);
       drag.open();
     }
   }, [visible]);
 
   const handleClose = () => {
-    drag.dismiss(() => {
-      onClose();
-    });
+    drag.dismiss(() => onClose());
+  };
+
+  const goToday = () => {
+    setViewYear(today.getFullYear());
+    setViewMonth(today.getMonth());
+  };
+
+  // Open the picker — seed pending values from current view
+  const openPicker = () => {
+    setPendingYear(viewYear);
+    setPendingMonth(viewMonth);
+    setPickerOpen(true);
+  };
+
+  // Commit the pending year/month and return to day grid
+  const handlePickerDone = () => {
+    setViewYear(pendingYear);
+    setViewMonth(pendingMonth);
+    setPickerOpen(false);
   };
 
   const prevMonth = () => {
@@ -183,6 +469,7 @@ function CalendarModal({ visible, notesByKey, onClose, onSelectDay }) {
     else setViewMonth(m => m + 1);
   };
 
+  // Build the calendar grid for the current month
   const calDays = useMemo(() => {
     const firstDay    = new Date(viewYear, viewMonth, 1).getDay();
     const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
@@ -191,480 +478,612 @@ function CalendarModal({ visible, notesByKey, onClose, onSelectDay }) {
     for (let d = 1; d <= daysInMonth; d++) {
       const date    = new Date(viewYear, viewMonth, d);
       const key     = dateKey(date);
-      const count   = notesByKey[key] || 0;
       const isToday = key === dateKey(today);
       const isFuture = date > today;
-      grid.push({ date, key, count, isToday, isFuture });
+      grid.push({ date, key, isToday, isFuture });
     }
     return grid;
-  }, [viewYear, viewMonth, notesByKey]);
+  }, [viewYear, viewMonth]);
 
-  const maxCount = useMemo(() =>
-    Math.max(1, ...Object.values(notesByKey)), [notesByKey]);
+  const handleDayPress = (key) => {
+    setSelectedKey(key);
+    // Brief moment so the user sees the selection highlight, then dismiss
+    // and notify the parent. We start the dismiss animation but also call
+    // onSelectDay on a timer so the parent navigates regardless of whether
+    // the animation's completion callback fires.
+    setTimeout(() => {
+      drag.dismiss(() => {});
+      onSelectDay(key);
+    }, 120);
+  };
 
-  const RANGES = [
-    { id: '7d',    label: '7D' },
-    { id: '30d',   label: '30D' },
-    { id: 'month', label: 'Month' },
-    { id: 'ytd',   label: 'YTD' },
-  ];
-  const [activeRange, setActiveRange] = useState('month');
+  // Width-derived minimum cell size — keeps cells square at minimum.
+  const MIN_CELL_SIZE = Math.floor((SW - 32) / 7);
 
-  const rangeFilter = useCallback((key) => {
-    const d     = new Date(key);
-    const now   = new Date();
-    const start = new Date(now); start.setHours(0,0,0,0);
-    if (activeRange === '7d') {
-      start.setDate(start.getDate() - 6);
-      return d >= start;
-    }
-    if (activeRange === '30d') {
-      start.setDate(start.getDate() - 29);
-      return d >= start;
-    }
-    if (activeRange === 'month') {
-      return d.getFullYear() === viewYear && d.getMonth() === viewMonth;
-    }
-    if (activeRange === 'ytd') {
-      return d.getFullYear() === now.getFullYear();
-    }
-    return false;
-  }, [activeRange, viewYear, viewMonth]);
+  // Dynamic cell size that grows with the sheet height. We listen to the
+  // animated sheetHeight value and track its current value in React state.
+  // The grid below subtracts fixed overhead (handle, top bar, weekday row,
+  // bottom padding) and splits the remainder across 6 rows.
+  const GRID_OVERHEAD = 200; // ≈ handle 22 + topBar 56 + sep 1 + monthBar 44 + dowRow 28 + bottomPad 24 + buffer
+  const [cellSize, setCellSize] = useState(MIN_CELL_SIZE);
 
-  const rangeNotes = useMemo(() =>
-    Object.entries(notesByKey)
-      .filter(([k]) => rangeFilter(k))
-      .reduce((acc, [, v]) => acc + v, 0),
-  [notesByKey, rangeFilter]);
+  useEffect(() => {
+    const id = sheetHeight.addListener(({ value }) => {
+      // Available height for the 6-row grid
+      const available = value - GRID_OVERHEAD;
+      const newCell = Math.max(MIN_CELL_SIZE, Math.floor(available / 6));
+      // Update only on meaningful change to avoid render thrash
+      setCellSize(prev => Math.abs(prev - newCell) >= 1 ? newCell : prev);
+    });
+    return () => sheetHeight.removeListener(id);
+  }, []);
 
-  const activeDaysInRange = useMemo(() =>
-    Object.keys(notesByKey).filter(k => notesByKey[k] > 0 && rangeFilter(k)).length,
-  [notesByKey, rangeFilter]);
-
-  const activeDaysThisWeek = useMemo(() => {
-    const now = new Date(); now.setHours(0,0,0,0);
-    const mon = new Date(now);
-    mon.setDate(now.getDate() - ((now.getDay() + 6) % 7));
-    return Object.keys(notesByKey).filter(k => {
-      const d = new Date(k);
-      return d >= mon && d <= now && notesByKey[k] > 0;
-    }).length;
-  }, [notesByKey]);
-
-  const currentStreak = useMemo(() => {
-    let streak = 0;
-    const cursor = new Date(); cursor.setHours(0,0,0,0);
-    if (!notesByKey[dateKey(cursor)]) cursor.setDate(cursor.getDate() - 1);
-    while (notesByKey[dateKey(cursor)]) {
-      streak++;
-      cursor.setDate(cursor.getDate() - 1);
-    }
-    return streak;
-  }, [notesByKey]);
-
-  const [showYearPicker, setShowYearPicker]   = useState(false);
-  const [showMonthPicker, setShowMonthPicker] = useState(false);
-  const yearScrollRef  = useRef(null);
-  const swipeAnim      = useRef(new Animated.Value(0)).current;
-  const years = [];
-  for (let y = 1900; y <= today.getFullYear() + 10; y++) years.push(y);
-
-  const swipeX = useRef(0);
-  const swipePR = useRef(PanResponder.create({
-    onStartShouldSetPanResponder: () => false,
-    onMoveShouldSetPanResponder: (_, g) =>
-      Math.abs(g.dx) > 8 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
-    onPanResponderGrant: () => { swipeX.current = 0; },
-    onPanResponderMove: (_, g) => {
-      swipeAnim.setValue(g.dx);
-    },
-    onPanResponderRelease: (_, g) => {
-      const THRESHOLD = SW * 0.25;
-      if (g.dx < -THRESHOLD || (g.vx < -0.5 && g.dx < -20)) {
-        Animated.timing(swipeAnim, { toValue: -SW, duration: 180, useNativeDriver: true }).start(() => {
-          nextMonth();
-          swipeAnim.setValue(SW);
-          Animated.spring(swipeAnim, { toValue: 0, tension: 100, friction: 14, useNativeDriver: true }).start();
-        });
-      } else if (g.dx > THRESHOLD || (g.vx > 0.5 && g.dx > 20)) {
-        Animated.timing(swipeAnim, { toValue: SW, duration: 180, useNativeDriver: true }).start(() => {
-          prevMonth();
-          swipeAnim.setValue(-SW);
-          Animated.spring(swipeAnim, { toValue: 0, tension: 100, friction: 14, useNativeDriver: true }).start();
-        });
-      } else {
-        Animated.spring(swipeAnim, { toValue: 0, tension: 120, friction: 14, useNativeDriver: true }).start();
-      }
-    },
-    onPanResponderTerminate: () => {
-      Animated.spring(swipeAnim, { toValue: 0, tension: 120, friction: 14, useNativeDriver: true }).start();
-    },
-  })).current;
-
-  const CELL_SIZE = Math.floor((SW - 32) / 7);
+  const CELL_SIZE = cellSize;
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={handleClose}>
       <View style={cal.overlay}>
         <Animated.View style={[cal.backdrop, { opacity: drag.backdropOpacity }]} pointerEvents="none" />
         <TouchableOpacity style={StyleSheet.absoluteFill} onPress={handleClose} activeOpacity={1} />
-        <Animated.View style={[cal.sheet, { transform: [{ translateY: drag.translateY }] }]}>
 
-          <View style={{ position: 'relative' }}>
-            <View {...drag.overlayHandlers} style={cal.dragOverlay} pointerEvents="box-none" />
-
-            <View {...drag.panHandlers} style={cal.handleWrap}>
-              <View style={cal.handle} />
-            </View>
-
-            <View style={cal.topBar}>
-              <View style={cal.topBarLeft}>
-                <TouchableOpacity
-                  style={cal.monthYearBtn}
-                  onPress={() => { setShowMonthPicker(v=>!v); setShowYearPicker(false); }}
-                  activeOpacity={0.75}
-                >
-                  <Text style={cal.monthBig}>{MONTH_NAMES_FULL[viewMonth]}</Text>
-                  <Text style={cal.yearSmall}>{viewYear}  {showMonthPicker ? '▴' : '▾'}</Text>
-                </TouchableOpacity>
+        {/* Outer wrapper handles native-driven translateY (used for the
+            open/dismiss animations). Inner wrapper handles JS-driven height
+            (used for the drag-up expand). Splitting these prevents the
+            "native + non-native driver on same node" runtime error. */}
+        <Animated.View
+          style={[
+            cal.sheetOuter,
+            { transform: [{ translateY: drag.translateY }] },
+          ]}
+        >
+          <Animated.View style={[cal.sheet, { height: sheetHeight }]}>
+            {/* Header block — handle + topBar + monthBar + weekday row.
+                The pan responder sits on this wrapper so the user can grab
+                anywhere in the header to drag the sheet up or down. Taps on
+                inner buttons (Cancel, title, Today, chevrons) still work
+                because the pan only activates after >4px of motion. */}
+            <View {...handlePR.panHandlers} style={cal.headerArea}>
+              {/* Drag handle — visual grip indicator */}
+              <View style={cal.handleWrap}>
+                <View style={cal.handle} />
               </View>
 
-              <View style={cal.topBarRight}>
-                <TouchableOpacity
-                  style={cal.todayChip}
-                  onPress={() => { setViewYear(today.getFullYear()); setViewMonth(today.getMonth()); setShowMonthPicker(false); setShowYearPicker(false); }}
-                  activeOpacity={0.75}
-                >
-                  <Text style={cal.todayChipTxt}>Today</Text>
+              {/* Top bar — Cancel · Select a Date (tap to open year/month picker) · Today/Done */}
+              <View style={cal.topBar}>
+                <TouchableOpacity onPress={handleClose} activeOpacity={0.6}>
+                <Text style={cal.cancel}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => pickerOpen ? setPickerOpen(false) : openPicker()}
+                activeOpacity={0.6}
+                hitSlop={{ top: 6, bottom: 6, left: 12, right: 12 }}
+                style={cal.titleBtn}
+              >
+                <Text style={cal.title}>
+                  {pickerOpen ? 'Pick a Month' : 'Select a Date'}
+                </Text>
+                <Text style={cal.titleChev}>{pickerOpen ? ' ⌃' : ' ⌄'}</Text>
+              </TouchableOpacity>
+              {pickerOpen ? (
+                <TouchableOpacity onPress={handlePickerDone} activeOpacity={0.6}>
+                  <Text style={cal.done}>Done</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={prevMonth} style={cal.chevron} activeOpacity={0.6}>
+              ) : (
+                <TouchableOpacity onPress={goToday} activeOpacity={0.6}>
+                  <Text style={cal.today}>Today</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <View style={cal.sep} />
+
+            {/* Month label + chevrons */}
+            <View style={cal.monthBar}>
+              <Text style={cal.monthLbl}>
+                {MONTH_NAMES_SHORT[viewMonth]} {viewYear}
+              </Text>
+              <View style={cal.chevronRow}>
+                <TouchableOpacity onPress={prevMonth} style={cal.chevron} activeOpacity={0.5}>
                   <Text style={cal.chevronTxt}>‹</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={nextMonth} style={cal.chevron} activeOpacity={0.6}>
+                <TouchableOpacity onPress={nextMonth} style={cal.chevron} activeOpacity={0.5}>
                   <Text style={cal.chevronTxt}>›</Text>
                 </TouchableOpacity>
               </View>
             </View>
 
-            {showMonthPicker && !showYearPicker && (
-              <View style={cal.monthGrid}>
-                {MONTH_NAMES_SHORT.map((name, i) => (
-                  <TouchableOpacity
-                    key={i}
-                    style={[cal.monthCell, i === viewMonth && cal.monthCellOn]}
-                    onPress={() => { setViewMonth(i); setShowMonthPicker(false); }}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[cal.monthCellTxt, i === viewMonth && cal.monthCellTxtOn]}>{name}</Text>
-                  </TouchableOpacity>
-                ))}
-                <TouchableOpacity
-                  style={cal.yearRow}
-                  onPress={() => { setShowMonthPicker(false); setShowYearPicker(true); }}
-                  activeOpacity={0.7}
-                >
-                  <Text style={cal.yearRowTxt}>Change year  ›</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {showYearPicker && (
-              <View style={cal.yearPickerWrap}>
-                <ScrollView
-                  ref={yearScrollRef}
-                  showsVerticalScrollIndicator={false}
-                  contentContainerStyle={{ paddingVertical: 4 }}
-                  onLayout={() => {
-                    const idx = years.indexOf(viewYear);
-                    if (idx !== -1 && yearScrollRef.current)
-                      yearScrollRef.current.scrollTo({ y: Math.max(0, idx * 44 - 88), animated: false });
-                  }}
-                >
-                  {years.map(y => (
-                    <TouchableOpacity
-                      key={y}
-                      style={[cal.yearItem, y === viewYear && cal.yearItemOn]}
-                      onPress={() => { setViewYear(y); setShowYearPicker(false); }}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={[cal.yearItemTxt, y === viewYear && cal.yearItemTxtOn]}>{y}</Text>
-                      {y === viewYear && <Text style={cal.yearCheck}>✓</Text>}
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
-
+            {/* Weekday headers */}
             <View style={cal.dowRow}>
               {['S','M','T','W','T','F','S'].map((d, i) => (
-                <Text key={i} style={[cal.dowTxt, (i===0||i===6) && cal.dowWknd]}>{d}</Text>
+                <Text key={i} style={cal.dowTxt}>{d}</Text>
               ))}
             </View>
           </View>
 
-          <View style={cal.sep} />
-
-          <View style={cal.statsHeader}>
-            <View style={cal.statsLeft}>
-              <View style={cal.statBubble}>
-                <Text style={cal.statBubbleIcon}>🔥</Text>
-                <Text style={cal.statBubbleNum}>{currentStreak}</Text>
-                <Text style={cal.statBubbleLbl}>day streak</Text>
-              </View>
-              <View style={cal.statBubble}>
-                <Text style={cal.statBubbleIcon}>🗓</Text>
-                <Text style={cal.statBubbleNum}>{activeDaysThisWeek}</Text>
-                <Text style={cal.statBubbleLbl}>this week</Text>
-              </View>
-            </View>
-
-            <View style={cal.rangeRow}>
-              {RANGES.map(r => (
-                <TouchableOpacity
-                  key={r.id}
-                  style={[cal.rangePill, activeRange === r.id && cal.rangePillOn]}
-                  onPress={() => setActiveRange(r.id)}
-                  activeOpacity={0.75}
-                >
-                  <Text style={[cal.rangePillTxt, activeRange === r.id && cal.rangePillTxtOn]}>
-                    {r.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <View style={cal.rangeStats}>
-              <View style={cal.rangeStat}>
-                <Text style={cal.rangeStatNum}>{rangeNotes}</Text>
-                <Text style={cal.rangeStatLbl}>notes</Text>
-              </View>
-              <View style={cal.rangeStatDiv} />
-              <View style={cal.rangeStat}>
-                <Text style={cal.rangeStatNum}>{activeDaysInRange}</Text>
-                <Text style={cal.rangeStatLbl}>active days</Text>
-              </View>
-            </View>
-          </View>
-          <View style={cal.sep} />
-
-          <ScrollView
-            ref={scrollRef}
-            showsVerticalScrollIndicator={false}
-            onScroll={e => drag.setScrolled(e.nativeEvent.contentOffset.y > 4)}
-            scrollEventThrottle={16}
-          >
-            <Animated.View
-              {...swipePR.panHandlers}
-              style={[cal.grid, { transform: [{ translateX: swipeAnim }] }]}
-            >
+          {/* Day grid OR Year+Month picker (toggled by tapping the title) */}
+          {pickerOpen ? (
+            <YearMonthPicker
+              selectedYear={viewYear}
+              selectedMonth={viewMonth}
+              // Grow picker when the sheet is expanded so more rows visible
+              height={expanded ? SH * 0.7 : 264}
+              onPickYear={(y) => {
+                // Tap a year row: commit immediately and stay in picker so
+                // the user can also adjust month. (Equivalent to scroll+Done.)
+                setPendingYear(y);
+              }}
+              onPickMonth={(m) => {
+                // Tap a month row: commit year + month and exit picker.
+                setPendingMonth(m);
+                setViewYear(pendingYear);
+                setViewMonth(m);
+                setPickerOpen(false);
+              }}
+              onCenterChange={(y, m) => {
+                setPendingYear(y);
+                setPendingMonth(m);
+              }}
+            />
+          ) : (
+            <View style={cal.grid}>
               {calDays.map((item, i) => {
-                if (!item) return <View key={`e-${i}`} style={[cal.cell, { width: CELL_SIZE, height: CELL_SIZE }]} />;
-                const { date, key, count, isToday, isFuture } = item;
-                const isWknd = date.getDay() === 0 || date.getDay() === 6;
-
-                const intensity = count === 0 ? 0
-                  : count === 1 ? 0.25
-                  : count <= 3 ? 0.50
-                  : count <= 5 ? 0.75
-                  : 1.0;
-                const shadeFill = `rgba(217,119,6,${intensity})`;
+                if (!item) return <View key={`e-${i}`} style={[cal.cell, { width: MIN_CELL_SIZE, height: CELL_SIZE }]} />;
+                const { date, key, isToday, isFuture } = item;
+                const isSelected = selectedKey === key;
+                // Selected circle stays round — uses the smaller of width/height
+                // so it doesn't stretch into an oval when cells get tall.
+                const circleSize = Math.min(MIN_CELL_SIZE, CELL_SIZE) - 12;
 
                 return (
                   <TouchableOpacity
                     key={key}
-                    style={[cal.cell, { width: CELL_SIZE, height: CELL_SIZE }]}
-                    onPress={() => { handleClose(); onSelectDay(key); }}
-                    activeOpacity={0.7}
+                    style={[cal.cell, { width: MIN_CELL_SIZE, height: CELL_SIZE }]}
+                    onPress={() => handleDayPress(key)}
+                    activeOpacity={0.6}
                   >
-                    {isToday && (
-                      <View style={[cal.todayCircle, {
-                        width: CELL_SIZE - 8, height: CELL_SIZE - 8,
-                        borderRadius: (CELL_SIZE - 8) / 2,
+                    {isSelected && (
+                      <View style={[cal.selectedCircle, {
+                        width: circleSize, height: circleSize,
+                        borderRadius: circleSize / 2,
                       }]} />
-                    )}
-                    {count > 0 && !isToday && (
-                      <View style={{
-                        position: 'absolute',
-                        width: CELL_SIZE - 8, height: CELL_SIZE - 8,
-                        borderRadius: (CELL_SIZE - 8) / 2,
-                        backgroundColor: shadeFill,
-                      }} />
                     )}
                     <Text style={[
                       cal.dayNum,
-                      isToday && cal.dayNumToday,
-                      !isToday && count > 0 && intensity >= 0.5 && { color: '#fff' },
-                      !isToday && count > 0 && intensity < 0.5 && { color: C.ink, fontWeight: '700' },
-                      !isToday && count === 0 && isWknd && cal.dayNumWknd,
-                      !isToday && isFuture && count === 0 && cal.dayNumFuture,
+                      isSelected && cal.dayNumSelected,
+                      !isSelected && isToday && cal.dayNumToday,
+                      !isSelected && !isToday && isFuture && cal.dayNumFuture,
                     ]}>
                       {date.getDate()}
                     </Text>
                   </TouchableOpacity>
                 );
               })}
-            </Animated.View>
+            </View>
+          )}
 
-            <TouchableOpacity style={cal.doneBtn} onPress={handleClose} activeOpacity={0.85}>
-              <Text style={cal.doneTxt}>Done</Text>
-            </TouchableOpacity>
-            <View style={{ height: 36 }} />
-          </ScrollView>
+          <View style={{ height: 24 }} />
+        </Animated.View>
         </Animated.View>
       </View>
     </Modal>
   );
 }
 
-// ── Session Modal ──────────────────────────────────────────────────────
-function SessionModal({ visible, day, data, onClose }) {
-  const scrollRef = useRef(null);
+
+// ── Day Panel — bottom-sheet agenda for selected day ─────────────────
+//
+// Replaces the old SessionModal with a richer two-day agenda showing:
+//  - Functional week strip (tap to switch day)
+//  - "Today · [date]" section: notes + reflections + daily goals
+//  - "Tomorrow · [date]" section: same shape
+//  - FAB to add a new goal (opens an in-panel GoalEditor)
+//  - Optional "Manage" link to navigate to GoalsScreen
+//
+// Props match the old SessionModal interface: { visible, day, data, onClose }
+// Plus optional: onManageGoals — fired when user taps the Manage link
+function DayPanel({ visible, day, data, onClose, onManageGoals }) {
   const drag = useDragToDismiss({ onClose });
+  const {
+    notes, books,
+    goals, addGoal, toggleGoalCompletion, isGoalCompletedOn, goalsForDate,
+  } = useStore();
+
+  // Selected day state — initialised from prop, can change via week strip
+  const [selectedDate, setSelectedDate] = useState(day || new Date());
+  const [editorOpen, setEditorOpen] = useState(false);
 
   useEffect(() => {
     if (visible && day) {
+      setSelectedDate(day);
       drag.open();
     }
   }, [visible, day]);
 
-  const handleClose = () => {
-    drag.dismiss(() => onClose());
+  const handleClose = () => drag.dismiss(() => onClose());
+
+  // Selected date metadata
+  const selectedKey = dateKey(selectedDate);
+  const todayKey    = dateKey(new Date());
+  const isToday     = selectedKey === todayKey;
+
+  // Week strip — 7 days centred on the week of the selected date
+  const weekDays = useMemo(() => {
+    const startOfWeek = new Date(selectedDate);
+    startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(startOfWeek);
+      d.setDate(startOfWeek.getDate() + i);
+      const key = dateKey(d);
+      const hasContent = notes.some(n => (n.date || '').slice(0, 10) === key);
+      return { date: d, key, hasContent };
+    });
+  }, [selectedDate, notes]);
+
+  // Notes filtered by date
+  const notesForDate = (key) =>
+    notes.filter(n => (n.date || '').slice(0, 10) === key);
+
+  // Books read on a date (derived from notes)
+  const booksForDate = (key) => {
+    const ns = notesForDate(key);
+    const bookIds = [...new Set(ns.map(n => n.bookId))];
+    return bookIds.map(id => books.find(b => b.id === id)).filter(Boolean);
   };
 
-  if (!visible || !day) return null;
+  // Format date as "Tue Apr 28"
+  const formatDayHeader = (d) => {
+    return d.toLocaleDateString('en-AU', {
+      weekday: 'short', month: 'short', day: 'numeric',
+    });
+  };
 
-  const today    = new Date();
-  const isToday  = dateKey(day) === dateKey(today);
-  const isFuture = day > today;
-  const label    = day.toLocaleDateString('en-AU', {
-    weekday: 'long', day: 'numeric', month: 'long',
-  });
+  const goToToday = () => {
+    setSelectedDate(new Date());
+  };
 
-  const noteList = data.notes || [];
-  const books    = data.books || [];
-  const score    = activityScore(noteList.length);
-
-  const reflection = () => {
-    if (isFuture) return "This day hasn't happened yet. Keep reading and capturing ideas.";
-    if (noteList.length === 0) return 'A quiet day — no notes recorded. Sometimes rest is part of the process.';
-    const bookNames = [...new Set(noteList.map(n => n.bookTitle))];
-    if (bookNames.length === 1) {
-      return `You captured ${noteList.length} note${noteList.length !== 1 ? 's' : ''} from "${bookNames[0]}". ${noteList.length >= 3 ? 'A productive reading session.' : 'Every note is a step toward retention.'}`;
-    }
-    return `You drew ideas from ${bookNames.length} books — connecting knowledge across your reading.`;
+  const handleAddGoal = (data) => {
+    addGoal({
+      id: `g_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      label:      data.label,
+      tag:        data.tag,
+      recurrence: data.recurrence,
+      weekday:    data.weekday,
+      monthDay:   data.monthDay,
+      dueDate:    data.dueDate,
+      created:    new Date().toISOString().slice(0, 10),
+    });
   };
 
   return (
-    <Modal visible transparent animationType="none" onRequestClose={handleClose}>
-      <View style={sm.overlay}>
-        <Animated.View style={[sm.backdrop, { opacity: drag.backdropOpacity }]} pointerEvents="none" />
+    <Modal visible={visible} transparent animationType="none" onRequestClose={handleClose}>
+      <View style={dpnl.overlay}>
+        <Animated.View style={[dpnl.backdrop, { opacity: drag.backdropOpacity }]} pointerEvents="none" />
         <TouchableOpacity style={StyleSheet.absoluteFill} onPress={handleClose} activeOpacity={1} />
-        <Animated.View style={[sm.sheet, { transform: [{ translateY: drag.translateY }] }]}>
 
-          {/* Header — gradient with drag overlay on top */}
+        <Animated.View style={[dpnl.sheet, { transform: [{ translateY: drag.translateY }], height: SH * 0.92 }]}>
           <View style={{ position: 'relative' }}>
-            <View
-              {...drag.overlayHandlers}
-              style={sm.dragOverlay}
-              pointerEvents="box-none"
-            />
-            <LinearGradient
-              colors={score >= 3 ? [C.heroTop, C.heroBot] : ['#1A1A2E', '#16213E']}
-              style={sm.headerGrad}
-            >
-              <View {...drag.panHandlers} style={sm.handleWrap}>
-                <View style={sm.handle} />
-              </View>
-              <View style={sm.headerRow}>
-                <View>
-                  <Text style={sm.dateLabel}>
-                    {isToday ? 'TODAY' : isFuture ? 'UPCOMING' : DAY_NAMES_FULL[day.getDay()].toUpperCase()}
-                  </Text>
-                  <Text style={sm.dateValue}>
-                    {isToday ? `Today · ${label.split(', ').slice(1).join(', ')}` : label}
-                  </Text>
-                </View>
-                {!isFuture && (
-                  <View style={sm.badge}>
-                    <Text style={sm.badgeTxt}>
-                      {score === 0 ? 'Rest day' : score === 1 ? 'Light' : score === 2 ? 'Active' : score === 3 ? 'Productive' : '🔥 Peak'}
+            <View {...drag.overlayHandlers} style={dpnl.dragOverlay} pointerEvents="box-none" />
+
+            {/* Drag handle */}
+            <View {...drag.panHandlers} style={dpnl.handleWrap}>
+              <View style={dpnl.handle} />
+            </View>
+
+            {/* Top bar — month/year + Today */}
+            <View style={dpnl.topBar}>
+              <TouchableOpacity style={dpnl.monthBtn} onPress={handleClose} activeOpacity={0.6}>
+                <Text style={dpnl.monthTxt}>
+                  {MONTH_NAMES_SHORT[selectedDate.getMonth()]} {selectedDate.getFullYear()}
+                </Text>
+                <Text style={dpnl.monthChev}> ⌄</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={goToToday} activeOpacity={0.6} disabled={isToday}>
+                <Text style={[dpnl.todayTxt, isToday && { opacity: 0.4 }]}>Today</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Week strip */}
+            <View style={dpnl.weekStrip}>
+              {weekDays.map(({ date, key, hasContent }) => {
+                const isSel = key === selectedKey;
+                const isTodayCell = key === todayKey;
+                return (
+                  <TouchableOpacity
+                    key={key}
+                    style={dpnl.weekCell}
+                    onPress={() => setSelectedDate(date)}
+                    activeOpacity={0.6}
+                  >
+                    <Text style={dpnl.weekDayLabel}>
+                      {['S','M','T','W','T','F','S'][date.getDay()]}
                     </Text>
-                  </View>
-                )}
-              </View>
-              {!isFuture && (
-                <View style={sm.statsRow}>
-                  {[
-                    { num: noteList.length, lbl: 'Notes' },
-                    { num: books.length,    lbl: 'Books' },
-                  ].map(({ num, lbl }) => (
-                    <View key={lbl} style={sm.stat}>
-                      <Text style={sm.statNum}>{num}</Text>
-                      <Text style={sm.statLbl}>{lbl}</Text>
-                    </View>
-                  ))}
-                </View>
-              )}
-            </LinearGradient>
+                    <Text style={[
+                      dpnl.weekDayNum,
+                      isSel && dpnl.weekDayNumSelected,
+                      !isSel && isTodayCell && dpnl.weekDayNumToday,
+                    ]}>
+                      {date.getDate()}
+                    </Text>
+                    {isSel && <View style={dpnl.weekUnderline} />}
+                    {hasContent && !isSel && <View style={dpnl.weekDot} />}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
 
+          {/* Scrollable agenda — selected day only */}
           <ScrollView
-            ref={scrollRef}
-            style={sm.body}
+            style={{ flex: 1 }}
+            contentContainerStyle={{ paddingBottom: 140 }}
             showsVerticalScrollIndicator={false}
-            onScroll={e => drag.setScrolled(e.nativeEvent.contentOffset.y > 4)}
-            scrollEventThrottle={16}
           >
-            <View style={sm.reflCard}>
-              <Text style={sm.reflLabel}>✦  Reflection</Text>
-              <Text style={sm.reflText}>{reflection()}</Text>
-            </View>
-            {books.length > 0 && (
-              <View style={sm.section}>
-                <Text style={sm.sectionTitle}>BOOKS</Text>
-                {books.map((b, i) => (
-                  <View key={i} style={sm.bookRow}>
-                    <View style={sm.bookDot} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={sm.bookTitle} numberOfLines={1}>{b.title}</Text>
-                      <Text style={sm.bookAuthor}>{b.author}</Text>
-                    </View>
-                  </View>
-                ))}
-              </View>
-            )}
-            {noteList.length > 0 && (
-              <View style={sm.section}>
-                <Text style={sm.sectionTitle}>NOTES  ·  {noteList.length}</Text>
-                {noteList.map((n, i) => (
-                  <View key={i} style={sm.noteRow}>
-                    <Text style={sm.noteIcon}>{
-                      n.type === 'quote' ? '💬' : n.type === 'insight' ? '💡' :
-                      n.type === 'question' ? '🔍' : n.type === 'action' ? '✅' :
-                      n.type === 'summary' ? '📌' : '🔗'
-                    }</Text>
-                    <Text style={sm.noteText}>{n.text}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
-            {!isFuture && noteList.length === 0 && books.length === 0 && (
-              <View style={sm.empty}>
-                <Text style={sm.emptyIcon}>🌙</Text>
-                <Text style={sm.emptyTxt}>No activity recorded</Text>
-                <Text style={sm.emptySub}>Every streak starts with the next note.</Text>
-              </View>
-            )}
-            <TouchableOpacity style={sm.closeBtn} onPress={handleClose} activeOpacity={0.8}>
-              <Text style={sm.closeBtnTxt}>Close</Text>
-            </TouchableOpacity>
-            <View style={{ height: 80 }} />
+            <DaySection
+              label={isToday ? 'Today' : 'Selected'}
+              dateLine={formatDayHeader(selectedDate)}
+              notes={notesForDate(selectedKey)}
+              books={booksForDate(selectedKey)}
+              goals={goalsForDate(selectedKey)}
+              dateKey={selectedKey}
+              isGoalCompletedOn={isGoalCompletedOn}
+              toggleGoalCompletion={toggleGoalCompletion}
+              onManageGoals={onManageGoals}
+            />
           </ScrollView>
+
+          {/* Floating "+ New goal" FAB */}
+          <TouchableOpacity
+            style={dpnl.fab}
+            onPress={() => setEditorOpen(true)}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="add" size={26} color={C.white} />
+          </TouchableOpacity>
         </Animated.View>
       </View>
+
+      {/* New-goal modal */}
+      <GoalEditor
+        visible={editorOpen}
+        goal={null}
+        onSave={handleAddGoal}
+        onClose={() => setEditorOpen(false)}
+        defaultRecurrence="daily"
+        defaultDueDate={selectedKey}
+      />
     </Modal>
   );
 }
+
+// ── Single day section inside DayPanel ────────────────────────────────
+// Layout (hierarchical, all collapsed by default):
+//   1. Goals (with Manage link + completion toggles)
+//   2. Daily Reflection (small section, only if reflections exist)
+//   3. Books read today — collapsed cards showing summary; tap to expand
+//      and reveal nested notes for that book.
+//
+// At scale (many books + many notes), this stays scannable because the
+// default state is a small set of summary rows. Drilling in happens on tap.
+function DaySection({
+  label, dateLine,
+  notes, books,
+  goals, dateKey, isGoalCompletedOn, toggleGoalCompletion,
+  onManageGoals,
+}) {
+  // Separate reflections (not book-attached) from book notes
+  const reflections = notes.filter(n => n.type === 'reflection');
+  const bookNotes   = notes.filter(n => n.type !== 'reflection');
+
+  const hasGoals       = goals.length > 0;
+  const hasReflections = reflections.length > 0;
+  const hasBooks       = books.length > 0;
+  const allEmpty       = !hasGoals && !hasReflections && !hasBooks;
+
+  // Group book notes by bookId for expand-on-tap
+  const notesByBookId = bookNotes.reduce((acc, n) => {
+    (acc[n.bookId] = acc[n.bookId] || []).push(n);
+    return acc;
+  }, {});
+
+  return (
+    <View style={dpnl.section}>
+      {/* Section header — "Today · Tue May 11" */}
+      <View style={dpnl.sectionHeader}>
+        <Text style={dpnl.sectionLabel}>{label}</Text>
+        <Text style={dpnl.sectionDate}>{dateLine}</Text>
+      </View>
+
+      {allEmpty && (
+        <View style={dpnl.emptyDay}>
+          <Text style={dpnl.emptyDayTxt}>A rest day — nothing on the agenda.</Text>
+        </View>
+      )}
+
+      {/* ── Goals ── */}
+      {hasGoals && (
+        <View style={{ marginBottom: 22 }}>
+          <View style={dpnl.subsectionHeader}>
+            <Text style={dpnl.subsectionTitle}>Goals</Text>
+            {onManageGoals && (
+              <TouchableOpacity onPress={onManageGoals} activeOpacity={0.6}>
+                <Text style={dpnl.manageLink}>Manage</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          {goals.map(g => {
+            const completed = isGoalCompletedOn(g.id, dateKey);
+            return (
+              <TouchableOpacity
+                key={g.id}
+                style={dpnl.goalRow}
+                onPress={() => toggleGoalCompletion(g.id, dateKey)}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name={completed ? 'checkmark-circle' : 'ellipse-outline'}
+                  size={22}
+                  color={completed ? C.sage : C.inkFaint}
+                />
+                <Text style={[dpnl.goalLabel, completed && dpnl.goalLabelDone]}>
+                  {g.label}
+                </Text>
+                <View style={dpnl.goalTag}>
+                  <Text style={dpnl.goalTagTxt}>{g.tag}</Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      )}
+
+      {/* ── Reflections (separate small section) ── */}
+      {hasReflections && (
+        <View style={{ marginBottom: 22 }}>
+          <View style={dpnl.subsectionHeader}>
+            <Text style={dpnl.subsectionTitle}>Daily Reflection</Text>
+          </View>
+          {reflections.map(r => (
+            <ReflectionRow key={r.id} reflection={r} />
+          ))}
+        </View>
+      )}
+
+      {/* ── Books read today (expandable cards) ── */}
+      {hasBooks && (
+        <View>
+          <View style={dpnl.subsectionHeader}>
+            <Text style={dpnl.subsectionTitle}>
+              Books read today · {books.length}
+            </Text>
+          </View>
+          {books.map(book => (
+            <ExpandableBookCard
+              key={book.id}
+              book={book}
+              bookNotes={notesByBookId[book.id] || []}
+            />
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
+// ── Reflection row — single-line for the day reflection section ──────
+function ReflectionRow({ reflection }) {
+  const title = reflection.title?.trim()
+    ? reflection.title.trim()
+    : (reflection.text || '').split('\n')[0].slice(0, 60) || 'Daily Reflection';
+  return (
+    <TouchableOpacity style={dpnl.reflectionRow} activeOpacity={0.85}>
+      <View style={[dpnl.activityIconWrap, { backgroundColor: C.amberPale }]}>
+        <Ionicons name="create" size={18} color={C.amber} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={dpnl.reflectionTitle} numberOfLines={1}>{title}</Text>
+        <Text style={dpnl.reflectionSub} numberOfLines={1}>Journaling session</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={14} color={C.inkFaint} />
+    </TouchableOpacity>
+  );
+}
+
+// ── Expandable book card — collapsed shows summary; tap to reveal notes
+function ExpandableBookCard({ book, bookNotes }) {
+  const [expanded, setExpanded] = useState(false);
+  const count    = bookNotes.length;
+  const progress = book.pageCount
+    ? Math.min(1, (book.currentPage || 0) / book.pageCount)
+    : 0;
+  const pct = Math.round(progress * 100);
+
+  return (
+    <View style={dpnl.bookCard}>
+      {/* Header row — always visible */}
+      <TouchableOpacity
+        style={dpnl.bookCardHeader}
+        onPress={() => count > 0 && setExpanded(e => !e)}
+        activeOpacity={count > 0 ? 0.7 : 1}
+      >
+        <View style={dpnl.activityIconWrap}>
+          <Ionicons name="book" size={20} color={C.sage} />
+        </View>
+
+        <View style={{ flex: 1 }}>
+          <Text style={dpnl.bookCardTitle} numberOfLines={2}>{book.title}</Text>
+          <Text style={dpnl.bookCardSub} numberOfLines={1}>
+            {book.author}
+          </Text>
+          {book.pageCount > 0 && (
+            <View style={dpnl.progressRow}>
+              <View style={dpnl.progressTrack}>
+                <View style={[dpnl.progressFill, { width: `${pct}%` }]} />
+              </View>
+              <Text style={dpnl.progressPct}>{pct}%</Text>
+            </View>
+          )}
+        </View>
+
+        <View style={dpnl.bookCardRight}>
+          {book.genres?.[0] && (
+            <View style={[dpnl.activityTag, { backgroundColor: C.sagePale }]}>
+              <Text style={dpnl.activityTagTxt}>{book.genres[0].toUpperCase()}</Text>
+            </View>
+          )}
+          <View style={dpnl.bookCardMeta}>
+            <Text style={dpnl.bookCardCount}>
+              {count} {count === 1 ? 'note' : 'notes'}
+            </Text>
+            {count > 0 && (
+              <Ionicons
+                name={expanded ? 'chevron-up' : 'chevron-down'}
+                size={14}
+                color={C.inkFaint}
+              />
+            )}
+          </View>
+        </View>
+      </TouchableOpacity>
+
+      {/* Notes — only visible when expanded */}
+      {expanded && count > 0 && (
+        <View style={dpnl.notesNested}>
+          {bookNotes.map((n, i) => (
+            <NestedNoteRow key={n.id} note={n} isLast={i === bookNotes.length - 1} />
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
+// ── Nested note row — compact note display inside an expanded book card
+function NestedNoteRow({ note, isLast }) {
+  const title = note.title?.trim()
+    ? note.title.trim()
+    : (note.text || '').split('\n')[0].split('. ')[0].slice(0, 70);
+  const sub = (() => {
+    const rest = (note.text || '').slice(title.length).replace(/^[\.\s]+/, '').trim();
+    return rest.split('\n')[0].slice(0, 110);
+  })();
+
+  return (
+    <TouchableOpacity
+      style={[dpnl.nestedNoteRow, isLast && { borderBottomWidth: 0 }]}
+      activeOpacity={0.7}
+    >
+      <View style={dpnl.nestedNoteDot} />
+      <View style={{ flex: 1 }}>
+        <Text style={dpnl.nestedNoteTitle} numberOfLines={1}>{title}</Text>
+        {sub ? (
+          <Text style={dpnl.nestedNoteBody} numberOfLines={1}>{sub}</Text>
+        ) : null}
+      </View>
+      <Ionicons name="chevron-forward" size={12} color={C.inkFaint} />
+    </TouchableOpacity>
+  );
+}
+
 
 // ── Day Pill ───────────────────────────────────────────────────────────
 function DayPill({ day, isToday, isFuture, data, onPress }) {
@@ -676,11 +1095,11 @@ function DayPill({ day, isToday, isFuture, data, onPress }) {
       <TouchableOpacity onPress={onPress} activeOpacity={0.75}>
         <LinearGradient colors={[C.amberLight, C.amber]}
           start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
-          style={[dp.pill, dp.pillToday]}>
-          <Text style={dp.dayNameToday}>{DAY_NAMES_FULL[day.getDay()]}</Text>
-          <Text style={dp.dateNumToday}>{day.getDate()}</Text>
-          <View style={dp.todayDot} />
-          <Text style={dp.monthLblToday} numberOfLines={1}>
+          style={[dpil.pill, dpil.pillToday]}>
+          <Text style={dpil.dayNameToday}>{DAY_NAMES_FULL[day.getDay()]}</Text>
+          <Text style={dpil.dateNumToday}>{day.getDate()}</Text>
+          <View style={dpil.todayDot} />
+          <Text style={dpil.monthLblToday} numberOfLines={1}>
             {day.getDate() === 1 ? MONTH_NAMES_SHORT[day.getMonth()] : ' '}
           </Text>
         </LinearGradient>
@@ -690,15 +1109,15 @@ function DayPill({ day, isToday, isFuture, data, onPress }) {
 
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.75}>
-      <View style={dp.pill}>
-        <Text style={[dp.dayName, isWeekend && dp.dayNameWknd]}>
+      <View style={dpil.pill}>
+        <Text style={[dpil.dayName, isWeekend && dpil.dayNameWknd]}>
           {DAY_NAMES_FULL[day.getDay()]}
         </Text>
-        <Text style={dp.dateNum}>{day.getDate()}</Text>
-        <View style={dp.dotsRow}>
-          {hasData && <View style={dp.dotNote} />}
+        <Text style={dpil.dateNum}>{day.getDate()}</Text>
+        <View style={dpil.dotsRow}>
+          {hasData && <View style={dpil.dotNote} />}
         </View>
-        <Text style={dp.monthLbl} numberOfLines={1}>
+        <Text style={dpil.monthLbl} numberOfLines={1}>
           {day.getDate() === 1 ? MONTH_NAMES_SHORT[day.getMonth()] : ' '}
         </Text>
       </View>
@@ -707,11 +1126,16 @@ function DayPill({ day, isToday, isFuture, data, onPress }) {
 }
 
 // ── Main ───────────────────────────────────────────────────────────────
-export function ReadingTimeline({ notes, cards, books }) {
+export function ReadingTimeline({ notes, cards, books, onManageGoals }) {
   const scrollRef       = useRef(null);
   const [showCalendar, setShowCalendar] = useState(false);
   const [sessionDay, setSessionDay]     = useState(null);
   const [sessionVisible, setSessionVisible] = useState(false);
+  // Tracks whether the current session was opened via the calendar.
+  // When true, closing the session re-opens the calendar so the user
+  // can pick another date or browse — preserves the "drag down → see
+  // calendar again" UX without nesting modals.
+  const [cameFromCalendar, setCameFromCalendar] = useState(false);
 
   const today    = new Date();
   const todayKey = dateKey(today);
@@ -767,17 +1191,33 @@ export function ReadingTimeline({ notes, cards, books }) {
   const closeSession = useCallback(() => {
     setSessionVisible(false);
     setSessionDay(null);
-  }, []);
+    // If the user opened this session from the calendar, re-open the
+    // calendar so they can pick another date or continue browsing.
+    if (cameFromCalendar) {
+      setCameFromCalendar(false);
+      // Brief delay so the day panel's dismiss animation completes first
+      setTimeout(() => setShowCalendar(true), 100);
+    }
+  }, [cameFromCalendar]);
 
   const handleCalendarSelect = useCallback((key) => {
+    // Close the calendar, but remember the user came from it. When they
+    // dismiss the day panel, the calendar will re-open at the same state.
+    setShowCalendar(false);
+    setCameFromCalendar(true);
+
     const idx = days.findIndex(d => d.key === key);
-    if (idx !== -1) {
-      if (scrollRef.current) {
-        const offset = Math.max(0, idx * (DAY_WIDTH + DAY_GAP) - SW * 0.4);
-        scrollRef.current.scrollToOffset({ offset, animated: true });
-      }
-      setTimeout(() => openSession(idx), 260);
+    if (idx === -1) {
+      // Date is outside the timeline range (>1 year back or forward).
+      // Nothing to scroll to. Bail out cleanly.
+      return;
     }
+
+    if (scrollRef.current) {
+      const offset = Math.max(0, idx * (DAY_WIDTH + DAY_GAP) - SW * 0.4);
+      scrollRef.current.scrollToOffset({ offset, animated: true });
+    }
+    setTimeout(() => openSession(idx), 260);
   }, [days, openSession]);
 
   const selectedDay = sessionDay !== null ? days[sessionDay] : null;
@@ -790,10 +1230,15 @@ export function ReadingTimeline({ notes, cards, books }) {
             {today.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' })}
           </Text>
         </TouchableOpacity>
-        <View style={t.legend}>
-          <View style={[t.legendDot, { backgroundColor: C.amber }]} />
-          <Text style={t.legendTxt}>Notes</Text>
-        </View>
+        <TouchableOpacity
+          style={t.goalsPill}
+          onPress={onManageGoals}
+          activeOpacity={0.85}
+          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+        >
+          <Ionicons name="add" size={14} color={C.ink} />
+          <Text style={t.goalsPillTxt}>Goals</Text>
+        </TouchableOpacity>
       </View>
 
       <FlatList
@@ -830,11 +1275,12 @@ export function ReadingTimeline({ notes, cards, books }) {
         onSelectDay={handleCalendarSelect}
       />
 
-      <SessionModal
+      <DayPanel
         visible={sessionVisible}
         day={selectedDay?.date}
         data={selectedDay || {}}
         onClose={closeSession}
+        onManageGoals={onManageGoals}
       />
     </View>
   );
@@ -845,12 +1291,27 @@ const t = StyleSheet.create({
   wrap:      { marginBottom: 16 },
   header:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, marginBottom: 10 },
   monthTxt:  { fontSize: 18, fontWeight: '700', color: C.ink, letterSpacing: -0.2 },
-  legend:    { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  legendDot: { width: 6, height: 6, borderRadius: 3 },
-  legendTxt: { fontSize: 10, color: C.inkFaint },
+  // "+ Goals" pill — tap navigates to GoalsScreen
+  goalsPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+    backgroundColor: C.cream,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  goalsPillTxt: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: C.ink,
+    letterSpacing: -0.1,
+  },
 });
 
-const dp = StyleSheet.create({
+const dpil = StyleSheet.create({
   pill:         { width: DAY_WIDTH, paddingVertical: 5, borderRadius: 12, alignItems: 'center', gap: 1, overflow: 'hidden', backgroundColor: C.cream, borderWidth: 1, borderColor: C.border },
   pillToday:    { borderWidth: 0, shadowColor: C.amber, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.45, shadowRadius: 8, elevation: 6 },
   dayNameToday: { fontSize: 8, fontWeight: '700', color: 'rgba(255,255,255,0.8)', letterSpacing: 0.3 },
@@ -866,115 +1327,465 @@ const dp = StyleSheet.create({
 });
 
 const cal = StyleSheet.create({
-  overlay:   { flex: 1, justifyContent: 'flex-end' },
-  backdrop:  { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.45)' },
-  sheet:     { backgroundColor: '#FAFAFA', borderTopLeftRadius: 28, borderTopRightRadius: 28,
-               maxHeight: SH * 0.88, shadowColor: '#000', shadowOffset: { width: 0, height: -6 },
-               shadowOpacity: 0.1, shadowRadius: 20, elevation: 20 },
-
-  dragOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10 },
-  handleWrap:  { paddingVertical: 14, alignItems: 'center' },
-  handle:      { width: 40, height: 4, borderRadius: 2, backgroundColor: '#D1D1D6' },
-
-  topBar:      { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 16 },
-  topBarLeft:  { flex: 1 },
-  topBarRight: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: 4 },
-  monthYearBtn:{ gap: 2 },
-  monthBig:    { fontSize: 26, fontWeight: '800', color: '#1C1C1E', letterSpacing: -0.8, lineHeight: 30 },
-  yearSmall:   { fontSize: 14, fontWeight: '500', color: '#8E8E93', letterSpacing: -0.2 },
-  todayChip:   { backgroundColor: '#F2F2F7', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 },
-  todayChipTxt:{ fontSize: 13, fontWeight: '600', color: C.amber },
-  chevron:     { width: 32, height: 32, borderRadius: 16, backgroundColor: '#F2F2F7', alignItems: 'center', justifyContent: 'center' },
-  chevronTxt:  { fontSize: 18, color: '#1C1C1E', lineHeight: 22 },
-
-  monthGrid:   { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, paddingBottom: 8, gap: 8 },
-  monthCell:   { width: (SW - 80) / 4, paddingVertical: 10, borderRadius: 12, alignItems: 'center', backgroundColor: '#F2F2F7' },
-  monthCellOn: { backgroundColor: '#1C1C1E' },
-  monthCellTxt:{ fontSize: 13, fontWeight: '500', color: '#1C1C1E' },
-  monthCellTxtOn: { color: '#FFFFFF', fontWeight: '700' },
-  yearRow:     { width: '100%', paddingVertical: 10, alignItems: 'center' },
-  yearRowTxt:  { fontSize: 13, color: C.amber, fontWeight: '600' },
-
-  yearPickerWrap: { maxHeight: 200, marginHorizontal: 16, marginBottom: 8, borderRadius: 16,
-                    backgroundColor: '#F2F2F7', overflow: 'hidden' },
-  yearItem:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, height: 44 },
-  yearItemOn:  { backgroundColor: C.amberPale },
-  yearItemTxt: { fontSize: 16, color: '#1C1C1E' },
-  yearItemTxtOn: { color: C.amber, fontWeight: '700' },
-  yearCheck:   { fontSize: 14, color: C.amber, fontWeight: '700' },
-
-  dowRow:    { flexDirection: 'row', paddingHorizontal: 16, paddingBottom: 8 },
-  dowTxt:    { flex: 1, textAlign: 'center', fontSize: 11, fontWeight: '700', color: '#8E8E93', letterSpacing: 0.5 },
-  dowWknd:   { color: '#FF3B30' },
-
-  sep: { height: 0.5, backgroundColor: '#E5E5EA', marginHorizontal: 16 },
-
-  grid:      { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, paddingTop: 6, paddingBottom: 8 },
-  cell:      { alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
-  todayCircle: { position: 'absolute', backgroundColor: C.amber },
-  dayNum:    { fontSize: 16, fontWeight: '400', color: '#1C1C1E', zIndex: 1 },
-  dayNumToday: { color: '#FFFFFF', fontWeight: '800' },
-  dayNumWknd:  { color: '#FF3B30' },
-  dayNumFuture:{ color: '#C7C7CC' },
-
-  doneBtn:    { marginHorizontal: 16, marginTop: 14, backgroundColor: '#1C1C1E', borderRadius: 16, paddingVertical: 15, alignItems: 'center' },
-  doneTxt:    { color: '#FFFFFF', fontSize: 16, fontWeight: '700', letterSpacing: -0.3 },
-
-  statsHeader:    { paddingHorizontal: 16, paddingVertical: 12, gap: 12 },
-  statsLeft:      { flexDirection: 'row', gap: 10 },
-  statBubble:     { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#F2F2F7', borderRadius: 14, paddingHorizontal: 12, paddingVertical: 10 },
-  statBubbleIcon: { fontSize: 16 },
-  statBubbleNum:  { fontSize: 20, fontWeight: '800', color: '#1C1C1E', letterSpacing: -0.5 },
-  statBubbleLbl:  { fontSize: 10, color: '#8E8E93', fontWeight: '500' },
-  rangeRow:       { flexDirection: 'row', gap: 6 },
-  rangePill:      { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: '#F2F2F7' },
-  rangePillOn:    { backgroundColor: '#1C1C1E' },
-  rangePillTxt:   { fontSize: 12, fontWeight: '600', color: '#8E8E93' },
-  rangePillTxtOn: { color: '#FFFFFF' },
-  rangeStats:     { flexDirection: 'row', backgroundColor: '#F2F2F7', borderRadius: 16, overflow: 'hidden' },
-  rangeStat:      { flex: 1, alignItems: 'center', paddingVertical: 12 },
-  rangeStatDiv:   { width: 0.5, backgroundColor: '#C7C7CC' },
-  rangeStatNum:   { fontSize: 22, fontWeight: '800', color: '#1C1C1E', letterSpacing: -0.5 },
-  rangeStatLbl:   { fontSize: 10, color: '#8E8E93', fontWeight: '500', marginTop: 2 },
-});
-
-const sm = StyleSheet.create({
+  // Sheet container
   overlay:  { flex: 1, justifyContent: 'flex-end' },
   backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.45)' },
-  // CHANGED: maxHeight → height, 0.82 → 0.92 — sheet now fills 92% of screen
-  sheet:    { backgroundColor: C.paper, borderTopLeftRadius: 26, borderTopRightRadius: 26, height: SH * 0.92 },
-  handle:    { width: 44, height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.4)', alignSelf: 'center' },
-  handleWrap:{ paddingVertical: 16, alignItems: 'center' },
+  // Outer wrapper — owns shadow + native-driven translateY (open/dismiss anim).
+  // Height is NOT set here; it lives on the inner wrapper which is JS-animated.
+  sheetOuter: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 20,
+  },
+  // Inner wrapper — owns visual chrome + animated height.
+  sheet: {
+    backgroundColor: C.paper,
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+    paddingBottom: 8,
+    overflow: 'hidden',
+  },
+
+  // Drag
   dragOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10 },
-  headerGrad: { paddingHorizontal: 20, paddingBottom: 24, paddingTop: 4 },
-  headerRow:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18 },
-  dateLabel:  { fontSize: 10, color: 'rgba(255,255,255,0.45)', fontWeight: '600', letterSpacing: 1.5, marginBottom: 4 },
-  dateValue:  { fontSize: 19, color: C.white, fontWeight: '700', letterSpacing: -0.3 },
-  badge:      { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.12)' },
-  badgeTxt:   { fontSize: 11, color: C.white, fontWeight: '600' },
-  statsRow:   { flexDirection: 'row', gap: 8 },
-  stat:       { flex: 1, alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.08)', paddingVertical: 10, borderRadius: 10 },
-  statNum:    { fontSize: 22, fontWeight: '800', color: C.white },
-  statLbl:    { fontSize: 10, color: 'rgba(255,255,255,0.45)', marginTop: 2 },
-  // CHANGED: added flex: 1 — body fills remaining sheet space and scrolls
-  body:       { flex: 1, paddingHorizontal: 20 },
-  reflCard:   { backgroundColor: C.amberPale, borderRadius: 14, padding: 14, marginTop: 18, marginBottom: 14, borderWidth: 1, borderColor: 'rgba(217,119,6,0.12)' },
-  reflLabel:  { fontSize: 11, fontWeight: '700', color: C.amber, letterSpacing: 0.5, marginBottom: 6 },
-  reflText:   { fontSize: 14, color: C.inkSoft, lineHeight: 21 },
-  section:    { marginBottom: 14 },
-  sectionTitle:{ fontSize: 10, fontWeight: '700', color: C.inkFaint, letterSpacing: 1, marginBottom: 8 },
-  bookRow:    { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
-  bookDot:    { width: 7, height: 7, borderRadius: 4, backgroundColor: C.amber },
-  bookTitle:  { fontSize: 14, fontWeight: '600', color: C.ink },
-  bookAuthor: { fontSize: 11, color: C.inkMuted },
-  noteRow:    { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 8, backgroundColor: C.cream, borderRadius: 10, padding: 12 },
-  noteIcon:   { fontSize: 14, marginTop: 2 },
-  // CHANGED: removed numberOfLines truncation (in JSX) and improved line height
-  noteText:   { flex: 1, fontSize: 13, color: C.inkSoft, lineHeight: 20 },
-  empty:      { alignItems: 'center', paddingTop: 28, paddingBottom: 12 },
-  emptyIcon:  { fontSize: 34, marginBottom: 8 },
-  emptyTxt:   { fontSize: 14, fontWeight: '600', color: C.ink, marginBottom: 4 },
-  emptySub:   { fontSize: 12, color: C.inkMuted, textAlign: 'center' },
-  closeBtn:   { backgroundColor: C.ink, borderRadius: 12, paddingVertical: 13, alignItems: 'center', marginTop: 14 },
-  closeBtnTxt:{ color: C.white, fontSize: 14, fontWeight: '600' },
+  handleWrap:  { paddingTop: 10, paddingBottom: 8, alignItems: 'center' },
+  handle:      { width: 40, height: 4, borderRadius: 2, backgroundColor: C.creamDark },
+  headerArea:  { position: 'relative' },
+
+  // Top bar — Cancel · Select a Date · Today
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  cancel: { fontSize: 15, color: C.inkMuted, fontWeight: '500' },
+  title:  { fontSize: 16, fontWeight: '700', color: C.ink, letterSpacing: -0.2 },
+  titleBtn: { flexDirection: 'row', alignItems: 'center' },
+  titleChev: { fontSize: 11, color: C.inkMuted, marginLeft: 1, marginTop: -2 },
+  today:  { fontSize: 15, color: C.ink, fontWeight: '600' },
+  done:   { fontSize: 15, color: C.ink, fontWeight: '700' },
+
+  // Separator
+  sep: { height: 0.5, backgroundColor: C.border, marginHorizontal: 0 },
+
+  // Month bar — "Apr 2020" on left, chevrons on right
+  monthBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    paddingBottom: 8,
+  },
+  monthLbl: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: C.ink,
+    letterSpacing: -0.2,
+  },
+  chevronRow: { flexDirection: 'row', gap: 4 },
+  chevron: {
+    width: 32, height: 32,
+    alignItems: 'center', justifyContent: 'center',
+    borderRadius: 16,
+  },
+  chevronTxt: { fontSize: 22, color: C.ink, lineHeight: 26 },
+
+  // Weekday headers
+  dowRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    paddingBottom: 4,
+  },
+  dowTxt: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 11,
+    fontWeight: '600',
+    color: C.inkMuted,
+    letterSpacing: 0.4,
+  },
+
+  // Grid + cells
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+  },
+  cell: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectedCircle: {
+    position: 'absolute',
+    backgroundColor: C.ink,
+  },
+  dayNum: {
+    fontSize: 15,
+    color: C.ink,
+    fontWeight: '500',
+    zIndex: 1,
+  },
+  dayNumSelected: {
+    color: C.white,
+    fontWeight: '700',
+  },
+  dayNumToday: {
+    color: C.ink,
+    fontWeight: '800',
+  },
+  dayNumFuture: {
+    color: C.inkFaint,
+  },
+});
+
+// ── DayPanel styles (dpnl) ──────────────────────────────────────────────────
+const dpnl = StyleSheet.create({
+  overlay:  { flex: 1, justifyContent: 'flex-end' },
+  backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.45)' },
+  sheet: {
+    backgroundColor: C.paper,
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 20,
+  },
+  dragOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10 },
+  handleWrap:  { paddingTop: 10, paddingBottom: 4, alignItems: 'center' },
+  handle:      { width: 40, height: 4, borderRadius: 2, backgroundColor: C.creamDark },
+
+  // Top bar — month/year on left, Today on right
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 12,
+  },
+  monthBtn: { flexDirection: 'row', alignItems: 'baseline' },
+  monthTxt: { fontSize: 17, fontWeight: '700', color: C.ink, letterSpacing: -0.2 },
+  monthChev:{ fontSize: 14, color: C.inkMuted, marginLeft: 2 },
+  todayTxt: { fontSize: 15, color: C.ink, fontWeight: '600' },
+
+  // Week strip
+  weekStrip: {
+    flexDirection: 'row',
+    paddingHorizontal: 12,
+    paddingBottom: 14,
+    borderBottomWidth: 0.5,
+    borderBottomColor: C.border,
+  },
+  weekCell: {
+    flex: 1,
+    alignItems: 'center',
+    paddingTop: 4,
+    paddingBottom: 6,
+    position: 'relative',
+  },
+  weekDayLabel: {
+    fontSize: 10,
+    color: C.inkMuted,
+    fontWeight: '600',
+    letterSpacing: 0.4,
+    marginBottom: 6,
+  },
+  weekDayNum: {
+    fontSize: 15,
+    color: C.ink,
+    fontWeight: '500',
+  },
+  weekDayNumSelected: {
+    color: C.ink,
+    fontWeight: '700',
+  },
+  weekDayNumToday: {
+    color: C.ink,
+    fontWeight: '800',
+  },
+  weekUnderline: {
+    position: 'absolute',
+    bottom: 2,
+    height: 2,
+    width: 18,
+    borderRadius: 1,
+    backgroundColor: C.ink,
+  },
+  weekDot: {
+    position: 'absolute',
+    bottom: 3,
+    width: 3, height: 3,
+    borderRadius: 1.5,
+    backgroundColor: C.inkMuted,
+  },
+
+  // Section
+  section: { paddingHorizontal: 20, paddingTop: 18 },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 8,
+    marginBottom: 10,
+  },
+  sectionLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: C.ink,
+    letterSpacing: -0.2,
+  },
+  sectionDate: {
+    fontSize: 12,
+    color: C.inkMuted,
+    fontWeight: '500',
+  },
+  emptyDay: {
+    paddingVertical: 18,
+  },
+  emptyDayTxt: {
+    fontSize: 13,
+    color: C.inkFaint,
+    fontStyle: 'italic',
+  },
+
+  // Icon tile — used in book cards and reflection rows
+  activityIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: C.cream,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activityTag: {
+    paddingHorizontal: 9, paddingVertical: 4,
+    borderRadius: 6,
+  },
+  activityTagTxt: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: C.ink,
+    letterSpacing: 0.6,
+  },
+
+  // ── Reflection row ──
+  reflectionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: C.white,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.border,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 10,
+  },
+  reflectionTitle: {
+    fontFamily: F.serif,
+    fontSize: 16,
+    color: C.ink,
+    letterSpacing: -0.2,
+  },
+  reflectionSub: {
+    fontSize: 12,
+    color: C.inkMuted,
+    marginTop: 2,
+  },
+
+  // ── Book card (expandable) ──
+  bookCard: {
+    backgroundColor: C.white,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.border,
+    marginBottom: 10,
+    overflow: 'hidden',
+  },
+  bookCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  bookCardTitle: {
+    fontFamily: F.serif,
+    fontSize: 18,
+    color: C.ink,
+    letterSpacing: -0.3,
+    lineHeight: 24,
+  },
+  bookCardSub: {
+    fontSize: 13,
+    color: C.inkMuted,
+    marginTop: 2,
+  },
+  bookCardRight: {
+    alignItems: 'flex-end',
+    gap: 8,
+  },
+  bookCardMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  bookCardCount: {
+    fontSize: 11,
+    color: C.inkMuted,
+    fontWeight: '600',
+  },
+
+  // ── Progress bar ──
+  progressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 10,
+  },
+  progressTrack: {
+    flex: 1,
+    height: 3,
+    backgroundColor: C.cream,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: C.sage,
+    borderRadius: 2,
+  },
+  progressPct: {
+    fontSize: 10,
+    color: C.inkMuted,
+    fontWeight: '600',
+    minWidth: 28,
+    textAlign: 'right',
+  },
+
+  // ── Nested notes inside expanded book card ──
+  notesNested: {
+    backgroundColor: C.paper,
+    paddingHorizontal: 14,
+    paddingTop: 6,
+    paddingBottom: 6,
+    borderTopWidth: 0.5,
+    borderTopColor: C.border,
+  },
+  nestedNoteRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 10,
+    borderBottomWidth: 0.5,
+    borderBottomColor: C.border,
+  },
+  nestedNoteDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: C.sage,
+  },
+  nestedNoteTitle: {
+    fontSize: 14,
+    color: C.ink,
+    fontWeight: '600',
+    letterSpacing: -0.1,
+  },
+  nestedNoteBody: {
+    fontSize: 12,
+    color: C.inkMuted,
+    marginTop: 2,
+  },
+
+  // Subsection header — Goals / Books read today / Daily Reflection
+  subsectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    marginBottom: 10,
+  },
+  subsectionTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: C.inkMuted,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
+
+  // Goals section (legacy alias kept for safety)
+  goalsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    marginBottom: 8,
+  },
+  goalsTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: C.ink,
+    letterSpacing: -0.2,
+  },
+  manageLink: {
+    fontSize: 12,
+    color: C.inkSoft,
+    fontWeight: '600',
+  },
+  goalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: C.white,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: C.border,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 8,
+    gap: 12,
+  },
+  goalLabel: {
+    flex: 1,
+    fontSize: 14,
+    color: C.ink,
+    fontWeight: '500',
+  },
+  goalLabelDone: {
+    color: C.inkFaint,
+    textDecorationLine: 'line-through',
+  },
+  goalTag: {
+    backgroundColor: C.sagePale,
+    paddingHorizontal: 8, paddingVertical: 3,
+    borderRadius: 6,
+  },
+  goalTagTxt: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: C.ink,
+    letterSpacing: 0.5,
+  },
+
+  // FAB
+  fab: {
+    position: 'absolute',
+    right: 24, bottom: 32,
+    width: 54, height: 54,
+    borderRadius: 27,
+    backgroundColor: C.ink,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.22,
+    shadowRadius: 10,
+    elevation: 10,
+  },
 });

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
@@ -19,6 +19,7 @@ import { BookDetailScreen }    from './src/screens/BookDetailScreen';
 import { NotesScreen }         from './src/screens/NotesScreen';
 import { ReviewScreen }        from './src/screens/ReviewScreen';
 import { DiscoverScreen }      from './src/screens/DiscoverScreen';
+import { GoalsScreen }         from './src/screens/GoalsScreen';
 import { RichNoteEditor }      from './src/components/RichNoteEditor';
 import { C } from './src/theme';
 
@@ -32,6 +33,7 @@ function LibraryStack() {
       <Stack.Screen name="BookDetail"    component={BookDetailScreen} />
       <Stack.Screen name="FinishedBooks" component={FinishedBooksScreen} />
       <Stack.Screen name="Profile"       component={ReviewScreen} />
+      <Stack.Screen name="Goals"         component={GoalsScreen} />
     </Stack.Navigator>
   );
 }
@@ -208,6 +210,22 @@ function Tabs() {
   );
 }
 
+// ── StreakTracker ──────────────────────────────────────────────────────
+// Lives inside StoreProvider so it can call markDayActive from the store.
+// Marks today as an active day on every app launch — this drives the
+// "🔥 streak" counter shown on the home screen.
+//
+// NOTE: until persistent storage is wired up, activeDays resets each
+// reload. The streak you see in development reflects the demo seed in
+// store.js plus today.
+function StreakTracker() {
+  const { markDayActive } = useStore();
+  useEffect(() => {
+    markDayActive();
+  }, []); // run once on mount
+  return null;
+}
+
 // ── Root ───────────────────────────────────────────────────────────────
 export default function App() {
   const [fontsLoaded] = useFonts({
@@ -226,6 +244,7 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <StoreProvider>
+        <StreakTracker />
         <NavigationContainer>
           <Tabs />
         </NavigationContainer>

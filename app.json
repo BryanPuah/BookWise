@@ -18,9 +18,16 @@
         "backgroundColor": "#1C1814"
       }
     },
-    "plugins": [
-      "expo-asset",
-      "expo-font"
-    ]
+   "plugins": [
+  "expo-asset",
+  "expo-font",
+  [
+    "expo-image-picker",
+    {
+      "photosPermission": "Allow BookWise to access your photos so you can attach them to notes.",
+      "cameraPermission": "Allow BookWise to use the camera to capture book pages and notes."
+    }
+  ]
+]
   }
 }

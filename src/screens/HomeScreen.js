@@ -12,7 +12,7 @@ import { AppHeader } from '../components/AppHeader';
 import { C, F } from '../theme';
 
 const { width: SW } = Dimensions.get('window');
-const HERO_W = SW - 40;
+const HERO_W = SW - 16;
 
 // Tile sizing — matches the hero book cover dimensions (118 × 168)
 const TILE_GUTTER = 14;
@@ -105,9 +105,28 @@ function GoalCard({ baseLabel, current, range, onChangeRange }) {
   );
 }
 
+// ── Streak card ────────────────────────────────────────────────────────
+// Shows the current consecutive-active-day streak with a flame icon.
+// "Active" = the app was opened that day (tracked in store.activeDays).
+// Zero state ("—") shown when streak is 0, so the visual layout doesn't
+// jump around.
+function StreakCard({ streak }) {
+  return (
+    <View style={s.goalStat}>
+      <Ionicons name="flame" size={20} color={C.rose} style={s.goalMedal} />
+      <Text style={[s.goalCountNum, { color: C.rose }]}>
+        {streak > 0 ? streak : '—'}
+      </Text>
+      <Text style={s.goalLabel} numberOfLines={1}>
+        Day streak
+      </Text>
+    </View>
+  );
+}
+
 // ── Main screen ────────────────────────────────────────────────────────
 export function HomeScreen({ navigation }) {
-  const { books, notes, cards, dueCards, readingBooks } = useStore();
+  const { books, notes, cards, dueCards, readingBooks, currentStreak } = useStore();
   const [activeIdx, setActiveIdx] = useState(0);
   const heroScrollRef = useRef(null);
 
@@ -167,7 +186,12 @@ export function HomeScreen({ navigation }) {
         <AppHeader onAvatarPress={() => navigation.navigate('Profile')} />
 
         {/* ── READING TIMELINE ────────────────────────────────────── */}
-        <ReadingTimeline notes={notes} cards={cards} books={books} />
+        <ReadingTimeline
+          notes={notes}
+          cards={cards}
+          books={books}
+          onManageGoals={() => navigation.navigate('Goals')}
+        />
 
         {/* ── LIBRARY SUB-HEADER (Figma) ─────────────────────────── */}
         <View style={s.libraryHeader}>
@@ -319,7 +343,7 @@ export function HomeScreen({ navigation }) {
           </TouchableOpacity>
         )}
 
-        {/* ── Stats — Books / Notes for selected range ──────────── */}
+        {/* ── Stats — Books / Notes / Streak ──────────────────────── */}
         <View style={s.goalsWrap}>
           {goalsConfig.map(g => (
             <GoalCard
@@ -330,6 +354,7 @@ export function HomeScreen({ navigation }) {
               onChangeRange={g.onChangeRange}
             />
           ))}
+          <StreakCard streak={currentStreak} />
         </View>
 
         {/* ── REVIEW PROMPT ───────────────────────────────────────── */}
@@ -455,7 +480,7 @@ const s = StyleSheet.create({
 
   // Hero card — light Figma style with book cover on the left
   heroCard: {
-    marginHorizontal: 20,
+    marginHorizontal: 8,
     marginBottom: 20,
     borderRadius: 20,
     overflow: 'hidden',
@@ -600,14 +625,15 @@ const s = StyleSheet.create({
   emptyHeroBtnTxt: { color: C.white, fontSize: 13, fontWeight: '600' },
 
   // Goals
-  // Stats row — two big numerals side-by-side, no card chrome (Figma style)
+  // Stats row — three big numerals evenly spaced across the row
   goalsWrap: {
     flexDirection: 'row',
     paddingHorizontal: 24,
     paddingVertical: 28,
-    gap: 40,
+    justifyContent: 'space-between',
   },
   goalStat: {
+    flex: 1,
     alignItems: 'flex-start',
   },
   goalMedal: {

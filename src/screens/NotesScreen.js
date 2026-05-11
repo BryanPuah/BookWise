@@ -16,7 +16,7 @@
 import React, { useState, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  TextInput, StyleSheet, Modal,
+  TextInput, StyleSheet, Modal, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Swipeable } from 'react-native-gesture-handler';
@@ -26,6 +26,7 @@ import { useStore } from '../store';
 import { BookCover } from '../components/BookCover';
 import { AppHeader } from '../components/AppHeader';
 import { RichNoteEditor } from '../components/RichNoteEditor';
+import { MarkdownText } from '../components/MarkdownText';
 import { C, F } from '../theme';
 
 // ── Note type definitions (preserved) ─────────────────────────────────
@@ -348,8 +349,13 @@ function NoteCard({ note, onDelete, onEdit, showBook = false }) {
     ? note.types
     : [note.type || 'insight'];
 
+  // Find first image block (if any) — used to show a thumbnail on the card
+  const firstImageBlock = hasBlocks
+    ? note.blocks.find(b => b.type === 'image' && b.uri)
+    : null;
+
   // Body — first paragraph block for block-based notes; legacy text otherwise.
-  // Cleanly captures the "summary-as-card" feel from the Figma screenshot.
+  // If the only content is image(s), fall back to caption or empty.
   let bodyText = '';
   if (hasBlocks) {
     const firstPara = note.blocks.find(b => b.type === 'paragraph' && b.text?.trim());
@@ -361,12 +367,18 @@ function NoteCard({ note, onDelete, onEdit, showBook = false }) {
 
   // Title — explicit title field if present, otherwise derive from first line
   // of body (helps legacy notes render with a serif heading too).
+  // If image-only with no caption, fall back to "Image note".
+  const isImageOnly = !bodyText && firstImageBlock;
   const cardTitle = note.title?.trim()
     ? note.title.trim()
-    : bodyText.split('\n')[0].split('. ')[0].slice(0, 80);
+    : isImageOnly
+      ? 'Image note'
+      : bodyText.split('\n')[0].split('. ')[0].slice(0, 80);
   const cardBody = note.title?.trim()
     ? bodyText
-    : bodyText.slice(cardTitle.length).replace(/^[\.\s]+/, '');
+    : isImageOnly
+      ? ''
+      : bodyText.slice(cardTitle.length).replace(/^[\.\s]+/, '');
 
   // Render right-side delete action when swiped
   const renderRightActions = () => (
@@ -416,16 +428,25 @@ function NoteCard({ note, onDelete, onEdit, showBook = false }) {
 
         {/* Serif title */}
         {cardTitle ? (
-          <Text style={nc.cardTitle} numberOfLines={2}>
+          <MarkdownText style={nc.cardTitle} numberOfLines={2}>
             {cardTitle}
-          </Text>
+          </MarkdownText>
+        ) : null}
+
+        {/* Image thumbnail — shown when note has an image block */}
+        {firstImageBlock ? (
+          <Image
+            source={{ uri: firstImageBlock.uri }}
+            style={nc.thumbnail}
+            resizeMode="cover"
+          />
         ) : null}
 
         {/* Body paragraph — muted, 3 lines max */}
         {cardBody ? (
-          <Text style={nc.bodyText} numberOfLines={3}>
+          <MarkdownText style={nc.bodyText} numberOfLines={3}>
             {cardBody}
-          </Text>
+          </MarkdownText>
         ) : null}
 
         {/* Book reference at the bottom */}
@@ -442,38 +463,12 @@ function NoteCard({ note, onDelete, onEdit, showBook = false }) {
 
 // ── Explore view — flat browse, dual filters (genre + type) ───────────
 function ExploreView({ notes, cards, books, onStar, onDelete, onMakeCard, generating, onEdit }) {
-  const [search, setSearch]       = useState('');
-  const [activeGenre, setActiveGenre] = useState('all');
-  const [activeType, setActiveType]   = useState('all');
+  const [search, setSearch] = useState('');
   const cardNoteIds = new Set(cards.map(c => c.noteId));
-
-  // Build genre list from books
-  const genres = useMemo(() => {
-    const set = new Set();
-    notes.forEach(n => {
-      const book = books.find(b => b.id === n.bookId);
-      book?.genres?.forEach(g => set.add(g));
-    });
-    return ['All Notes', ...Array.from(set)];
-  }, [notes, books]);
 
   const filtered = useMemo(() => {
     let list = notes;
 
-    // Genre filter
-    if (activeGenre !== 'all') {
-      list = list.filter(n => {
-        const book = books.find(b => b.id === n.bookId);
-        return book?.genres?.includes(activeGenre);
-      });
-    }
-
-    // Type filter
-    if (activeType !== 'all') {
-      list = list.filter(n => n.type === activeType);
-    }
-
-    // Search
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(n =>
@@ -491,7 +486,7 @@ function ExploreView({ notes, cards, books, onStar, onDelete, onMakeCard, genera
         if (a.starred !== b.starred) return a.starred ? -1 : 1;
         return new Date(b.date) - new Date(a.date);
       });
-  }, [notes, activeGenre, activeType, search, books]);
+  }, [notes, search]);
 
   return (
     <ScrollView showsVerticalScrollIndicator={false}>
@@ -508,69 +503,12 @@ function ExploreView({ notes, cards, books, onStar, onDelete, onMakeCard, genera
         )}
       </View>
 
-      {/* Genre filter row */}
-      <View style={ev.filterSection}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 20, gap: 8 }}>
-          {genres.map((g, idx) => {
-            const key = idx === 0 ? 'all' : g;
-            const isActive = activeGenre === key;
-            return (
-              <TouchableOpacity
-                key={key}
-                style={[ev.genreChip, isActive && ev.genreChipActive]}
-                onPress={() => setActiveGenre(key)}
-                activeOpacity={0.8}
-              >
-                <Text style={[ev.genreChipTxt, isActive && ev.genreChipTxtActive]}>
-                  {g}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
-
-      {/* Type filter row */}
-      <View style={ev.filterSection}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 20, gap: 8 }}>
-          <TouchableOpacity
-            style={[ev.typeChip, activeType === 'all' && ev.typeChipActive]}
-            onPress={() => setActiveType('all')}
-            activeOpacity={0.8}
-          >
-            <Text style={[ev.typeChipTxt, activeType === 'all' && ev.typeChipTxtActive]}>
-              All Types
-            </Text>
-          </TouchableOpacity>
-          {Object.entries(NT).map(([key, val]) => {
-            const isActive = activeType === key;
-            return (
-              <TouchableOpacity
-                key={key}
-                style={[ev.typeChip, isActive && ev.typeChipActive]}
-                onPress={() => setActiveType(key)}
-                activeOpacity={0.8}
-              >
-                <Text style={ev.typeChipIcon}>{val.icon}</Text>
-                <Text style={[ev.typeChipTxt, isActive && ev.typeChipTxtActive]}>
-                  {val.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
-
       {/* Notes list */}
       <View style={ev.listWrap}>
         {filtered.length === 0 && (
           <View style={ev.emptyState}>
             <Text style={ev.emptyStateTitle}>
-              {search ? 'No notes match your search'
-                : activeGenre !== 'all' || activeType !== 'all' ? 'No notes match these filters'
-                : 'No notes yet'}
+              {search ? 'No notes match your search' : 'No notes yet'}
             </Text>
             <Text style={ev.emptyStateSub}>
               {search ? 'Try different keywords'
@@ -751,7 +689,132 @@ function ByBookView({ notes, books, cards, onStar, onDelete, onMakeCard, generat
   );
 }
 
-// ── Main NotesScreen ───────────────────────────────────────────────────
+// ── Type Notes Screen — dedicated full-screen notes for one type ───────
+function TypeNotesScreen({ typeKey, typeMeta, notes, onDelete, onEdit, onBack }) {
+  const starred = notes.filter(n => n.starred).length;
+  const sorted  = [...notes.filter(n => n.starred), ...notes.filter(n => !n.starred)];
+
+  return (
+    <View style={{ flex: 1, backgroundColor: C.paper }}>
+      <View style={tns.header}>
+        <TouchableOpacity onPress={onBack} style={tns.backBtn} activeOpacity={0.8}>
+          <Text style={tns.backTxt}>← Back</Text>
+        </TouchableOpacity>
+        <View style={tns.headerInfo}>
+          <View style={[tns.iconWrap, { backgroundColor: typeMeta.bg }]}>
+            <Text style={tns.icon}>{typeMeta.icon}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={tns.typeTitle}>{typeMeta.label}</Text>
+            <Text style={tns.typeDesc}>{typeMeta.desc}</Text>
+            <View style={tns.countRow}>
+              <Text style={tns.noteCount}>{notes.length} note{notes.length !== 1 ? 's' : ''}</Text>
+              {starred > 0 && <Text style={tns.starCount}>★ {starred}</Text>}
+            </View>
+          </View>
+        </View>
+      </View>
+
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20, paddingBottom: 140 }}>
+        {sorted.length === 0 && (
+          <View style={tns.empty}>
+            <Text style={tns.emptyIcon}>{typeMeta.icon}</Text>
+            <Text style={tns.emptyTitle}>No {typeMeta.label.toLowerCase()} notes yet</Text>
+            <Text style={tns.emptySub}>Tap the + button to capture your first thought.</Text>
+          </View>
+        )}
+        {sorted.map(n => (
+          <NoteCard
+            key={n.id}
+            note={n}
+            onDelete={onDelete}
+            onEdit={onEdit}
+            showBook
+          />
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+// ── By Type view — list of types, tap to drill in ─────────────────────
+function ByTypeView({ notes, cards, onDelete, onEdit }) {
+  const [selectedType, setSelectedType] = useState(null);
+
+  // Group notes by type, keeping only types that have notes
+  const grouped = useMemo(() => {
+    return Object.entries(NT).reduce((acc, [key, meta]) => {
+      const typeNotes = notes.filter(n => n.type === key);
+      if (typeNotes.length > 0) {
+        acc.push({ key, meta, notes: typeNotes });
+      }
+      return acc;
+    }, []);
+  }, [notes]);
+
+  // Drill-down view
+  if (selectedType) {
+    const group = grouped.find(g => g.key === selectedType);
+    if (group) {
+      return (
+        <TypeNotesScreen
+          typeKey={group.key}
+          typeMeta={group.meta}
+          notes={group.notes}
+          onDelete={onDelete}
+          onEdit={onEdit}
+          onBack={() => setSelectedType(null)}
+        />
+      );
+    }
+  }
+
+  // List view
+  return (
+    <ScrollView showsVerticalScrollIndicator={false}>
+      <View style={{ paddingHorizontal: 20, paddingTop: 8 }}>
+        {grouped.length === 0 && (
+          <View style={btv.empty}>
+            <Text style={btv.emptyIcon}>📝</Text>
+            <Text style={btv.emptyTitle}>No notes yet</Text>
+            <Text style={btv.emptySub}>
+              Tap the + button to capture your first thought.
+            </Text>
+          </View>
+        )}
+        {grouped.map(({ key, meta, notes: tn }) => {
+          const starred = tn.filter(n => n.starred).length;
+          return (
+            <TouchableOpacity
+              key={key}
+              style={btv.typeBlock}
+              onPress={() => setSelectedType(key)}
+              activeOpacity={0.85}
+            >
+              <View style={btv.typeHead}>
+                <View style={[btv.iconWrap, { backgroundColor: meta.bg }]}>
+                  <Text style={btv.icon}>{meta.icon}</Text>
+                </View>
+                <View style={btv.typeMeta}>
+                  <Text style={btv.typeTitle}>{meta.label}</Text>
+                  <Text style={btv.typeDesc} numberOfLines={1}>{meta.desc}</Text>
+                  <View style={btv.countRow}>
+                    <Text style={btv.noteCount}>{tn.length} note{tn.length !== 1 ? 's' : ''}</Text>
+                    {starred > 0 && <Text style={btv.starCount}>★ {starred}</Text>}
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={C.inkFaint} />
+              </View>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+      <View style={{ height: 140 }} />
+    </ScrollView>
+  );
+}
+
+
 export function NotesScreen({ navigation }) {
   const { notes, books, cards, addNote, addCard, deleteNote, updateNote } = useStore();
   const [view, setView]                   = useState('explore');
@@ -829,6 +892,7 @@ export function NotesScreen({ navigation }) {
   const VIEWS = [
     { key: 'explore',  label: 'Explore' },
     { key: 'by_book',  label: 'By Book' },
+    { key: 'by_type',  label: 'Note Type' },
   ];
 
   const sharedProps = {
@@ -889,6 +953,7 @@ export function NotesScreen({ navigation }) {
       {/* Views */}
       {view === 'explore' && <ExploreView {...sharedProps} />}
       {view === 'by_book' && <ByBookView {...sharedProps} navigation={navigation} />}
+      {view === 'by_type' && <ByTypeView notes={notes} cards={cards} onDelete={handleDelete} onEdit={handleEdit} />}
 
     </SafeAreaView>
   );
@@ -1024,6 +1089,15 @@ const nc = StyleSheet.create({
     marginBottom: 8,
   },
 
+  // Image thumbnail on note cards with image blocks
+  thumbnail: {
+    width: '100%',
+    height: 160,
+    borderRadius: 10,
+    backgroundColor: C.cream,
+    marginBottom: 8,
+  },
+
   // Body text — muted grey, 14px, 3 lines max
   bodyText: {
     fontSize: 14,
@@ -1150,6 +1224,55 @@ const bns = StyleSheet.create({
   typeTagTxt: { fontSize: 11, fontWeight: '700', color: C.ink },
   openBtn: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, backgroundColor: C.ink },
   openBtnTxt: { fontSize: 12, color: C.white, fontWeight: '700' },
+  empty: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 30 },
+  emptyIcon: { fontSize: 40, marginBottom: 12 },
+  emptyTitle: { fontFamily: F.serif, fontSize: 18, color: C.ink, marginBottom: 6 },
+  emptySub: { fontSize: 13, color: C.inkMuted, textAlign: 'center', lineHeight: 20 },
+});
+
+// ── ByTypeView styles ─────────────────────────────────────────────────
+const btv = StyleSheet.create({
+  typeBlock: {
+    backgroundColor: C.white,
+    borderRadius: 14,
+    borderWidth: 1, borderColor: C.border,
+    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  typeHead: { flexDirection: 'row', alignItems: 'center', padding: 14, gap: 14 },
+  iconWrap: {
+    width: 44, height: 44, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  icon: { fontSize: 20 },
+  typeMeta: { flex: 1 },
+  typeTitle: { fontFamily: F.serif, fontSize: 16, color: C.ink, letterSpacing: -0.2 },
+  typeDesc: { fontSize: 11, color: C.inkMuted, marginTop: 2 },
+  countRow: { flexDirection: 'row', gap: 10, marginTop: 5 },
+  noteCount: { fontSize: 11, color: C.inkMuted },
+  starCount: { fontSize: 11, color: C.amber, fontWeight: '600' },
+  empty: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 30 },
+  emptyIcon: { fontSize: 40, marginBottom: 12 },
+  emptyTitle: { fontFamily: F.serif, fontSize: 18, color: C.ink, marginBottom: 6 },
+  emptySub: { fontSize: 13, color: C.inkMuted, textAlign: 'center', lineHeight: 20 },
+});
+
+// ── TypeNotesScreen styles ────────────────────────────────────────────
+const tns = StyleSheet.create({
+  header: { backgroundColor: C.white, borderBottomWidth: 0.5, borderBottomColor: C.border, paddingBottom: 18 },
+  backBtn: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 8, alignSelf: 'flex-start' },
+  backTxt: { fontSize: 14, color: C.inkSoft, fontWeight: '600' },
+  headerInfo: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20 },
+  iconWrap: {
+    width: 52, height: 52, borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  icon: { fontSize: 24 },
+  typeTitle: { fontFamily: F.serif, fontSize: 20, color: C.ink, lineHeight: 26, letterSpacing: -0.3 },
+  typeDesc: { fontSize: 12, color: C.inkMuted, marginTop: 3 },
+  countRow: { flexDirection: 'row', gap: 10, marginTop: 6 },
+  noteCount: { fontSize: 11, color: C.inkMuted },
+  starCount: { fontSize: 11, color: C.amber, fontWeight: '600' },
   empty: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 30 },
   emptyIcon: { fontSize: 40, marginBottom: 12 },
   emptyTitle: { fontFamily: F.serif, fontSize: 18, color: C.ink, marginBottom: 6 },

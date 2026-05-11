@@ -22,10 +22,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TextInput, ScrollView, TouchableOpacity, Pressable,
-  StyleSheet, Modal, KeyboardAvoidingView, Platform,
+  StyleSheet, Modal, KeyboardAvoidingView, Platform, Alert, Image,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import * as ImagePicker from 'expo-image-picker';
 import { BookCover } from './BookCover';
 import { AppHeader } from './AppHeader';
 import { C, F } from '../theme';
@@ -41,19 +42,26 @@ const TYPES = [
 ];
 
 // ── Helpers ────────────────────────────────────────────────────────────
-const newBlock = (type = 'paragraph') => ({
+const newBlock = (type = 'paragraph', extras = {}) => ({
   id:   `b_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
   type,
   text: '',
   attribution: type === 'quote' ? '' : undefined,
+  // Image-specific fields. uri is set when the user picks/captures an image.
+  uri:    type === 'image' ? null : undefined,
+  width:  type === 'image' ? 0 : undefined,
+  height: type === 'image' ? 0 : undefined,
+  ...extras,
 });
 
-// Flatten blocks → plain text (kept on note.text for backwards compat)
+// Flatten blocks → plain text (kept on note.text for backwards compat).
+// Image blocks contribute their caption only (if any).
 function blocksToText(blocks) {
   return blocks
     .map(b => {
       if (b.type === 'quote')   return `"${b.text}"${b.attribution ? ` — ${b.attribution}` : ''}`;
       if (b.type === 'thought') return `💭 ${b.text}`;
+      if (b.type === 'image')   return b.text || '';  // caption only
       return b.text;
     })
     .filter(s => s.trim())
@@ -61,9 +69,27 @@ function blocksToText(blocks) {
 }
 
 // ── Toolbar ────────────────────────────────────────────────────────────
-function Toolbar({ onInsert }) {
+function Toolbar({ onInsert, onPickFromGallery, onTakePhoto }) {
   return (
-    <View style={tb.bar}>
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={tb.scrollContent}
+      keyboardShouldPersistTaps="always"
+    >
+      <View style={tb.bar}>
+      {/* Media buttons */}
+      <TouchableOpacity style={tb.btn} onPress={onPickFromGallery} activeOpacity={0.6}>
+        <Ionicons name="image-outline" size={17} color={C.inkSoft} />
+      </TouchableOpacity>
+      <View style={tb.divider} />
+      <TouchableOpacity style={tb.btn} onPress={onTakePhoto} activeOpacity={0.6}>
+        <Ionicons name="camera-outline" size={18} color={C.inkSoft} />
+      </TouchableOpacity>
+
+      <View style={tb.sectionDivider} />
+
+      {/* Block-type buttons */}
       <TouchableOpacity style={tb.btn} onPress={() => onInsert('quote')} activeOpacity={0.6}>
         <Text style={tb.btnTxt}>99</Text>
       </TouchableOpacity>
@@ -76,10 +102,14 @@ function Toolbar({ onInsert }) {
         <Ionicons name="text-outline" size={16} color={C.inkSoft} />
       </TouchableOpacity>
     </View>
+    </ScrollView>
   );
 }
 
 const tb = StyleSheet.create({
+  scrollContent: {
+    paddingHorizontal: 20,
+  },
   bar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -87,21 +117,26 @@ const tb = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     borderColor: C.border,
-    marginHorizontal: 20,
     paddingHorizontal: 4,
     paddingVertical: 4,
     gap: 0,
   },
   btn: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
+    paddingHorizontal: 9,
+    paddingVertical: 7,
+    borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: 36,
+    minWidth: 30,
   },
   btnTxt: { fontFamily: F.serif, fontSize: 14, color: C.inkSoft, fontStyle: 'italic' },
-  divider: { width: 1, height: 16, backgroundColor: C.border },
+  divider: { width: 1, height: 14, backgroundColor: C.border, opacity: 0.7 },
+  sectionDivider: { width: 1, height: 20, backgroundColor: C.borderMid, marginHorizontal: 4 },
+  highlightSwatch: {
+    backgroundColor: C.amberPale,
+    paddingHorizontal: 5,
+    borderRadius: 3,
+  },
 });
 
 // ── Tag row ────────────────────────────────────────────────────────────
@@ -212,18 +247,62 @@ const tg = StyleSheet.create({
   pickerLabel: { fontSize: 15, color: C.ink, fontWeight: '500' },
 });
 
+// Markdown wrap helpers — used by both inline format and the block components
+const FORMAT_DELIMS = {
+  bold:      { prefix: '**',  suffix: '**'  },
+  italic:    { prefix: '*',   suffix: '*'   },
+  underline: { prefix: '__',  suffix: '__'  },
+  highlight: { prefix: '==',  suffix: '=='  },
+};
+
+// Wrap the selection [start, end] in `text` with markdown delimiters.
+// Returns { text, selection } so caller can update both.
+function wrapSelection(text, selection, prefix, suffix) {
+  const start = selection?.start ?? text.length;
+  const end   = selection?.end   ?? text.length;
+  const before  = text.slice(0, start);
+  const middle  = text.slice(start, end);
+  const after   = text.slice(end);
+  const next    = before + prefix + middle + suffix + after;
+  // If something was selected, keep selection on the wrapped content
+  // If nothing was selected (caret only), put cursor between the delimiters
+  const newSel = middle.length > 0
+    ? { start: start + prefix.length, end: start + prefix.length + middle.length }
+    : { start: start + prefix.length, end: start + prefix.length };
+  return { text: next, selection: newSel };
+}
+
 // ── Block components ──────────────────────────────────────────────────
-function ParagraphBlock({ block, onChange, onRemove, placeholder, autoFocus }) {
+const ParagraphBlock = React.forwardRef(function ParagraphBlock(
+  { block, onChange, onRemove, placeholder, autoFocus, onFocus },
+  ref
+) {
   const inputRef = useRef(null);
+  const [selection, setSelection] = useState({ start: 0, end: 0 });
 
   // Auto-focus on mount if marked (used when block is appended via tail tap)
   useEffect(() => {
     if (autoFocus) {
-      // Small delay lets layout settle before the keyboard rises
       const t = setTimeout(() => inputRef.current?.focus(), 50);
       return () => clearTimeout(t);
     }
   }, [autoFocus]);
+
+  // Expose applyFormat to parent so toolbar buttons can wrap selection
+  React.useImperativeHandle(ref, () => ({
+    applyFormat: (type) => {
+      const d = FORMAT_DELIMS[type];
+      if (!d) return;
+      const wrapped = wrapSelection(block.text || '', selection, d.prefix, d.suffix);
+      onChange({ ...block, text: wrapped.text });
+      // Defer cursor update until after the text change has rendered
+      setTimeout(() => {
+        inputRef.current?.setNativeProps?.({ selection: wrapped.selection });
+        setSelection(wrapped.selection);
+      }, 16);
+    },
+    focus: () => inputRef.current?.focus(),
+  }), [block.text, selection, onChange]);
 
   return (
     <Pressable onPress={() => inputRef.current?.focus()}>
@@ -233,6 +312,8 @@ function ParagraphBlock({ block, onChange, onRemove, placeholder, autoFocus }) {
           style={blk.paragraph}
           value={block.text}
           onChangeText={text => onChange({ ...block, text })}
+          onFocus={onFocus}
+          onSelectionChange={(e) => setSelection(e.nativeEvent.selection)}
           placeholder={placeholder}
           placeholderTextColor={C.inkFaint}
           multiline
@@ -246,11 +327,30 @@ function ParagraphBlock({ block, onChange, onRemove, placeholder, autoFocus }) {
       </View>
     </Pressable>
   );
-}
+});
 
-function QuoteBlock({ block, onChange, onRemove }) {
+const QuoteBlock = React.forwardRef(function QuoteBlock(
+  { block, onChange, onRemove, onFocus },
+  ref
+) {
   const quoteRef = useRef(null);
   const attribRef = useRef(null);
+  const [selection, setSelection] = useState({ start: 0, end: 0 });
+
+  React.useImperativeHandle(ref, () => ({
+    applyFormat: (type) => {
+      const d = FORMAT_DELIMS[type];
+      if (!d) return;
+      const wrapped = wrapSelection(block.text || '', selection, d.prefix, d.suffix);
+      onChange({ ...block, text: wrapped.text });
+      setTimeout(() => {
+        quoteRef.current?.setNativeProps?.({ selection: wrapped.selection });
+        setSelection(wrapped.selection);
+      }, 16);
+    },
+    focus: () => quoteRef.current?.focus(),
+  }), [block.text, selection, onChange]);
+
   return (
     <Pressable onPress={() => quoteRef.current?.focus()}>
       <View style={blk.quoteWrap}>
@@ -261,6 +361,8 @@ function QuoteBlock({ block, onChange, onRemove }) {
             style={blk.quoteText}
             value={block.text}
             onChangeText={text => onChange({ ...block, text })}
+            onFocus={onFocus}
+            onSelectionChange={(e) => setSelection(e.nativeEvent.selection)}
             placeholder="A quote that struck you…"
             placeholderTextColor={C.inkFaint}
             multiline
@@ -283,10 +385,29 @@ function QuoteBlock({ block, onChange, onRemove }) {
       </View>
     </Pressable>
   );
-}
+});
 
-function ThoughtBlock({ block, onChange, onRemove }) {
+const ThoughtBlock = React.forwardRef(function ThoughtBlock(
+  { block, onChange, onRemove, onFocus },
+  ref
+) {
   const inputRef = useRef(null);
+  const [selection, setSelection] = useState({ start: 0, end: 0 });
+
+  React.useImperativeHandle(ref, () => ({
+    applyFormat: (type) => {
+      const d = FORMAT_DELIMS[type];
+      if (!d) return;
+      const wrapped = wrapSelection(block.text || '', selection, d.prefix, d.suffix);
+      onChange({ ...block, text: wrapped.text });
+      setTimeout(() => {
+        inputRef.current?.setNativeProps?.({ selection: wrapped.selection });
+        setSelection(wrapped.selection);
+      }, 16);
+    },
+    focus: () => inputRef.current?.focus(),
+  }), [block.text, selection, onChange]);
+
   return (
     <Pressable onPress={() => inputRef.current?.focus()}>
       <View style={blk.thoughtWrap}>
@@ -299,6 +420,8 @@ function ThoughtBlock({ block, onChange, onRemove }) {
           style={blk.thoughtText}
           value={block.text}
           onChangeText={text => onChange({ ...block, text })}
+          onFocus={onFocus}
+          onSelectionChange={(e) => setSelection(e.nativeEvent.selection)}
           placeholder="What does this connect to? What surprised you?"
           placeholderTextColor={C.inkFaint}
           multiline
@@ -311,6 +434,46 @@ function ThoughtBlock({ block, onChange, onRemove }) {
         )}
       </View>
     </Pressable>
+  );
+});
+
+// ── Image block — shows the picked/captured image with optional caption ──
+function ImageBlock({ block, onChange, onRemove }) {
+  // Aspect ratio: fall back to 4:3 if dimensions unknown
+  const aspect = (block.width && block.height) ? (block.width / block.height) : (4 / 3);
+
+  return (
+    <View style={blk.imageWrap}>
+      {block.uri ? (
+        <View style={[blk.imageFrame, { aspectRatio: aspect }]}>
+          <Image source={{ uri: block.uri }} style={blk.image} resizeMode="cover" />
+          {onRemove && (
+            <TouchableOpacity onPress={onRemove} style={blk.imageRemoveBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="close" size={14} color={C.white} />
+            </TouchableOpacity>
+          )}
+        </View>
+      ) : (
+        <View style={[blk.imagePlaceholder, { aspectRatio: 4 / 3 }]}>
+          <Ionicons name="image-outline" size={28} color={C.inkFaint} />
+          <Text style={blk.imagePlaceholderTxt}>Image unavailable</Text>
+          {onRemove && (
+            <TouchableOpacity onPress={onRemove} style={blk.imageRemoveBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="close" size={14} color={C.white} />
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
+      <TextInput
+        style={blk.imageCaption}
+        value={block.text}
+        onChangeText={text => onChange({ ...block, text })}
+        placeholder="Add a caption…"
+        placeholderTextColor={C.inkFaint}
+        multiline
+      />
+    </View>
   );
 }
 
@@ -394,6 +557,56 @@ const blk = StyleSheet.create({
   removeBtnAbs: {
     position: 'absolute',
     top: 8, right: 8,
+  },
+
+  // Image block
+  imageWrap: {
+    paddingHorizontal: 20,
+    marginBottom: 18,
+  },
+  imageFrame: {
+    width: '100%',
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: C.cream,
+    position: 'relative',
+  },
+  image: {
+    width: '100%',
+    height: '100%',
+  },
+  imagePlaceholder: {
+    width: '100%',
+    borderRadius: 12,
+    backgroundColor: C.cream,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    position: 'relative',
+  },
+  imagePlaceholderTxt: {
+    fontSize: 12,
+    color: C.inkFaint,
+  },
+  imageRemoveBtn: {
+    position: 'absolute',
+    top: 8, right: 8,
+    width: 24, height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  imageCaption: {
+    fontSize: 13,
+    color: C.inkMuted,
+    fontStyle: 'italic',
+    marginTop: 8,
+    padding: 0,
+    minHeight: 18,
   },
 });
 
@@ -494,6 +707,25 @@ function EditorScreen({ book, initialData, onSave, onCancel }) {
 
   const scrollRef = useRef(null);
 
+  // Refs to each block's imperative interface (applyFormat, focus).
+  // Keyed by block id so order changes don't shuffle refs incorrectly.
+  const blockRefs = useRef({});
+  // The id of the most recently focused block — toolbar formatting targets this.
+  const focusedBlockId = useRef(null);
+
+  const registerBlockRef = (id) => (ref) => {
+    if (ref) blockRefs.current[id] = ref;
+    else delete blockRefs.current[id];
+  };
+
+  // Dispatch a format action to the focused block (bold/italic/underline/highlight)
+  const handleFormat = (type) => {
+    const id = focusedBlockId.current;
+    if (!id) return;
+    const ref = blockRefs.current[id];
+    ref?.applyFormat?.(type);
+  };
+
   // Helpers
   const updateBlock = (idx, updated) => {
     setBlocks(bs => bs.map((b, i) => i === idx ? updated : b));
@@ -512,13 +744,66 @@ function EditorScreen({ book, initialData, onSave, onCancel }) {
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80);
   };
 
+  // Insert one or more image blocks at the end with given URIs
+  const insertImageBlocks = (assets) => {
+    if (!assets || assets.length === 0) return;
+    const newImageBlocks = assets.map(a =>
+      newBlock('image', { uri: a.uri, width: a.width || 0, height: a.height || 0 })
+    );
+    setBlocks(bs => [...bs, ...newImageBlocks]);
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+  };
+
+  // Pick from gallery
+  const handlePickFromGallery = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert(
+        'Photos access needed',
+        'BookWise needs access to your photos so you can attach them to notes. Enable it in Settings.',
+      );
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsMultipleSelection: true,
+      quality: 0.85,
+    });
+    if (!result.canceled) {
+      insertImageBlocks(result.assets);
+    }
+  };
+
+  // Take a photo with the camera
+  const handleTakePhoto = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert(
+        'Camera access needed',
+        'BookWise needs access to the camera so you can capture book pages and notes. Enable it in Settings.',
+      );
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.85,
+    });
+    if (!result.canceled) {
+      insertImageBlocks(result.assets);
+    }
+  };
+
   const toggleType = (key) => {
     setTypes(ts => ts.includes(key) ? ts.filter(t => t !== key) : [...ts, key]);
   };
 
   // Save — flatten blocks → text for backwards compat
   const handleSave = () => {
-    const cleanBlocks = blocks.filter(b => b.text.trim() || b.attribution?.trim());
+    // Keep blocks with content OR images (image blocks may have empty caption)
+    const cleanBlocks = blocks.filter(b => {
+      if (b.type === 'image') return !!b.uri;
+      return b.text.trim() || b.attribution?.trim();
+    });
     if (cleanBlocks.length === 0) return;
 
     const flatText = blocksToText(cleanBlocks);
@@ -545,7 +830,8 @@ function EditorScreen({ book, initialData, onSave, onCancel }) {
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        {/* App bar */}
+        {/* App bar — SafeAreaView edges={['top']} handles the notch padding;
+            we only add minimal extra breathing room below it. */}
         <View style={ed.appBar}>
           <TouchableOpacity onPress={onCancel} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Ionicons name="chevron-back" size={22} color={C.ink} />
@@ -569,7 +855,11 @@ function EditorScreen({ book, initialData, onSave, onCancel }) {
         >
           {/* Toolbar */}
           <View style={ed.toolbarWrap}>
-            <Toolbar onInsert={insertBlock} />
+            <Toolbar
+              onInsert={insertBlock}
+              onPickFromGallery={handlePickFromGallery}
+              onTakePhoto={handleTakePhoto}
+            />
           </View>
 
           {/* Title */}
@@ -588,19 +878,34 @@ function EditorScreen({ book, initialData, onSave, onCancel }) {
           {/* Blocks */}
           {blocks.map((block, idx) => {
             const removeFn = blocks.length > 1 ? () => removeBlock(idx) : null;
+            const onFocusBlock = () => { focusedBlockId.current = block.id; };
             if (block.type === 'quote') {
               return (
                 <QuoteBlock
                   key={block.id}
+                  ref={registerBlockRef(block.id)}
                   block={block}
                   onChange={updated => updateBlock(idx, updated)}
                   onRemove={removeFn}
+                  onFocus={onFocusBlock}
                 />
               );
             }
             if (block.type === 'thought') {
               return (
                 <ThoughtBlock
+                  key={block.id}
+                  ref={registerBlockRef(block.id)}
+                  block={block}
+                  onChange={updated => updateBlock(idx, updated)}
+                  onRemove={removeFn}
+                  onFocus={onFocusBlock}
+                />
+              );
+            }
+            if (block.type === 'image') {
+              return (
+                <ImageBlock
                   key={block.id}
                   block={block}
                   onChange={updated => updateBlock(idx, updated)}
@@ -611,11 +916,13 @@ function EditorScreen({ book, initialData, onSave, onCancel }) {
             return (
               <ParagraphBlock
                 key={block.id}
+                ref={registerBlockRef(block.id)}
                 block={block}
                 onChange={updated => updateBlock(idx, updated)}
                 onRemove={removeFn}
                 placeholder={idx === 0 ? 'Start writing…' : 'Continue your reflection…'}
                 autoFocus={block.autoFocus}
+                onFocus={onFocusBlock}
               />
             );
           })}
@@ -729,20 +1036,25 @@ export function RichNoteEditor({ visible, books, initialNote, onSave, onClose })
       presentationStyle="fullScreen"
       onRequestClose={handleCancel}
     >
-      {!pickedBook ? (
-        <BookPicker
-          books={books}
-          onPick={setPickedBook}
-          onCancel={handleCancel}
-        />
-      ) : (
-        <EditorScreen
-          book={pickedBook}
-          initialData={initialNote}
-          onSave={handleSaveFromEditor}
-          onCancel={handleCancel}
-        />
-      )}
+      {/* Modals on iOS create a separate React tree that doesn't inherit
+          the app-root SafeAreaProvider context. We provide our own here so
+          the inner SafeAreaView correctly reads the device's notch insets. */}
+      <SafeAreaProvider>
+        {!pickedBook ? (
+          <BookPicker
+            books={books}
+            onPick={setPickedBook}
+            onCancel={handleCancel}
+          />
+        ) : (
+          <EditorScreen
+            book={pickedBook}
+            initialData={initialNote}
+            onSave={handleSaveFromEditor}
+            onCancel={handleCancel}
+          />
+        )}
+      </SafeAreaProvider>
     </Modal>
   );
 }
