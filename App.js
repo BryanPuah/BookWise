@@ -20,6 +20,8 @@ import { NotesScreen }         from './src/screens/NotesScreen';
 import { ReviewScreen }        from './src/screens/ReviewScreen';
 import { DiscoverScreen }      from './src/screens/DiscoverScreen';
 import { GoalsScreen }         from './src/screens/GoalsScreen';
+import { ProfileScreen }       from './src/screens/ProfileScreen';
+import { LoginScreen }         from './src/screens/LoginScreen';
 import { RichNoteEditor }      from './src/components/RichNoteEditor';
 import { C } from './src/theme';
 
@@ -32,7 +34,7 @@ function LibraryStack() {
       <Stack.Screen name="LibraryHome"   component={HomeScreen} />
       <Stack.Screen name="BookDetail"    component={BookDetailScreen} />
       <Stack.Screen name="FinishedBooks" component={FinishedBooksScreen} />
-      <Stack.Screen name="Profile"       component={ReviewScreen} />
+      <Stack.Screen name="Profile"       component={ProfileScreen} />
       <Stack.Screen name="Goals"         component={GoalsScreen} />
     </Stack.Navigator>
   );
@@ -115,8 +117,14 @@ const fab = StyleSheet.create({
 
 // ── Tab navigator ──────────────────────────────────────────────────────
 function Tabs() {
-  const { books, addNote } = useStore();
+  const { books, addNote, user } = useStore();
   const [showCapture, setShowCapture] = useState(false);
+
+  // Auth gate — if there's no user identity yet (fresh install or after
+  // logout), show the LoginScreen instead of the main app.
+  if (!user.name) {
+    return <LoginScreen />;
+  }
 
   const handleSave = (data) => {
     addNote({
@@ -188,7 +196,7 @@ function Tabs() {
         />
         <Tab.Screen
           name="Profile"
-          component={ReviewScreen}
+          component={ProfileScreen}
           options={{
             tabBarIcon: ({ focused }) => (
               <TabItem name="person-outline" nameActive="person" label="Profile" active={focused} />

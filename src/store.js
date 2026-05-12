@@ -71,6 +71,14 @@ const DEMO_ACTIVE_DAYS = [
   daysAgoKey(4), daysAgoKey(3), daysAgoKey(2), daysAgoKey(1), todayKey(),
 ];
 
+// ── User profile ─────────────────────────────────────────────────────
+// Single signed-in user (no multi-account). Shape:
+//   { name: string, email: string, avatarSeed: string }
+// `avatarSeed` is a stable string we hand to the avatar source (DiceBear
+// API) so the same user always gets the same rendered avatar. Empty user
+// (`name === ''`) means "not logged in" — App.js routes to LoginScreen.
+const DEFAULT_USER = { name: '', email: '', avatarSeed: '' };
+
 export function StoreProvider({ children }) {
   const [books, setBooks] = useState(DEMO_BOOKS);
   const [notes, setNotes] = useState(DEMO_NOTES);
@@ -79,6 +87,7 @@ export function StoreProvider({ children }) {
   const [goalCompletions, setGoalCompletions] = useState(DEMO_COMPLETIONS);
   const [activeDays, setActiveDays] = useState(DEMO_ACTIVE_DAYS);
   const [reflections, setReflections] = useState(DEMO_REFLECTIONS);
+  const [user, setUser] = useState(DEFAULT_USER);
 
   // ── Books ────────────────────────────────────────────────────────
   const addBook    = (book)  => setBooks(b => [book, ...b]);
@@ -238,11 +247,21 @@ export function StoreProvider({ children }) {
     setReflections(rs => rs.filter(r => r.date !== date));
   };
 
+  // ── User profile + auth ──────────────────────────────────────────
+  // Patch the user object (e.g. updateUser({ name: 'Julian' }))
+  const updateUser = (patch) => setUser(u => ({ ...u, ...patch }));
+
+  // Logout — instantly clears user identity. Library/notes/reflections
+  // are preserved (per user choice — no wipe on logout). App.js routes
+  // back to the LoginScreen when user.name becomes empty.
+  const logout = () => setUser(DEFAULT_USER);
+
   return (
     <StoreContext.Provider value={{
       books, notes, cards, goals, goalCompletions, reflections,
       activeDays, currentStreak,
       dueCards, currentBook, readingBooks,
+      user, updateUser, logout,
       addBook, updateBook, removeBook,
       addNote, updateNote, deleteNote,
       addCard, updateCard, dismissCard,
