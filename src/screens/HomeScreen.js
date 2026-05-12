@@ -9,6 +9,7 @@ import { useStore } from '../store';
 import { BookCover } from '../components/BookCover';
 import { ReadingTimeline } from '../components/ReadingTimeline';
 import { AppHeader } from '../components/AppHeader';
+import { ReflectionPage } from '../components/ReflectionPage';
 import { C, F } from '../theme';
 
 const { width: SW } = Dimensions.get('window');
@@ -22,6 +23,7 @@ const TILE_H = 168;
 const COLLECTION_TABS = [
   { id: 'finished',     label: 'Finished'     },
   { id: 'want_to_read', label: 'Want to Read' },
+  { id: 'reflections',  label: 'Reflections'  },
   { id: 'collections',  label: 'Collections'  },
 ];
 
@@ -126,7 +128,7 @@ function StreakCard({ streak }) {
 
 // ── Main screen ────────────────────────────────────────────────────────
 export function HomeScreen({ navigation }) {
-  const { books, notes, cards, dueCards, readingBooks, currentStreak } = useStore();
+  const { books, notes, cards, dueCards, readingBooks, currentStreak, reflections } = useStore();
   const [activeIdx, setActiveIdx] = useState(0);
   const heroScrollRef = useRef(null);
 
@@ -136,6 +138,9 @@ export function HomeScreen({ navigation }) {
 
   // Active library tab — Finished / Want to Read / Collections
   const [activeCollection, setActiveCollection] = useState('finished');
+  // When a reflection is tapped in the list, open the full-screen
+  // ReflectionPage. DayPanel still opens via the calendar route only.
+  const [reflectionDate, setReflectionDate] = useState(null);
 
   const finished   = books.filter(b => b.status === 'finished');
   const wantToRead = books.filter(b => b.status === 'want_to_read');
@@ -395,6 +400,50 @@ export function HomeScreen({ navigation }) {
           })}
         </View>
 
+        {activeCollection === 'reflections' ? (
+          // Reflections list — sorted newest first. Tap a row to open DayPanel
+          // for that date (read-only viewing + inline edit happen in there).
+          <View style={s.reflectionsList}>
+            {reflections.length === 0 ? (
+              <View style={s.collectionEmpty}>
+                <Text style={s.collectionEmptyTxt}>
+                  No reflections yet. Tap a date on the calendar above to write your first.
+                </Text>
+              </View>
+            ) : (
+              [...reflections]
+                .sort((a, b) => b.date.localeCompare(a.date))
+                .map(r => {
+                  // First non-empty line as the preview
+                  const firstLine = (r.text || '').split('\n').find(l => l.trim()) || '';
+                  const [y, m, d] = r.date.split('-').map(Number);
+                  const date = new Date(y, m - 1, d);
+                  const dayLabel = date.toLocaleDateString('en-US', {
+                    weekday: 'short', month: 'short', day: 'numeric',
+                  });
+                  return (
+                    <TouchableOpacity
+                      key={r.id}
+                      style={s.reflectionRow}
+                      onPress={() => setReflectionDate(r.date)}
+                      activeOpacity={0.85}
+                    >
+                      <View style={s.reflectionRowIcon}>
+                        <Ionicons name="create" size={16} color={C.amber} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.reflectionRowDate}>{dayLabel}</Text>
+                        <Text style={s.reflectionRowBody} numberOfLines={2}>
+                          {firstLine}
+                        </Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={14} color={C.inkFaint} />
+                    </TouchableOpacity>
+                  );
+                })
+            )}
+          </View>
+        ) : (
         <View style={s.collectionGrid}>
           {collectionBooks.length === 0 ? (
             <TouchableOpacity
@@ -442,10 +491,19 @@ export function HomeScreen({ navigation }) {
             ))
           )}
         </View>
+        )}
 
         <View style={{ height: 130 }} />
 
       </ScrollView>
+
+      {/* Full-screen reflection page — opens from the Reflections list rows.
+          Closing simply clears the date so the same row can be tapped again. */}
+      <ReflectionPage
+        visible={!!reflectionDate}
+        dateKey={reflectionDate}
+        onClose={() => setReflectionDate(null)}
+      />
     </SafeAreaView>
   );
 }
@@ -754,6 +812,44 @@ const s = StyleSheet.create({
     fontSize: 13,
     color: C.ink,
     fontWeight: '600',
+  },
+
+  // ── Reflections list (when "Reflections" collection tab is active) ──
+  reflectionsList: {
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    gap: 8,
+  },
+  reflectionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: C.white,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.border,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  reflectionRowIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: C.amberPale,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reflectionRowDate: {
+    fontFamily: F.serif,
+    fontSize: 14,
+    color: C.ink,
+    letterSpacing: -0.2,
+    marginBottom: 2,
+  },
+  reflectionRowBody: {
+    fontSize: 12,
+    color: C.inkMuted,
+    lineHeight: 17,
   },
 });
 

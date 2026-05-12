@@ -3,7 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import {
-  View, Text, StyleSheet, ActivityIndicator, TouchableOpacity,
+  View, Text, TextInput, StyleSheet, ActivityIndicator, TouchableOpacity,
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -232,6 +232,21 @@ export default function App() {
     DMSerifDisplay_400Regular,
     DMSerifDisplay_400Regular_Italic,
   });
+
+  // Apply DMSerifDisplay as the default font for every <Text> and <TextInput>
+  // in the app. Components that set their own fontFamily still win.
+  //
+  // TO REVERT: delete this useEffect block. The font fallback will return to
+  // the system default (San Francisco on iOS, Roboto on Android).
+  useEffect(() => {
+    if (!fontsLoaded) return;
+    const familyStyle = { fontFamily: 'DMSerifDisplay_400Regular' };
+    // Text.defaultProps may be undefined on first mount; initialise then merge
+    Text.defaultProps = Text.defaultProps || {};
+    Text.defaultProps.style = [familyStyle, Text.defaultProps.style];
+    TextInput.defaultProps = TextInput.defaultProps || {};
+    TextInput.defaultProps.style = [familyStyle, TextInput.defaultProps.style];
+  }, [fontsLoaded]);
 
   if (!fontsLoaded) {
     return (

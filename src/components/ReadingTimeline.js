@@ -686,6 +686,7 @@ function DayPanel({ visible, day, data, onClose, onManageGoals }) {
   const {
     notes, books,
     goals, addGoal, toggleGoalCompletion, isGoalCompletedOn, goalsForDate,
+    reflectionForDate, upsertReflection,
   } = useStore();
 
   // Selected day state — initialised from prop, can change via week strip
@@ -828,6 +829,8 @@ function DayPanel({ visible, day, data, onClose, onManageGoals }) {
               isGoalCompletedOn={isGoalCompletedOn}
               toggleGoalCompletion={toggleGoalCompletion}
               onManageGoals={onManageGoals}
+              reflection={reflectionForDate(selectedKey)}
+              onSaveReflection={upsertReflection}
             />
           </ScrollView>
 
@@ -869,15 +872,15 @@ function DaySection({
   notes, books,
   goals, dateKey, isGoalCompletedOn, toggleGoalCompletion,
   onManageGoals,
+  reflection, onSaveReflection,
 }) {
-  // Separate reflections (not book-attached) from book notes
-  const reflections = notes.filter(n => n.type === 'reflection');
-  const bookNotes   = notes.filter(n => n.type !== 'reflection');
+  const bookNotes = notes; // all notes are book notes now; reflections live in their own store slice
 
   const hasGoals       = goals.length > 0;
-  const hasReflections = reflections.length > 0;
   const hasBooks       = books.length > 0;
-  const allEmpty       = !hasGoals && !hasReflections && !hasBooks;
+  // The reflection section ALWAYS shows (with empty-state prompt when empty)
+  // so the "rest day" empty state only fires when no goals + no books.
+  const allEmpty       = !hasGoals && !hasBooks;
 
   // Group book notes by bookId for expand-on-tap
   const notesByBookId = bookNotes.reduce((acc, n) => {
@@ -892,6 +895,12 @@ function DaySection({
         <Text style={dpnl.sectionLabel}>{label}</Text>
         <Text style={dpnl.sectionDate}>{dateLine}</Text>
       </View>
+
+      {/* ── Daily Reflection (above Goals) ── */}
+      <DailyReflectionSection
+        reflection={reflection}
+        onSave={(text) => onSaveReflection(dateKey, text)}
+      />
 
       {allEmpty && (
         <View style={dpnl.emptyDay}>
@@ -936,18 +945,6 @@ function DaySection({
         </View>
       )}
 
-      {/* ── Reflections (separate small section) ── */}
-      {hasReflections && (
-        <View style={{ marginBottom: 22 }}>
-          <View style={dpnl.subsectionHeader}>
-            <Text style={dpnl.subsectionTitle}>Daily Reflection</Text>
-          </View>
-          {reflections.map(r => (
-            <ReflectionRow key={r.id} reflection={r} />
-          ))}
-        </View>
-      )}
-
       {/* ── Books read today (expandable cards) ── */}
       {hasBooks && (
         <View>
@@ -969,22 +966,96 @@ function DaySection({
   );
 }
 
-// ── Reflection row — single-line for the day reflection section ──────
-function ReflectionRow({ reflection }) {
-  const title = reflection.title?.trim()
-    ? reflection.title.trim()
-    : (reflection.text || '').split('\n')[0].slice(0, 60) || 'Daily Reflection';
+// ── Daily Reflection section ──────────────────────────────────────────
+// Inline editor for the day's reflection. Always visible — when empty,
+// shows a "Write today's reflection" prompt. When tapped, expands to a
+// text area + Save button. Editing an existing reflection works the same
+// way: tap the text → edit mode.
+function DailyReflectionSection({ reflection, onSave }) {
+  const hasReflection = !!reflection?.text;
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(reflection?.text || '');
+
+  // Keep draft in sync if the reflection prop changes (e.g. user switches
+  // selected day in the panel and the parent passes a new reflection).
+  useEffect(() => {
+    setDraft(reflection?.text || '');
+  }, [reflection?.id, reflection?.text]);
+
+  const handleSave = () => {
+    onSave(draft);
+    setEditing(false);
+  };
+
+  const handleCancel = () => {
+    setDraft(reflection?.text || '');
+    setEditing(false);
+  };
+
   return (
-    <TouchableOpacity style={dpnl.reflectionRow} activeOpacity={0.85}>
-      <View style={[dpnl.activityIconWrap, { backgroundColor: C.amberPale }]}>
-        <Ionicons name="create" size={18} color={C.amber} />
+    <View style={{ marginBottom: 22 }}>
+      <View style={dpnl.subsectionHeader}>
+        <Text style={dpnl.subsectionTitle}>Daily Reflection</Text>
       </View>
-      <View style={{ flex: 1 }}>
-        <Text style={dpnl.reflectionTitle} numberOfLines={1}>{title}</Text>
-        <Text style={dpnl.reflectionSub} numberOfLines={1}>Journaling session</Text>
-      </View>
-      <Ionicons name="chevron-forward" size={14} color={C.inkFaint} />
-    </TouchableOpacity>
+
+      {editing ? (
+        // Edit mode — text area + Save/Cancel
+        <View style={dpnl.reflectionEditor}>
+          <TextInput
+            style={dpnl.reflectionInput}
+            value={draft}
+            onChangeText={setDraft}
+            placeholder="What's on your mind today?"
+            placeholderTextColor={C.inkFaint}
+            multiline
+            autoFocus
+            textAlignVertical="top"
+          />
+          <View style={dpnl.reflectionActions}>
+            <TouchableOpacity onPress={handleCancel} activeOpacity={0.6}>
+              <Text style={dpnl.reflectionCancel}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleSave}
+              style={dpnl.reflectionSaveBtn}
+              activeOpacity={0.85}
+            >
+              <Text style={dpnl.reflectionSaveTxt}>Save</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : hasReflection ? (
+        // Read mode — show the saved reflection, tap to edit
+        <TouchableOpacity
+          style={dpnl.reflectionCard}
+          onPress={() => setEditing(true)}
+          activeOpacity={0.85}
+        >
+          <View style={[dpnl.activityIconWrap, { backgroundColor: C.amberPale }]}>
+            <Ionicons name="create" size={18} color={C.amber} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={dpnl.reflectionBody} numberOfLines={4}>
+              {reflection.text}
+            </Text>
+            <Text style={dpnl.reflectionMeta}>Tap to edit</Text>
+          </View>
+        </TouchableOpacity>
+      ) : (
+        // Empty state — prompt to write
+        <TouchableOpacity
+          style={dpnl.reflectionPrompt}
+          onPress={() => setEditing(true)}
+          activeOpacity={0.7}
+        >
+          <View style={[dpnl.activityIconWrap, { backgroundColor: C.amberPale }]}>
+            <Ionicons name="create-outline" size={18} color={C.amber} />
+          </View>
+          <Text style={dpnl.reflectionPromptTxt}>Write today's reflection</Text>
+          <Ionicons name="add" size={18} color={C.inkMuted} />
+        </TouchableOpacity>
+      )}
+    </View>
   );
 }
 
@@ -1126,7 +1197,7 @@ function DayPill({ day, isToday, isFuture, data, onPress }) {
 }
 
 // ── Main ───────────────────────────────────────────────────────────────
-export function ReadingTimeline({ notes, cards, books, onManageGoals }) {
+export function ReadingTimeline({ notes, cards, books, onManageGoals, openDateKey, onDatePanelClosed }) {
   const scrollRef       = useRef(null);
   const [showCalendar, setShowCalendar] = useState(false);
   const [sessionDay, setSessionDay]     = useState(null);
@@ -1136,6 +1207,17 @@ export function ReadingTimeline({ notes, cards, books, onManageGoals }) {
   // can pick another date or browse — preserves the "drag down → see
   // calendar again" UX without nesting modals.
   const [cameFromCalendar, setCameFromCalendar] = useState(false);
+
+  // External request to open DayPanel for a specific date — e.g. tapping a
+  // reflection in the Library's "Reflections" collection on HomeScreen.
+  useEffect(() => {
+    if (!openDateKey) return;
+    const [y, m, d] = openDateKey.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    setSessionDay(date);
+    setSessionVisible(true);
+    setCameFromCalendar(false);
+  }, [openDateKey]);
 
   const today    = new Date();
   const todayKey = dateKey(today);
@@ -1198,7 +1280,10 @@ export function ReadingTimeline({ notes, cards, books, onManageGoals }) {
       // Brief delay so the day panel's dismiss animation completes first
       setTimeout(() => setShowCalendar(true), 100);
     }
-  }, [cameFromCalendar]);
+    // Notify parent so it can clear its openDateKey state and allow the
+    // user to open the same date again later
+    onDatePanelClosed?.();
+  }, [cameFromCalendar, onDatePanelClosed]);
 
   const handleCalendarSelect = useCallback((key) => {
     // Close the calendar, but remember the user came from it. When they
@@ -1576,8 +1661,9 @@ const dpnl = StyleSheet.create({
     letterSpacing: 0.6,
   },
 
-  // ── Reflection row ──
-  reflectionRow: {
+  // ── Daily Reflection section ──
+  // Empty-state prompt — single-line CTA to start writing
+  reflectionPrompt: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
@@ -1585,20 +1671,81 @@ const dpnl = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderColor: C.border,
+    borderStyle: 'dashed',
     paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 10,
+    paddingVertical: 14,
   },
-  reflectionTitle: {
-    fontFamily: F.serif,
-    fontSize: 16,
+  reflectionPromptTxt: {
+    flex: 1,
+    fontSize: 14,
+    color: C.inkSoft,
+    fontWeight: '500',
+    letterSpacing: -0.1,
+  },
+  // Read-mode card — shows saved reflection text + "tap to edit" hint
+  reflectionCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    backgroundColor: C.white,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.border,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  reflectionBody: {
+    fontSize: 14,
     color: C.ink,
-    letterSpacing: -0.2,
+    lineHeight: 21,
+    letterSpacing: -0.1,
   },
-  reflectionSub: {
-    fontSize: 12,
+  reflectionMeta: {
+    fontSize: 11,
+    color: C.inkFaint,
+    marginTop: 6,
+  },
+  // Edit-mode container
+  reflectionEditor: {
+    backgroundColor: C.white,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.amberPale,
+    padding: 14,
+  },
+  reflectionInput: {
+    fontSize: 14,
+    color: C.ink,
+    lineHeight: 21,
+    minHeight: 80,
+    padding: 0,
+  },
+  reflectionActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: 14,
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 0.5,
+    borderTopColor: C.border,
+  },
+  reflectionCancel: {
+    fontSize: 13,
     color: C.inkMuted,
-    marginTop: 2,
+    fontWeight: '500',
+  },
+  reflectionSaveBtn: {
+    backgroundColor: C.ink,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  reflectionSaveTxt: {
+    fontSize: 13,
+    color: C.white,
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
 
   // ── Book card (expandable) ──

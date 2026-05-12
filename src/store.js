@@ -48,6 +48,12 @@ const DEMO_GOALS = [
 // Completion log — { goalId, date (YYYY-MM-DD), completedAt (ISO) }
 const DEMO_COMPLETIONS = [];
 
+// ── Daily reflections ────────────────────────────────────────────────
+// One reflection per date. Shape: { id, date (YYYY-MM-DD), text, updatedAt }
+// Lives separately from notes since reflections aren't book-attached and
+// have no type/tags/blocks — they're a lightweight journaling primitive.
+const DEMO_REFLECTIONS = [];
+
 // ── Active days (for streak tracking) ─────────────────────────────────
 // Each entry is a YYYY-MM-DD string. Persistence is not yet implemented;
 // this resets to the seed on every app restart. When you add AsyncStorage
@@ -72,6 +78,7 @@ export function StoreProvider({ children }) {
   const [goals, setGoals] = useState(DEMO_GOALS);
   const [goalCompletions, setGoalCompletions] = useState(DEMO_COMPLETIONS);
   const [activeDays, setActiveDays] = useState(DEMO_ACTIVE_DAYS);
+  const [reflections, setReflections] = useState(DEMO_REFLECTIONS);
 
   // ── Books ────────────────────────────────────────────────────────
   const addBook    = (book)  => setBooks(b => [book, ...b]);
@@ -190,9 +197,50 @@ export function StoreProvider({ children }) {
     return count;
   })();
 
+  // ── Reflections ──────────────────────────────────────────────────────
+  // One reflection per date. Look up by date key.
+  const reflectionForDate = (date) =>
+    reflections.find(r => r.date === date) || null;
+
+  // Upsert today's (or any date's) reflection. If text is empty after trim,
+  // we delete the entry entirely so the section returns to "Write today's
+  // reflection" prompt state.
+  const upsertReflection = (date, text) => {
+    const trimmed = (text || '').trim();
+    const existing = reflections.find(r => r.date === date);
+
+    if (!trimmed) {
+      // Empty save → delete if it existed
+      if (existing) {
+        setReflections(rs => rs.filter(r => r.date !== date));
+      }
+      return;
+    }
+
+    if (existing) {
+      setReflections(rs =>
+        rs.map(r => r.date === date
+          ? { ...r, text: trimmed, updatedAt: new Date().toISOString() }
+          : r,
+        ),
+      );
+    } else {
+      setReflections(rs => [...rs, {
+        id: `r_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        date,
+        text: trimmed,
+        updatedAt: new Date().toISOString(),
+      }]);
+    }
+  };
+
+  const deleteReflection = (date) => {
+    setReflections(rs => rs.filter(r => r.date !== date));
+  };
+
   return (
     <StoreContext.Provider value={{
-      books, notes, cards, goals, goalCompletions,
+      books, notes, cards, goals, goalCompletions, reflections,
       activeDays, currentStreak,
       dueCards, currentBook, readingBooks,
       addBook, updateBook, removeBook,
@@ -201,6 +249,7 @@ export function StoreProvider({ children }) {
       addGoal, updateGoal, removeGoal,
       toggleGoalCompletion, isGoalCompletedOn, goalCompletionsOn,
       goalsForDate, markDayActive,
+      reflectionForDate, upsertReflection, deleteReflection,
       bookNotes, bookCards,
     }}>
       {children}

@@ -203,8 +203,8 @@ const tg = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
     paddingHorizontal: 20,
-    marginTop: 8,
-    marginBottom: 16,
+    marginTop: 2,
+    marginBottom: 10,
   },
   chip: {
     flexDirection: 'row',
@@ -830,20 +830,30 @@ function EditorScreen({ book, initialData, onSave, onCancel }) {
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        {/* App bar — SafeAreaView edges={['top']} handles the notch padding;
-            we only add minimal extra breathing room below it. */}
+        {/* Top bar — two rows:
+            Row 1: back chevron (left) · Save pill (right)
+            Row 2: "Note on [book]" serif title — full width, wraps as needed */}
         <View style={ed.appBar}>
-          <TouchableOpacity onPress={onCancel} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Ionicons name="chevron-back" size={22} color={C.ink} />
-          </TouchableOpacity>
-          <Text style={ed.appBarTitle} numberOfLines={1}>Modern Library</Text>
-          <TouchableOpacity
-            onPress={handleSave}
-            disabled={!canSave}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Text style={[ed.saveBtn, !canSave && { opacity: 0.3 }]}>Save</Text>
-          </TouchableOpacity>
+          <View style={ed.appBarActions}>
+            <TouchableOpacity
+              onPress={onCancel}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={ed.backBtn}
+            >
+              <Ionicons name="chevron-back" size={22} color={C.ink} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleSave}
+              disabled={!canSave}
+              activeOpacity={0.85}
+              style={[ed.savePill, !canSave && { opacity: 0.4 }]}
+            >
+              <Text style={ed.savePillTxt}>Save</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={ed.appBarTitle}>
+            Note on {book.title}
+          </Text>
         </View>
 
         <ScrollView
@@ -862,17 +872,7 @@ function EditorScreen({ book, initialData, onSave, onCancel }) {
             />
           </View>
 
-          {/* Title */}
-          <TextInput
-            style={ed.title}
-            value={title}
-            onChangeText={setTitle}
-            placeholder={`Reflections on ${book.title.split(' ').slice(0, 3).join(' ')}…`}
-            placeholderTextColor={C.inkFaint}
-            multiline
-          />
-
-          {/* Tag row */}
+          {/* Tag row — sits directly under the toolbar (no title field) */}
           <TagRow selectedTypes={types} onToggle={toggleType} />
 
           {/* Blocks */}
@@ -954,29 +954,49 @@ function EditorScreen({ book, initialData, onSave, onCancel }) {
 
 const ed = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.paper },
+  // Top bar is now a column — actions row on top, title below
   appBar: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 14,
+  },
+  // Row 1: back chevron (left) + Save pill (right)
+  appBarActions: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 14,
+    marginBottom: 12,
   },
+  backBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: -8,  // visually align chevron flush left, accounting for hitslop
+  },
+  // Substack-style Save pill — solid navy, rounded, compact
+  savePill: {
+    backgroundColor: C.ink,
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  savePillTxt: {
+    fontSize: 13,
+    color: C.white,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  // Row 2: serif title that wraps across multiple lines if needed
   appBarTitle: {
-    flex: 1,
     fontFamily: F.serif,
     fontSize: 22,
+    lineHeight: 28,
     color: C.ink,
-    letterSpacing: -0.2,
-    marginLeft: 14,
-  },
-  saveBtn: {
-    fontSize: 14,
-    color: C.ink,
-    fontWeight: '700',
+    letterSpacing: -0.3,
   },
   toolbarWrap: {
-    marginBottom: 18,
+    marginBottom: 10,
   },
   title: {
     fontFamily: F.serif,
@@ -985,8 +1005,9 @@ const ed = StyleSheet.create({
     letterSpacing: -0.4,
     lineHeight: 30,
     paddingHorizontal: 20,
-    paddingTop: 4,
+    paddingTop: 0,
     paddingBottom: 0,
+    marginTop: 4,
   },
   // Fills the empty space at the bottom of the editor so users can tap
   // anywhere below the last block to add or focus a paragraph.
@@ -1006,18 +1027,22 @@ const ed = StyleSheet.create({
 //   initialNote  — null for new note, or an existing note to edit
 //   onSave(data) — called with the assembled note payload
 //   onClose()    — close without saving
-export function RichNoteEditor({ visible, books, initialNote, onSave, onClose }) {
+export function RichNoteEditor({ visible, books, initialNote, lockedBook, onSave, onClose }) {
   const [pickedBook, setPickedBook] = useState(null);
 
-  // If editing, jump straight to step 2 with the note's existing book
+  // If editing, jump straight to step 2 with the note's existing book.
+  // If lockedBook is provided (e.g. from BookDetailScreen), skip the picker
+  // entirely and go straight to the editor with that book pre-selected.
   useEffect(() => {
     if (visible && initialNote) {
       const book = books.find(b => b.id === initialNote.bookId);
       setPickedBook(book || null);
+    } else if (visible && lockedBook) {
+      setPickedBook(lockedBook);
     } else if (visible) {
       setPickedBook(null);
     }
-  }, [visible, initialNote, books]);
+  }, [visible, initialNote, lockedBook, books]);
 
   const handleCancel = () => {
     setPickedBook(null);

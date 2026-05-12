@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
   StyleSheet, ActivityIndicator, Image, Animated,
@@ -7,8 +7,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useStore } from '../store';
-import { C, covers } from '../theme';
+import { C, F, covers } from '../theme';
 
 const { width: SW } = Dimensions.get('window');
 const PAGE_SIZE = 20;
@@ -614,6 +615,24 @@ function BookSheet({ book, added, onAdd, onAddWantToRead, onClose }) {
 }
 
 // ── Main screen ─────────────────────────────────────────────────────────
+// Deterministic background colour for a category tile. Hash the genre name
+// into one of a few moody dark palette entries so colours feel curated.
+const CATEGORY_PALETTE = [
+  '#2C3E2D', // forest green
+  '#3D4A5C', // slate
+  '#5B4636', // warm brown
+  '#3C3855', // muted indigo
+  '#4A3F3F', // wine
+  '#2F4A4F', // deep teal
+];
+function categoryColor(genre) {
+  let hash = 0;
+  for (let i = 0; i < genre.length; i++) {
+    hash = (hash * 31 + genre.charCodeAt(i)) | 0;
+  }
+  return CATEGORY_PALETTE[Math.abs(hash) % CATEGORY_PALETTE.length];
+}
+
 export function DiscoverScreen() {
   const { addBook, books } = useStore();
   const [query, setQuery]             = useState('');
@@ -629,6 +648,66 @@ export function DiscoverScreen() {
   const [selectedBook, setSelectedBook] = useState(null);
   const [showGenreSheet, setShowGenreSheet] = useState(false);
   const [showAddOwn, setShowAddOwn]         = useState(false);
+
+  // ── Top genres from user's library (drives Browse Categories + Recommended) ──
+  const topGenres = useMemo(() => {
+    const counts = {};
+    books.forEach(b => {
+      (b.genres || []).forEach(g => {
+        const norm = (g || '').trim();
+        if (!norm) return;
+        counts[norm] = (counts[norm] || 0) + 1;
+      });
+    });
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4)
+      .map(([genre]) => genre);
+  }, [books]);
+
+  // ── Recommended books (Open Library, based on top genre) ──
+  // Memory cache: only re-fetch when topGenres actually changes
+  const recoCacheRef = useRef({ key: null, books: [] });
+  const [recommended, setRecommended] = useState([]);
+  const [recoLoading, setRecoLoading] = useState(false);
+
+  useEffect(() => {
+    if (!topGenres.length) {
+      setRecommended([]);
+      return;
+    }
+    // Use top 2 genres if available, joined with OR — gives more variety
+    const queryGenres = topGenres.slice(0, 2);
+    const cacheKey = queryGenres.join('|');
+    if (recoCacheRef.current.key === cacheKey) {
+      setRecommended(recoCacheRef.current.books);
+      return;
+    }
+    let cancelled = false;
+    setRecoLoading(true);
+    (async () => {
+      try {
+        const q = queryGenres.map(g => `subject:"${g}"`).join(' OR ');
+        const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&fields=key,title,author_name,first_publish_year,cover_i,subject&limit=12`;
+        const res = await fetch(url);
+        const data = await res.json();
+        const docs = (data.docs || [])
+          .filter(r => r.key && r.title && r.author_name?.length && r.cover_i);
+        // Dedupe against user's library
+        const libKeys = new Set(books.map(b => b.olKey).filter(Boolean));
+        const filtered = docs.filter(d => !libKeys.has(d.key)).slice(0, 4);
+        if (!cancelled) {
+          recoCacheRef.current = { key: cacheKey, books: filtered };
+          setRecommended(filtered);
+        }
+      } catch {
+        if (!cancelled) setRecommended([]);
+      } finally {
+        if (!cancelled) setRecoLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [topGenres.join('|')]); // intentionally stringified to compare values not refs
 
   const addedKeys = new Set(books.map(b => b.olKey).filter(Boolean));
 
@@ -806,71 +885,173 @@ export function DiscoverScreen() {
         )}
       </View>
 
-      {/* ── Content ── */}
-      {loading ? (
-        <View style={s.loadingWrap}>
-          <ActivityIndicator size="large" color={C.amber} />
-          <Text style={s.loadingTxt}>Searching...</Text>
-        </View>
-      ) : searched && results.length === 0 ? (
-        <View style={s.emptyWrap}>
-          <Text style={s.emptyIcon}>📭</Text>
-          <Text style={s.emptyTxt}>No results for "{currentQuery}"</Text>
-          <Text style={s.emptySub}>Try the full title or a keyword — or add it manually</Text>
-          <TouchableOpacity
-            style={s.tryClearBtn}
-            onPress={() => setShowAddOwn(true)}
-          >
-            <Text style={s.tryClearTxt}>+ Add it manually</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={clear} style={{ marginTop: 14 }}>
-            <Text style={{ fontSize: 13, color: C.inkMuted, fontWeight: '500' }}>Clear and try again</Text>
-          </TouchableOpacity>
-        </View>
-      ) : !searched ? (
-        <View style={s.promptWrap}>
-          <Text style={s.promptIcon}>🔍</Text>
-          <Text style={s.promptTxt}>Find what you're reading</Text>
-          <Text style={s.promptSub}>Search above, browse by genre, or tap + Add to enter anything manually</Text>
-        </View>
-      ) : (
-        // ── Results list ──
-        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-          <View style={s.resultsHeader}>
-            <Text style={s.resultsCount}>
-              {totalFound.toLocaleString()} results · showing {results.length}
-            </Text>
-            <TouchableOpacity onPress={clear}>
-              <Text style={s.clearTxt}>Clear</Text>
-            </TouchableOpacity>
+      {/* ── Content (single scroll) ──
+          Browse Categories + Recommended for You always show at the top
+          (when the library has at least 1 book). Below them comes search
+          state — results, empty state, or the initial prompt. */}
+      <ScrollView
+        style={{ flex: 1 }}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 100 }}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Browse Categories — top 4 genres from user's library */}
+        {topGenres.length > 0 && (
+          <View style={s.sectionWrap}>
+            <View style={s.sectionHeaderRow}>
+              <Text style={s.sectionTitle}>Browse Categories</Text>
+            </View>
+            <View style={s.categoryGrid}>
+              {topGenres.map(g => (
+                <TouchableOpacity
+                  key={g}
+                  style={[s.categoryTile, { backgroundColor: categoryColor(g) }]}
+                  onPress={() => {
+                    // Same behaviour as tapping a chip in the genre sheet
+                    handleGenreSelect(g);
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <Text style={s.categoryTileTxt} numberOfLines={2}>{g}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
+        )}
 
-          <View style={s.resultsList}>
-            {results.map((book, i) => (
-              <ResultRow
-                key={book.key || i}
-                book={book}
-                added={book.key ? addedKeys.has(book.key) : false}
-                onPress={() => setSelectedBook(book)}
-              />
-            ))}
+        {/* Recommended for You */}
+        {topGenres.length > 0 && (
+          <View style={s.sectionWrap}>
+            <View style={s.sectionHeaderRow}>
+              <Text style={s.sectionTitle}>Recommended for You</Text>
+              {recommended.length > 0 && (
+                <TouchableOpacity
+                  onPress={() => {
+                    // Tap "View All" — run a search for the top genre
+                    handleGenreSelect(topGenres[0]);
+                  }}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }}
+                >
+                  <Text style={s.viewAllLink}>View All</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            {recoLoading ? (
+              <View style={s.recoLoadingWrap}>
+                <ActivityIndicator size="small" color={C.inkMuted} />
+              </View>
+            ) : recommended.length === 0 ? (
+              <Text style={s.recoEmpty}>No recommendations yet</Text>
+            ) : (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ paddingHorizontal: 20, gap: 16 }}
+              >
+                {recommended.map((book, i) => (
+                  <TouchableOpacity
+                    key={book.key || i}
+                    style={s.recoCard}
+                    onPress={() => setSelectedBook(book)}
+                    activeOpacity={0.85}
+                  >
+                    {book.cover_i ? (
+                      <Image
+                        source={{ uri: getImageUrl(book.cover_i, 'L') }}
+                        style={s.recoCover}
+                      />
+                    ) : (
+                      <View style={[s.recoCover, s.recoCoverFallback]}>
+                        <Text style={s.recoCoverFallbackTxt} numberOfLines={3}>
+                          {book.title}
+                        </Text>
+                      </View>
+                    )}
+                    <Text style={s.recoTitle} numberOfLines={2}>{book.title}</Text>
+                    <Text style={s.recoAuthor} numberOfLines={1}>
+                      {book.author_name?.[0] || 'Unknown'}
+                    </Text>
+                    {book.subject?.[0] && (
+                      <View style={s.recoGenrePill}>
+                        <Text style={s.recoGenrePillTxt} numberOfLines={1}>
+                          {book.subject[0].toUpperCase()}
+                        </Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
           </View>
+        )}
 
-          {hasMore && (
+        {/* ── Search state — results, empty, or initial prompt ── */}
+        {loading ? (
+          <View style={s.loadingWrap}>
+            <ActivityIndicator size="large" color={C.amber} />
+            <Text style={s.loadingTxt}>Searching...</Text>
+          </View>
+        ) : searched && results.length === 0 ? (
+          <View style={s.emptyWrap}>
+            <Text style={s.emptyIcon}>📭</Text>
+            <Text style={s.emptyTxt}>No results for "{currentQuery}"</Text>
+            <Text style={s.emptySub}>Try the full title or a keyword — or add it manually</Text>
             <TouchableOpacity
-              style={[s.loadMoreBtn, loadingMore && s.loadMoreBtnLoading]}
-              onPress={handleLoadMore}
-              disabled={loadingMore}
+              style={s.tryClearBtn}
+              onPress={() => setShowAddOwn(true)}
             >
-              {loadingMore
-                ? <ActivityIndicator color={C.white} />
-                : <Text style={s.loadMoreTxt}>Load more results</Text>
-              }
+              <Text style={s.tryClearTxt}>+ Add it manually</Text>
             </TouchableOpacity>
-          )}
-          <View style={{ height: 100 }} />
-        </ScrollView>
-      )}
+            <TouchableOpacity onPress={clear} style={{ marginTop: 14 }}>
+              <Text style={{ fontSize: 13, color: C.inkMuted, fontWeight: '500' }}>Clear and try again</Text>
+            </TouchableOpacity>
+          </View>
+        ) : !searched && topGenres.length === 0 ? (
+          // Initial prompt only when library is empty (otherwise sections fill the page)
+          <View style={s.promptWrap}>
+            <Text style={s.promptIcon}>🔍</Text>
+            <Text style={s.promptTxt}>Find what you're reading</Text>
+            <Text style={s.promptSub}>Search above, browse by genre, or tap + Add to enter anything manually</Text>
+          </View>
+        ) : searched ? (
+          // Results list
+          <View>
+            <View style={s.resultsHeader}>
+              <Text style={s.resultsCount}>
+                {totalFound.toLocaleString()} results · showing {results.length}
+              </Text>
+              <TouchableOpacity onPress={clear}>
+                <Text style={s.clearTxt}>Clear</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={s.resultsList}>
+              {results.map((book, i) => (
+                <ResultRow
+                  key={book.key || i}
+                  book={book}
+                  added={book.key ? addedKeys.has(book.key) : false}
+                  onPress={() => setSelectedBook(book)}
+                />
+              ))}
+            </View>
+
+            {hasMore && (
+              <TouchableOpacity
+                style={[s.loadMoreBtn, loadingMore && s.loadMoreBtnLoading]}
+                onPress={handleLoadMore}
+                disabled={loadingMore}
+              >
+                {loadingMore
+                  ? <ActivityIndicator color={C.white} />
+                  : <Text style={s.loadMoreTxt}>Load more results</Text>
+                }
+              </TouchableOpacity>
+            )}
+          </View>
+        ) : null}
+      </ScrollView>
 
       {/* ── Genre sheet ── */}
       {showGenreSheet && (
@@ -1059,4 +1240,108 @@ const s = StyleSheet.create({
   alreadyAddedSub:  { fontSize: 11, color: '#27AE60', marginTop: 2 },
   closeBtn:      { paddingVertical: 12, alignItems: 'center' },
   closeBtnTxt:   { fontSize: 14, color: C.inkMuted, fontWeight: '500' },
+
+  // ── Browse Categories + Recommended sections ──
+  sectionWrap: {
+    marginTop: 20,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontFamily: F.serif,
+    fontSize: 22,
+    color: C.ink,
+    letterSpacing: -0.3,
+  },
+  viewAllLink: {
+    fontSize: 13,
+    color: C.sage,
+    fontWeight: '700',
+  },
+  // Category grid — 2×2 dark tiles
+  categoryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 20,
+    gap: 10,
+  },
+  categoryTile: {
+    width: (SW - 50) / 2,  // (screen - 20*2 padding - 10 gap) / 2
+    height: 110,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+  },
+  categoryTileTxt: {
+    fontFamily: F.serif,
+    fontSize: 20,
+    color: '#fff',
+    textAlign: 'center',
+    letterSpacing: -0.3,
+  },
+  // Recommended horizontal scroll
+  recoLoadingWrap: {
+    height: 200,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recoEmpty: {
+    fontSize: 13,
+    color: C.inkMuted,
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+  },
+  recoCard: {
+    width: 140,
+  },
+  recoCover: {
+    width: 140,
+    height: 200,
+    borderRadius: 10,
+    backgroundColor: C.cream,
+    marginBottom: 8,
+  },
+  recoCoverFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+  },
+  recoCoverFallbackTxt: {
+    fontFamily: F.serif,
+    fontSize: 13,
+    color: C.ink,
+    textAlign: 'center',
+  },
+  recoTitle: {
+    fontFamily: F.serif,
+    fontSize: 15,
+    color: C.ink,
+    letterSpacing: -0.2,
+    lineHeight: 19,
+    marginBottom: 2,
+  },
+  recoAuthor: {
+    fontSize: 12,
+    color: C.inkMuted,
+    marginBottom: 6,
+  },
+  recoGenrePill: {
+    alignSelf: 'flex-start',
+    backgroundColor: C.sagePale,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  recoGenrePillTxt: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: C.sage,
+    letterSpacing: 0.5,
+  },
 });

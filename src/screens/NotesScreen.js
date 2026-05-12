@@ -39,6 +39,15 @@ const NT = {
   connection: { label: 'Connection', icon: '🔗', color: C.ink, bg: C.sagePale,  desc: 'This idea connects to another book or note' },
 };
 
+// Returns true if `note` carries the given type tag — checks the multi-type
+// `types[]` array first, then falls back to the legacy single `type` field.
+// Used by all type-filtering / type-grouping code so a note tagged with
+// both "insight" and "question" appears under BOTH categories.
+function noteHasType(note, typeKey) {
+  if (Array.isArray(note.types) && note.types.includes(typeKey)) return true;
+  return note.type === typeKey;
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────
 function timeAgo(dateStr) {
   const days = Math.floor((Date.now() - new Date(dateStr)) / 86400000);
@@ -341,7 +350,7 @@ function AddNoteModal({ visible, books, onSave, onClose }) {
 }
 
 // ── Note card ──────────────────────────────────────────────────────────
-function NoteCard({ note, onDelete, onEdit, showBook = false }) {
+export function NoteCard({ note, onDelete, onEdit, showBook = false }) {
   const hasBlocks = Array.isArray(note.blocks) && note.blocks.length > 0;
 
   // Types row — multi-type if note.types[] exists, otherwise primary type
@@ -537,7 +546,7 @@ function BookNotesScreen({ book, notes, cards, onStar, onDelete, onMakeCard, gen
   const starred     = notes.filter(n => n.starred).length;
 
   const typeCounts = Object.entries(NT).reduce((a, [k]) => {
-    const c = notes.filter(n => n.type === k).length;
+    const c = notes.filter(n => noteHasType(n, k)).length;
     if (c > 0) a.push({ key: k, count: c, ...NT[k] });
     return a;
   }, []);
@@ -744,7 +753,7 @@ function ByTypeView({ notes, cards, onDelete, onEdit }) {
   // Group notes by type, keeping only types that have notes
   const grouped = useMemo(() => {
     return Object.entries(NT).reduce((acc, [key, meta]) => {
-      const typeNotes = notes.filter(n => n.type === key);
+      const typeNotes = notes.filter(n => noteHasType(n, key));
       if (typeNotes.length > 0) {
         acc.push({ key, meta, notes: typeNotes });
       }
