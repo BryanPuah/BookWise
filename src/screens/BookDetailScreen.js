@@ -313,28 +313,30 @@ export function BookDetailScreen({ route, navigation }) {
           {/* Notes section */}
           <View style={s.notesSection}>
             <View style={s.notesHeader}>
-              <Text style={s.notesTitle}>Notes</Text>
-              <Text style={s.notesCount}>
-                {notes.length} {notes.length === 1 ? 'note' : 'notes'}
-              </Text>
+              {/* Title + count on the left */}
+              <View style={s.notesTitleWrap}>
+                <Text style={s.notesTitle}>Notes</Text>
+                {notes.length > 0 && (
+                  <Text style={s.notesCount}>{notes.length}</Text>
+                )}
+              </View>
+              {/* Add Note pill on the far right of the same line */}
+              <TouchableOpacity
+                style={s.addNotePill}
+                onPress={openNewNote}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="add" size={16} color={C.ink} />
+                <Text style={s.addNotePillTxt}>Add Note</Text>
+              </TouchableOpacity>
             </View>
-
-            {/* Add note CTA */}
-            <TouchableOpacity
-              style={s.addNoteBtn}
-              onPress={openNewNote}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="add" size={20} color={C.ink} />
-              <Text style={s.addNoteTxt}>Add a note</Text>
-            </TouchableOpacity>
 
             {/* Notes list — uses the shared NoteCard from NotesScreen.
                 showBook=false since the user is already on the book page. */}
             {notes.length === 0 ? (
               <View style={s.emptyNotes}>
                 <Text style={s.emptyNotesTxt}>
-                  No notes yet. Tap "Add a note" to capture your first thought.
+                  No notes yet. Tap "Add Note" to capture your first thought.
                 </Text>
               </View>
             ) : (
@@ -583,9 +585,15 @@ const s = StyleSheet.create({
   notesHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'baseline',
+    alignItems: 'center',
     marginBottom: 12,
     paddingHorizontal: 12,
+  },
+  // Title cluster — serif "Notes" + small muted count number next to it
+  notesTitleWrap: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 8,
   },
   notesTitle: {
     fontFamily: F.serif,
@@ -594,29 +602,28 @@ const s = StyleSheet.create({
     letterSpacing: -0.3,
   },
   notesCount: {
-    fontSize: 12,
+    fontFamily: F.serif,
+    fontSize: 16,
     color: C.inkMuted,
-    fontWeight: '600',
+    letterSpacing: -0.2,
   },
-  addNoteBtn: {
+  // Add Note pill — compact, sits on far right of header line
+  addNotePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
+    gap: 6,
     backgroundColor: C.white,
-    borderRadius: 14,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: C.border,
-    borderStyle: 'dashed',
-    paddingVertical: 14,
-    marginBottom: 12,
-    marginHorizontal: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
   },
-  addNoteTxt: {
+  addNotePillTxt: {
+    fontFamily: F.serif,
     fontSize: 14,
     color: C.ink,
-    fontWeight: '600',
-    letterSpacing: -0.1,
+    letterSpacing: -0.2,
   },
   emptyNotes: {
     paddingHorizontal: 30,

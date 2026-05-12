@@ -10,6 +10,7 @@ import { BookCover } from '../components/BookCover';
 import { ReadingTimeline } from '../components/ReadingTimeline';
 import { AppHeader } from '../components/AppHeader';
 import { ReflectionPage } from '../components/ReflectionPage';
+import { StreakActivityModal } from '../components/StreakActivityModal';
 import { C, F } from '../theme';
 
 const { width: SW } = Dimensions.get('window');
@@ -112,23 +113,31 @@ function GoalCard({ baseLabel, current, range, onChangeRange }) {
 // "Active" = the app was opened that day (tracked in store.activeDays).
 // Zero state ("—") shown when streak is 0, so the visual layout doesn't
 // jump around.
-function StreakCard({ streak }) {
+function StreakCard({ streak, onPress }) {
   return (
-    <View style={s.goalStat}>
+    <TouchableOpacity
+      style={s.goalStat}
+      onPress={onPress}
+      activeOpacity={0.85}
+    >
       <Ionicons name="flame" size={20} color={C.rose} style={s.goalMedal} />
       <Text style={[s.goalCountNum, { color: C.rose }]}>
         {streak > 0 ? streak : '—'}
       </Text>
       <Text style={s.goalLabel} numberOfLines={1}>
-        Day streak
+        Active Day Streak
       </Text>
-    </View>
+    </TouchableOpacity>
   );
 }
 
 // ── Main screen ────────────────────────────────────────────────────────
 export function HomeScreen({ navigation }) {
-  const { books, notes, cards, dueCards, readingBooks, currentStreak, reflections } = useStore();
+  const { books, notes, cards, dueCards, readingBooks, currentStreak, reflections, user } = useStore();
+
+  // First name for the greeting — split on whitespace to handle "Julian Barnes" → "Julian".
+  // Falls back to the whole name if no spaces (e.g. single-word names).
+  const firstName = (user?.name || '').trim().split(/\s+/)[0] || 'Reader';
   const [activeIdx, setActiveIdx] = useState(0);
   const heroScrollRef = useRef(null);
 
@@ -141,6 +150,8 @@ export function HomeScreen({ navigation }) {
   // When a reflection is tapped in the list, open the full-screen
   // ReflectionPage. DayPanel still opens via the calendar route only.
   const [reflectionDate, setReflectionDate] = useState(null);
+  // Active Day Streak grid modal
+  const [streakModalOpen, setStreakModalOpen] = useState(false);
 
   const finished   = books.filter(b => b.status === 'finished');
   const wantToRead = books.filter(b => b.status === 'want_to_read');
@@ -188,7 +199,10 @@ export function HomeScreen({ navigation }) {
       <ScrollView showsVerticalScrollIndicator={false} bounces>
 
         {/* ── TOP APP BAR ────────────────────────────────────────── */}
-        <AppHeader onAvatarPress={() => navigation.navigate('Profile')} />
+        <AppHeader
+          brand={`Welcome back, ${firstName}`}
+          onAvatarPress={() => navigation.navigate('Profile')}
+        />
 
         {/* ── READING TIMELINE ────────────────────────────────────── */}
         <ReadingTimeline
@@ -359,7 +373,10 @@ export function HomeScreen({ navigation }) {
               onChangeRange={g.onChangeRange}
             />
           ))}
-          <StreakCard streak={currentStreak} />
+          <StreakCard
+            streak={currentStreak}
+            onPress={() => setStreakModalOpen(true)}
+          />
         </View>
 
         {/* ── REVIEW PROMPT ───────────────────────────────────────── */}
@@ -503,6 +520,12 @@ export function HomeScreen({ navigation }) {
         visible={!!reflectionDate}
         dateKey={reflectionDate}
         onClose={() => setReflectionDate(null)}
+      />
+
+      {/* Active Day Streak — opens when the streak card is tapped */}
+      <StreakActivityModal
+        visible={streakModalOpen}
+        onClose={() => setStreakModalOpen(false)}
       />
     </SafeAreaView>
   );

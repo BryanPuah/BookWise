@@ -827,7 +827,7 @@ export function DiscoverScreen() {
       {/* ── Search bar + Add reading item on same row ── */}
       <View style={s.searchRow}>
         <View style={s.searchWrap}>
-          <Text style={s.searchIconTxt}>🔍</Text>
+          <Ionicons name="search" size={16} color={C.inkMuted} />
           <TextInput
             style={s.searchInput}
             value={query}
@@ -838,8 +838,8 @@ export function DiscoverScreen() {
             onSubmitEditing={() => handleSearch()}
           />
           {query.length > 0 && (
-            <TouchableOpacity onPress={clear} style={s.searchClearBtn}>
-              <Text style={s.searchClearTxt}>✕</Text>
+            <TouchableOpacity onPress={clear} style={s.searchClearBtn} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+              <Ionicons name="close-circle" size={16} color={C.inkMuted} />
             </TouchableOpacity>
           )}
         </View>
@@ -859,7 +859,11 @@ export function DiscoverScreen() {
           onPress={() => setShowGenreSheet(true)}
           activeOpacity={0.8}
         >
-          <Text style={s.filterChipIcon}>≡</Text>
+          <Ionicons
+            name="funnel-outline"
+            size={13}
+            color={activeGenres.length > 0 ? C.white : C.ink}
+          />
           <Text style={[s.filterChipTxt, activeGenres.length > 0 && s.filterChipTxtActive]}>
             Genre
           </Text>
@@ -874,7 +878,7 @@ export function DiscoverScreen() {
                   onPress={() => handleGenreSelect(g)}
                   hitSlop={{ top: 6, bottom: 6, left: 4, right: 6 }}
                 >
-                  <Text style={s.activeGenrePillX}>✕</Text>
+                  <Ionicons name="close" size={11} color={C.ink} />
                 </TouchableOpacity>
               </View>
             ))}
@@ -1094,36 +1098,87 @@ const s = StyleSheet.create({
   title:    { fontSize: 30, fontWeight: '700', color: C.ink, letterSpacing: -0.6 },
   subtitle: { fontSize: 13, color: C.inkMuted, marginTop: 3, lineHeight: 19 },
 
-  // Search row
-  searchRow:      { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, marginBottom: 10 },
-  searchWrap:     { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: C.cream, borderRadius: 14, borderWidth: 1, borderColor: C.border, paddingHorizontal: 14, paddingVertical: 12, gap: 8 },
-  searchIconTxt:  { fontSize: 14 },
-  searchInput:    { flex: 1, fontSize: 15, color: C.ink },
-  searchClearBtn: { padding: 4 },
-  searchClearTxt: { fontSize: 13, color: C.inkFaint, fontWeight: '500' },
+  // Search row — matches NotesScreen.ev.searchWrap aesthetic:
+  // cream pill, no border, smaller radius, Ionicons inside instead of emoji.
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 20,
+    marginTop: 8,
+    marginBottom: 14,
+  },
+  searchWrap: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: C.cream,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 10,
+  },
+  searchInput: { flex: 1, fontSize: 15, color: C.ink },
+  searchClearBtn: { padding: 2 },
 
-  // Filter bar
-  genreBar:           { flexDirection: 'row', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8, paddingHorizontal: 16, paddingBottom: 10, borderBottomWidth: 0.5, borderBottomColor: C.border },
-  activeGenreWrap:    { flexDirection: 'row', flexWrap: 'wrap', flex: 1, gap: 6 },
-  filterBar:          { borderBottomWidth: 0.5, borderBottomColor: C.border, backgroundColor: C.paper },
-  filterBarContent:   { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
-  activeGenrePill:    { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 16, paddingVertical: 9, borderRadius: 20, backgroundColor: C.amberPale, borderWidth: 1, borderColor: C.amber },
-  activeGenrePillTxt: { fontSize: 13, fontWeight: '600', color: C.amber },
-  activeGenrePillX:   { fontSize: 11, color: C.amber, fontWeight: '700' },
-  clearAllPill:       { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 20, backgroundColor: C.cream, borderWidth: 1, borderColor: C.border },
-  clearAllPillTxt:    { fontSize: 13, fontWeight: '500', color: C.inkMuted },
-  genreItemActive:    { backgroundColor: C.ink, borderColor: C.ink },
+  // Genre filter bar
+  genreBar: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: C.border,
+  },
+  activeGenreWrap: { flexDirection: 'row', flexWrap: 'wrap', flex: 1, gap: 6 },
+  filterBar: { borderBottomWidth: 0.5, borderBottomColor: C.border, backgroundColor: C.paper },
+  filterBarContent: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10, gap: 8 },
+
+  // Pills — matches NotesScreen.ev.genreChip (amberPale bg, ink text, smaller padding)
+  activeGenrePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 16,
+    backgroundColor: C.amberPale,
+  },
+  activeGenrePillTxt: { fontSize: 12, fontWeight: '600', color: C.ink },
+  clearAllPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 16,
+    backgroundColor: C.cream,
+  },
+  clearAllPillTxt: { fontSize: 12, fontWeight: '500', color: C.inkMuted },
+  // Genre filter chip — same pill style; goes ink-filled when active
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 16,
+    backgroundColor: C.amberPale,
+  },
+  filterChipActive: { backgroundColor: C.ink },
+  filterChipTxt: { fontSize: 12, fontWeight: '600', color: C.ink },
+  filterChipTxtActive: { color: C.white },
+  genreItemActive: { backgroundColor: C.ink },
   genreItemTxtActive: { color: C.white, fontWeight: '600' },
-  filterChip:         { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 9, borderRadius: 20, backgroundColor: C.cream, borderWidth: 1, borderColor: C.border },
-  filterChipActive:   { backgroundColor: C.ink, borderColor: C.ink },
-  filterChipIcon:     { fontSize: 13, color: C.inkMuted },
-  filterChipTxt:      { fontSize: 13, fontWeight: '500', color: C.inkMuted },
-  filterChipTxtActive:{ color: C.white, fontWeight: '600' },
-  filterChipClear:    { fontSize: 10, color: 'rgba(255,255,255,0.7)', fontWeight: '700', marginLeft: 2 },
-  filterSep:          { width: 0.5, height: 20, backgroundColor: C.border },
-  addOwnPill:         { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 20, borderWidth: 1, borderColor: C.amber, backgroundColor: C.amberPale },
-  addOwnPillTxt:      { fontSize: 13, fontWeight: '600', color: C.amber },
-  filtersContent:     { paddingHorizontal: 16, paddingVertical: 10, gap: 6 },
+  filterSep: { width: 0.5, height: 20, backgroundColor: C.border },
+  // + Add — same pill style with subtle ink accent
+  addOwnPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 16,
+    backgroundColor: C.ink,
+  },
+  addOwnPillTxt: { fontSize: 12, fontWeight: '700', color: C.white, letterSpacing: 0.2 },
+  filtersContent: { paddingHorizontal: 20, paddingVertical: 10, gap: 6 },
 
   // Genre sheet
   genreSheet:       { maxHeight: '85%' },

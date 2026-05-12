@@ -1,3 +1,9 @@
+/**
+ * AppHeader — the top bar used across all main screens.
+ * Matches Figma: hamburger left, "Modern Library" serif brand centre-left,
+ * avatar circle right.
+ */
+
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -14,7 +20,7 @@ export function AppHeader({ onMenuPress, onAvatarPress, brand = 'Modern Library'
         >
           <Ionicons name="menu" size={22} color={C.ink} />
         </TouchableOpacity>
-        <Text style={s.brand}>{brand}</Text>
+        <Text style={s.brand} numberOfLines={1} ellipsizeMode="tail">{brand}</Text>
       </View>
 
       <TouchableOpacity
@@ -42,7 +48,7 @@ const s = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 14,
   },
-  left: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  left: { flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1, marginRight: 12 },
   brand: {
     fontFamily: F.serif,
     fontSize: 22,

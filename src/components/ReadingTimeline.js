@@ -641,6 +641,15 @@ function CalendarModal({ visible, notesByKey, onClose, onSelectDay }) {
                     onPress={() => handleDayPress(key)}
                     activeOpacity={0.6}
                   >
+                    {/* Light tinted circle on today when not selected — a
+                        visual anchor so the user can spot the current date
+                        without it being mistaken for the selected one. */}
+                    {isToday && !isSelected && (
+                      <View style={[cal.todayCircle, {
+                        width: circleSize, height: circleSize,
+                        borderRadius: circleSize / 2,
+                      }]} />
+                    )}
                     {isSelected && (
                       <View style={[cal.selectedCircle, {
                         width: circleSize, height: circleSize,
@@ -1510,6 +1519,12 @@ const cal = StyleSheet.create({
   selectedCircle: {
     position: 'absolute',
     backgroundColor: C.ink,
+  },
+  // Light shade marker for today's cell when not selected. Uses amberPale
+  // so today reads as "current" without competing with the ink selection.
+  todayCircle: {
+    position: 'absolute',
+    backgroundColor: C.amberPale,
   },
   dayNum: {
     fontSize: 15,
