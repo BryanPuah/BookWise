@@ -5,13 +5,13 @@ import {
   Dimensions, KeyboardAvoidingView, Platform, PanResponder, Modal,
   TouchableWithoutFeedback, Keyboard,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useStore } from '../store';
 import { useTheme, covers } from '../theme';
 
-const { width: SW } = Dimensions.get('window');
+const { width: SW, height: SH } = Dimensions.get('window');
 const PAGE_SIZE = 20;
 // COVER_KEYS captures the initial covers keys; these are stable across all
 // themes (sage/amber/navy/rose/plum/slate) so it's safe to read at module load.
@@ -121,21 +121,25 @@ function ResultRow({ book, added, onPress }) {
 // ── Genre filter sheet ──────────────────────────────────────────────────
 function GenreSheet({ onSelect, onClose, activeGenres = [] }) {
   const { C, F, themeVersion } = useTheme();
+  const insets = useSafeAreaInsets();
+  // Cap sheet height so there's always a comfortable tap-to-dismiss area
+  // above it. Smaller of ~78% of screen, or (screen - safe-area top - 60).
+  const sheetMaxHeight = Math.min(SH * 0.78, SH - insets.top - 60);
   const s = useMemo(() => StyleSheet.create({
     bookSheetOverlay:   { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
     bookSheet:          { backgroundColor: C.paper, borderTopLeftRadius: 28, borderTopRightRadius: 28, shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.12, shadowRadius: 20, elevation: 20 },
     bookSheetHandle:    { alignItems: 'center', paddingVertical: 14 },
     bookSheetHandleBar: { width: 40, height: 4, borderRadius: 2, backgroundColor: C.creamDark },
-    genreSheet:         { maxHeight: '85%' },
+    genreSheet:         { height: sheetMaxHeight },
     genreSheetTitle:    { fontFamily: F.serif, fontSize: 18, fontWeight: '700', color: C.ink, paddingHorizontal: 20, paddingBottom: 16, letterSpacing: -0.3 },
     genreGroup:         { paddingHorizontal: 20, marginBottom: 20 },
     genreGroupLabel:    { fontFamily: F.serif, fontSize: 11, fontWeight: '700', color: C.inkFaint, letterSpacing: 0.8, marginBottom: 10 },
     genreGroupItems:    { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     genreItem:          { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: C.cream, borderWidth: 1, borderColor: C.border },
     genreItemTxt:       { fontFamily: F.serif, fontSize: 13, fontWeight: '500', color: C.ink },
-    genreItemActive:    { backgroundColor: C.ink },
-    genreItemTxtActive: { fontFamily: F.serif, color: C.white, fontWeight: '600' },
-  }), [themeVersion]);
+    genreItemActive:    { backgroundColor: C.sage, borderColor: C.sage },
+    genreItemTxtActive: { fontFamily: F.serif, color: C.white, fontWeight: '700' },
+  }), [themeVersion, sheetMaxHeight]);
 
   const translateY = useRef(new Animated.Value(700)).current;
   const dragStart  = useRef(0);
@@ -227,10 +231,10 @@ function AddReadingItemSheet({ onAdd, onClose }) {
     // Format chips inside the manual-add sheet
     formatChipsRow:   { gap: 6, paddingTop: 8, paddingRight: 4 },
     formatChip:       { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 11, paddingVertical: 6, borderRadius: 16, backgroundColor: C.white, borderWidth: 1, borderColor: C.border },
-    formatChipActive: { backgroundColor: C.amberPale, borderColor: C.amber },
+    formatChipActive: { backgroundColor: C.sagePale, borderColor: C.sage },
     formatChipIcon:   { fontSize: 12 },
     formatChipTxt:    { fontFamily: F.serif, fontSize: 12, fontWeight: '500', color: C.inkSoft },
-    formatChipTxtActive: { fontFamily: F.serif, color: C.amber, fontWeight: '700' },
+    formatChipTxtActive: { fontFamily: F.serif, color: C.sage, fontWeight: '700' },
 
     addBtn:        { backgroundColor: C.ink, borderRadius: 16, paddingVertical: 15, alignItems: 'center' },
     addBtnTxt:     { fontFamily: F.serif, fontSize: 16, fontWeight: '700', color: C.white, letterSpacing: -0.2 },
@@ -557,10 +561,10 @@ function BookSheet({ book, added, onAdd, onAddWantToRead, onClose }) {
     sheetTopInfo:  { flex: 1, justifyContent: 'center' },
     sheetAuthor:   { fontFamily: F.serif, fontSize: 13, color: C.inkMuted, marginBottom: 10 },
     sheetPills:    { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
-    pill:          { backgroundColor: C.cream, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, borderWidth: 1, borderColor: C.border },
-    pillTxt:       { fontFamily: F.serif, fontSize: 11, color: C.inkMuted, fontWeight: '500' },
-    genrePill:     { backgroundColor: C.creamDark, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, borderWidth: 1, borderColor: C.border },
-    genrePillTxt:  { fontFamily: F.serif, fontSize: 11, color: C.inkSoft, fontWeight: '500' },
+    pill:          { backgroundColor: C.sagePale, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, borderWidth: 1, borderColor: C.sage },
+    pillTxt:       { fontFamily: F.serif, fontSize: 11, color: C.sage, fontWeight: '700' },
+    genrePill:     { backgroundColor: C.sagePale, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, borderWidth: 1, borderColor: C.sage },
+    genrePillTxt:  { fontFamily: F.serif, fontSize: 11, color: C.sage, fontWeight: '700' },
     sheetActions:  { paddingHorizontal: 20, paddingTop: 8, gap: 8 },
     addBtn:        { backgroundColor: C.ink, borderRadius: 16, paddingVertical: 15, alignItems: 'center' },
     addBtnTxt:     { fontFamily: F.serif, fontSize: 16, fontWeight: '700', color: C.white, letterSpacing: -0.2 },

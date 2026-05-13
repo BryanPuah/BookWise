@@ -425,7 +425,7 @@ export function HomeScreen({ navigation }) {
       fontFamily: F.serif,
       fontSize: 11,
       color: C.white,
-      fontWeight: '600',
+      fontWeight: '700',
     },
     heroSecondaryBtn: {
       flex: 1,
