@@ -960,7 +960,7 @@ export function DiscoverScreen() {
       paddingHorizontal: 14,
       paddingVertical: 7,
       borderRadius: 16,
-      backgroundColor: C.ink,
+      backgroundColor: C.sage,
     },
     addOwnPillTxt: { fontFamily: F.serif, fontSize: 12, fontWeight: '700', color: C.white, letterSpacing: 0.2 },
 

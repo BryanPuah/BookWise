@@ -1240,7 +1240,7 @@ function useDpnlStyles() {
       right: 24, bottom: 32,
       width: 54, height: 54,
       borderRadius: 27,
-      backgroundColor: C.ink,
+      backgroundColor: C.sage,
       alignItems: 'center',
       justifyContent: 'center',
       shadowColor: '#000',
@@ -1818,15 +1818,15 @@ export function ReadingTimeline({ notes, cards, books, onManageGoals, openDateKe
       paddingHorizontal: 10,
       paddingVertical: 5,
       borderRadius: 14,
-      backgroundColor: C.cream,
+      backgroundColor: C.sagePale,
       borderWidth: 1,
-      borderColor: C.border,
+      borderColor: C.sage,
     },
     goalsPillTxt: {
       fontFamily: F.serif,
       fontSize: 12,
       fontWeight: '700',
-      color: C.ink,
+      color: C.sage,
       letterSpacing: -0.1,
     },
   }), [themeVersion]);
@@ -1953,7 +1953,7 @@ export function ReadingTimeline({ notes, cards, books, onManageGoals, openDateKe
           activeOpacity={0.85}
           hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
         >
-          <Ionicons name="add" size={14} color={C.ink} />
+          <Ionicons name="add" size={14} color={C.sage} />
           <Text style={t.goalsPillTxt}>Goals</Text>
         </TouchableOpacity>
       </View>

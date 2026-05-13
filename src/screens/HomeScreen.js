@@ -416,7 +416,7 @@ export function HomeScreen({ navigation }) {
       alignItems: 'center',
       justifyContent: 'center',
       gap: 5,
-      backgroundColor: C.ink,
+      backgroundColor: C.sage,
       paddingHorizontal: 12,
       paddingVertical: 9,
       borderRadius: 8,

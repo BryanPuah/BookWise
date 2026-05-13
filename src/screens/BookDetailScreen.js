@@ -325,17 +325,17 @@ export function BookDetailScreen({ route, navigation }) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
-      backgroundColor: C.white,
+      backgroundColor: C.sagePale,
       borderRadius: 18,
       borderWidth: 1,
-      borderColor: C.border,
+      borderColor: C.sage,
       paddingHorizontal: 12,
       paddingVertical: 7,
     },
     addNotePillTxt: {
       fontFamily: F.serif,
       fontSize: 14,
-      color: C.ink,
+      color: C.sage,
       letterSpacing: -0.2,
     },
     emptyNotes: {
@@ -620,7 +620,7 @@ export function BookDetailScreen({ route, navigation }) {
                 onPress={openNewNote}
                 activeOpacity={0.85}
               >
-                <Ionicons name="add" size={16} color={C.ink} />
+                <Ionicons name="add" size={16} color={C.sage} />
                 <Text style={s.addNotePillTxt}>Add Note</Text>
               </TouchableOpacity>
             </View>

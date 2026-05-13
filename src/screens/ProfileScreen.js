@@ -4,12 +4,13 @@
  * Layout:
  *   1. Avatar with edit pencil badge + serif name + role subtitle
  *   2. ACCOUNT SETTINGS — Email row + Change Password row
- *   3. APPEARANCE — 10-theme color picker (Todoist-style)
+ *   3. APPEARANCE — Substack-style Accent + Background swatch pickers
  *   4. JOURNALING PREFERENCES — Typography, Reading Reminders
  *   5. SUPPORT & LEGAL — Help Center, Privacy Policy
  *   6. Logout button (outlined red)
  *
- * Theme picker — tapping a swatch calls setTheme() from useTheme(),
+ * Appearance pickers — tapping an accent swatch calls setAccent() and
+ * tapping a background swatch calls setBackground() from useTheme(),
  * which mutates the live palette and re-renders every subscribed
  * component across the app.
  */
@@ -89,10 +90,16 @@ function SettingRow({ icon, label, value, rightChevron, switchValue, onSwitchCha
   );
 }
 
-// Theme picker — collapsible row. Tap header to expand swatch grid.
-function ThemePicker() {
-  const { C, F, themes, themeName, setTheme, themeVersion } = useTheme();
+// Generic swatch picker row — collapsible. Tap header to expand grid.
+// `variant` controls swatch styling:
+//   • 'accent'     — saturated chips with shadow + white check mark
+//   • 'background' — paper-tone chips with a thin border (so light
+//                    swatches stay visible against the card surface)
+function SwatchPicker({ icon, label, entries, activeKey, onPick, variant = 'accent' }) {
+  const { C, F, themeVersion } = useTheme();
   const [expanded, setExpanded] = useState(false);
+  const isBackground = variant === 'background';
+
   const s = useMemo(() => StyleSheet.create({
     row: {
       flexDirection: 'row',
@@ -148,16 +155,20 @@ function ThemePicker() {
       borderRadius: 20,
       alignItems: 'center',
       justifyContent: 'center',
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.08,
-      shadowRadius: 3,
-      elevation: 2,
+      ...(isBackground
+        ? { borderWidth: 1, borderColor: C.borderMid }
+        : {
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.08,
+            shadowRadius: 3,
+            elevation: 2,
+          }),
     },
-  }), [themeVersion]);
+  }), [themeVersion, isBackground]);
 
-  const entries = Object.entries(themes);
-  const activeLabel = themes[themeName]?.label || 'Default';
+  const activeEntry = entries.find(([k]) => k === activeKey);
+  const activeLabel = activeEntry?.[1]?.label || 'Default';
 
   return (
     <View>
@@ -167,11 +178,16 @@ function ThemePicker() {
         activeOpacity={0.7}
       >
         <View style={s.rowIconWrap}>
-          <Ionicons name="color-palette-outline" size={18} color={C.inkMuted} />
+          <Ionicons name={icon} size={18} color={C.inkMuted} />
         </View>
-        <Text style={s.rowLabel}>Color Theme</Text>
+        <Text style={s.rowLabel}>{label}</Text>
         <View style={s.rowRight}>
-          <Ionicons name="chevron-forward" size={16} color={C.inkFaint} />
+          <Text style={s.rowValue}>{activeLabel}</Text>
+          <Ionicons
+            name={expanded ? 'chevron-down' : 'chevron-forward'}
+            size={16}
+            color={C.inkFaint}
+          />
         </View>
       </TouchableOpacity>
       {expanded && (
@@ -179,19 +195,22 @@ function ThemePicker() {
           <View style={s.divider} />
           <View style={s.gridWrap}>
             <View style={s.grid}>
-              {entries.map(([key, theme]) => {
-                const active = key === themeName;
+              {entries.map(([key, item]) => {
+                const active = key === activeKey;
+                // Background check mark needs to contrast against the
+                // light paper swatch — use ink. Accent check uses white.
+                const checkColor = isBackground ? C.ink : C.white;
                 return (
                   <TouchableOpacity
                     key={key}
                     style={[s.swatchWrap, active && s.swatchWrapActive]}
-                    onPress={() => setTheme(key)}
+                    onPress={() => onPick(key)}
                     activeOpacity={0.7}
-                    accessibilityLabel={`${theme.label} theme`}
+                    accessibilityLabel={`${item.label} ${isBackground ? 'background' : 'accent'}`}
                   >
-                    <View style={[s.swatch, { backgroundColor: theme.swatch }]}>
+                    <View style={[s.swatch, { backgroundColor: item.swatch }]}>
                       {active && (
-                        <Ionicons name="checkmark" size={22} color={C.white} />
+                        <Ionicons name="checkmark" size={22} color={checkColor} />
                       )}
                     </View>
                   </TouchableOpacity>
@@ -207,7 +226,11 @@ function ThemePicker() {
 
 export function ProfileScreen() {
   const { user, logout } = useStore();
-  const { C, F, themeVersion } = useTheme();
+  const {
+    C, F, themeVersion,
+    themes, themeName, setAccent,
+    backgrounds, backgroundName, setBackground,
+  } = useTheme();
   const [editOpen, setEditOpen] = useState(false);
   const [reminders, setReminders] = useState(true);
 
@@ -367,10 +390,26 @@ export function ProfileScreen() {
           />
         </View>
 
-        {/* APPEARANCE — color theme picker */}
+        {/* APPEARANCE — accent + background pickers (Substack-style) */}
         <Text style={s.sectionLabel}>APPEARANCE</Text>
         <View style={s.card}>
-          <ThemePicker />
+          <SwatchPicker
+            icon="color-palette-outline"
+            label="Accent Color"
+            entries={Object.entries(themes)}
+            activeKey={themeName}
+            onPick={setAccent}
+            variant="accent"
+          />
+          <View style={s.divider} />
+          <SwatchPicker
+            icon="contrast-outline"
+            label="Background"
+            entries={Object.entries(backgrounds)}
+            activeKey={backgroundName}
+            onPick={setBackground}
+            variant="background"
+          />
         </View>
 
         {/* JOURNALING PREFERENCES */}

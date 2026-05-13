@@ -96,7 +96,7 @@ function CaptureFAB({ onPress }) {
       bottom: 96, // sits above the tab bar
       width: 56, height: 56,
       borderRadius: 14, // rounded-square per Figma
-      backgroundColor: C.ink,
+      backgroundColor: C.sage,
       alignItems: 'center', justifyContent: 'center',
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 4 },

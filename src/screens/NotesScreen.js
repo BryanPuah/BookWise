@@ -9,7 +9,7 @@
  * Top app bar reused from AppHeader component.
  * The "+ Add Note" FAB lives in App.js — no in-screen add button.
  *
- * Preserved logic: addNote, updateNote, deleteNote, addCard, generateFlashcard,
+ * Preserved logic: addNote, updateNote, deleteNote, addCard, card generation,
  * search, type filters, starring, BookNotesScreen, AddNoteModal, EditNoteModal.
  */
 
@@ -21,7 +21,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Swipeable } from 'react-native-gesture-handler';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { generateFlashcard } from '../services/ai';
 import { useStore } from '../store';
 import { BookCover } from '../components/BookCover';
 import { AppHeader } from '../components/AppHeader';
@@ -66,6 +65,25 @@ function timeAgo(dateStr) {
 function formatDate(dateStr) {
   const d = new Date(dateStr);
   return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }).toUpperCase();
+}
+
+function buildCardFromNote(noteText, bookTitle) {
+  const text     = noteText.trim();
+  const isQuote  = text.startsWith('"') || text.startsWith('“');
+  const hasNum   = /\d+%|\d+x|\d+\s*times|\d+\s*days/i.test(text);
+  const hasCause = /because|therefore|as a result|which means|leads to/i.test(text);
+
+  let question;
+  if (isQuote)
+    question = `What does this passage from "${bookTitle}" mean, and why is it significant?`;
+  else if (hasNum)
+    question = `What does the figure in this note from "${bookTitle}" demonstrate?`;
+  else if (hasCause)
+    question = `Explain the cause-and-effect relationship in this note from "${bookTitle}".`;
+  else
+    question = `Explain the concept from "${bookTitle}" in your own words — what is it and why does it matter?`;
+
+  return { question, answer: text };
 }
 
 // ── Edit Note Modal ───────────────────────────────────────────────────
@@ -1264,22 +1282,19 @@ export function NotesScreen({ navigation }) {
 
   const handleDelete = (id) => deleteNote(id);
 
-  const handleMakeCard = async (note) => {
-    const book = books.find(b => b.id === note.bookId);
+  const handleMakeCard = (note) => {
     setGenerating(note.id);
-    try {
-      const fullText = note.thinking
-        ? `${note.text}\n\nMy thinking: ${note.thinking}`
-        : note.text;
-      const card = await generateFlashcard(fullText, note.bookTitle, book?.author || '');
-      addCard({
-        id: Date.now().toString(), noteId: note.id,
-        bookId: note.bookId, bookTitle: note.bookTitle,
-        question: card.question, answer: card.answer,
-        due: new Date().toISOString(),
-      });
-    } catch (e) { console.log('Card gen failed:', e); }
-    finally { setGenerating(null); }
+    const fullText = note.thinking
+      ? `${note.text}\n\nMy thinking: ${note.thinking}`
+      : note.text;
+    const card = buildCardFromNote(fullText, note.bookTitle);
+    addCard({
+      id: Date.now().toString(), noteId: note.id,
+      bookId: note.bookId, bookTitle: note.bookTitle,
+      question: card.question, answer: card.answer,
+      due: new Date().toISOString(),
+    });
+    setGenerating(null);
   };
 
   const VIEWS = [

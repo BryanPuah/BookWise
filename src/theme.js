@@ -1,5 +1,5 @@
 /**
- * Theme — Figma-aligned palette with 10 Todoist-style accent themes.
+ * Theme — Figma-aligned palette, Substack-style accent + background pickers.
  *
  * The exported `C` (palette) and `covers` (gradient tuples) objects are
  * stable references — they're mutated in place when the active theme
@@ -13,8 +13,12 @@
  *     safe: { backgroundColor: C.paper },
  *   }), [themeVersion]);
  *
- * `setTheme(name)` mutates `C` + `covers` in place and notifies all
- * subscribers (components that called `useTheme()`).
+ * Two independent axes:
+ *   • `setAccent(name)`     — accent color (buttons/links/swatches)
+ *   • `setBackground(name)` — page background + surface tones
+ *
+ * `setTheme(name)` is kept as an alias for `setAccent(name)` for
+ * backward compatibility with any external callers.
  */
 
 import { useEffect, useReducer } from 'react';
@@ -29,29 +33,80 @@ export const SP = {
   xs: 4, sm: 8, md: 12, lg: 16, xl: 20, '2xl': 24, '3xl': 32, '4xl': 40,
 };
 
-// ── Theme registry — 10 Todoist-style accent palettes ──────────────────
-// Each theme keeps the same paper/ink/cream surface tones (so reading
-// surfaces stay calm). Only the accent (sage), accent-soft (sagePale),
-// highlight (amber), highlight-soft (amberPale), and hero gradient
-// change. `rose` (semantic error) also stays constant.
-const SURFACE_BASE = {
+// ── Ink + semantic tokens (constant across all themes) ─────────────────
+const INK_BASE = {
   ink:        '#1A1E3A',
   inkSoft:    '#3A3E5A',
   inkMuted:   '#6E7188',
   inkFaint:   '#A4A7B8',
 
-  paper:      '#F8F6F2',
-  cream:      '#EFEAE0',
-  creamDark:  '#E5DDD0',
-  creamDeep:  '#D9CFBE',
-
   forest:     '#065F46',
   rose:       '#BE3B3B',
-  white:      '#FFFFFF',
 
   border:     'rgba(26,30,58,0.10)',
   borderMid:  'rgba(26,30,58,0.16)',
 };
+
+// ── Background registry — Substack-style paper tones ───────────────────
+// Each background defines the surface palette (paper/cream/white). Ink
+// colors stay constant across backgrounds (all are light surfaces).
+//   paper      — main scroll background
+//   cream      — secondary surfaces (switch off, soft pills)
+//   creamDark  — slightly deeper cream variant
+//   creamDeep  — deepest cream variant
+//   white      — card background (subtly lighter than paper)
+export const BACKGROUNDS = {
+  paper: {
+    label: 'Paper',
+    swatch: '#F8F6F2',
+    paper: '#F8F6F2', cream: '#EFEAE0', creamDark: '#E5DDD0', creamDeep: '#D9CFBE',
+    white: '#FFFFFF',
+  },
+  white: {
+    label: 'Pure White',
+    swatch: '#FFFFFF',
+    paper: '#FFFFFF', cream: '#F2F2F0', creamDark: '#E5E5E0', creamDeep: '#D9D9D0',
+    white: '#FAFAF8',
+  },
+  cream: {
+    label: 'Cream',
+    swatch: '#F4ECD8',
+    paper: '#F4ECD8', cream: '#EBE2C8', creamDark: '#E0D6B6', creamDeep: '#D4C9A0',
+    white: '#FBF6E7',
+  },
+  mist: {
+    label: 'Mist',
+    swatch: '#F0F2F5',
+    paper: '#F0F2F5', cream: '#E5E8ED', creamDark: '#D8DCE4', creamDeep: '#C9CFD9',
+    white: '#FAFBFD',
+  },
+  linen: {
+    label: 'Linen',
+    swatch: '#EFE6D9',
+    paper: '#EFE6D9', cream: '#E5DBC7', creamDark: '#D8CDB4', creamDeep: '#C8BCA0',
+    white: '#F9F3E8',
+  },
+  mint: {
+    label: 'Mint',
+    swatch: '#E8EFEA',
+    paper: '#E8EFEA', cream: '#DCE6DE', creamDark: '#CADBCD', creamDeep: '#B5CBB9',
+    white: '#F4F8F5',
+  },
+  blush: {
+    label: 'Blush',
+    swatch: '#F4E8E6',
+    paper: '#F4E8E6', cream: '#EBDCD9', creamDark: '#DCCAC5', creamDeep: '#C9B2AC',
+    white: '#FBF3F1',
+  },
+  lavender: {
+    label: 'Lavender',
+    swatch: '#ECEAF2',
+    paper: '#ECEAF2', cream: '#DFDCE8', creamDark: '#CCC8DA', creamDeep: '#B5AFC8',
+    white: '#F7F5FB',
+  },
+};
+
+export const DEFAULT_BACKGROUND = 'paper';
 
 // Each accent theme defines:
 //   accent       — primary accent (replaces "sage")
@@ -145,14 +200,21 @@ export const THEMES = {
 
 export const DEFAULT_THEME = 'olive';
 
-// Build the palette object for a named theme. Existing call sites read
-// `sage`, `sagePale`, `amber`, `amberPale`, `amberLight`, `heroTop`,
-// `heroBot` — we map the theme's accent/highlight tokens into those
-// legacy keys so we don't have to rename every reference in the app.
-function buildPalette(themeName) {
+// Build the palette object from an accent theme + a background. Existing
+// call sites read `sage`, `sagePale`, `amber`, `amberPale`, `amberLight`,
+// `heroTop`, `heroBot`, `paper`, `cream`, etc. — we map the active
+// accent + background into those legacy keys so we don't have to rename
+// every reference in the app.
+function buildPalette(themeName, backgroundName) {
   const t = THEMES[themeName] || THEMES[DEFAULT_THEME];
+  const b = BACKGROUNDS[backgroundName] || BACKGROUNDS[DEFAULT_BACKGROUND];
   return {
-    ...SURFACE_BASE,
+    ...INK_BASE,
+    paper:       b.paper,
+    cream:       b.cream,
+    creamDark:   b.creamDark,
+    creamDeep:   b.creamDeep,
+    white:       b.white,
     sage:        t.accent,
     sagePale:    t.accentPale,
     amber:       t.highlight,
@@ -181,9 +243,10 @@ function buildCovers(themeName) {
 // that destructured `{ heroTop }` etc. at import time would break, so
 // the codebase reads via `C.heroTop` (which we verified before this).
 let _themeName = DEFAULT_THEME;
+let _backgroundName = DEFAULT_BACKGROUND;
 let _themeVersion = 0;
 
-export const C = buildPalette(_themeName);
+export const C = buildPalette(_themeName, _backgroundName);
 export const covers = buildCovers(_themeName);
 
 const listeners = new Set();
@@ -192,20 +255,40 @@ export function getThemeName() {
   return _themeName;
 }
 
-export function setTheme(name) {
-  if (!THEMES[name] || name === _themeName) return;
-  _themeName = name;
+export function getBackgroundName() {
+  return _backgroundName;
+}
+
+function notify() {
   _themeVersion++;
-  // Mutate in place so every existing import keeps the same reference
-  const nextC = buildPalette(name);
-  const nextCovers = buildCovers(name);
-  Object.keys(C).forEach(k => { if (!(k in nextC)) delete C[k]; });
-  Object.assign(C, nextC);
-  Object.keys(covers).forEach(k => { if (!(k in nextCovers)) delete covers[k]; });
-  Object.assign(covers, nextCovers);
-  // Notify all subscribed components
   listeners.forEach(fn => fn());
 }
+
+function rebuildPalette() {
+  const nextC = buildPalette(_themeName, _backgroundName);
+  Object.keys(C).forEach(k => { if (!(k in nextC)) delete C[k]; });
+  Object.assign(C, nextC);
+}
+
+export function setAccent(name) {
+  if (!THEMES[name] || name === _themeName) return;
+  _themeName = name;
+  rebuildPalette();
+  const nextCovers = buildCovers(name);
+  Object.keys(covers).forEach(k => { if (!(k in nextCovers)) delete covers[k]; });
+  Object.assign(covers, nextCovers);
+  notify();
+}
+
+export function setBackground(name) {
+  if (!BACKGROUNDS[name] || name === _backgroundName) return;
+  _backgroundName = name;
+  rebuildPalette();
+  notify();
+}
+
+// Back-compat alias — older callers used setTheme() for the accent.
+export const setTheme = setAccent;
 
 // ── React hook ─────────────────────────────────────────────────────────
 // Components call `useTheme()` to subscribe to theme changes. The
@@ -230,8 +313,12 @@ export function useTheme() {
     SP,
     covers,
     themeName: _themeName,
+    backgroundName: _backgroundName,
     themeVersion: _themeVersion,
     setTheme,
+    setAccent,
+    setBackground,
     themes: THEMES,
+    backgrounds: BACKGROUNDS,
   };
 }
