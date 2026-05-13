@@ -8,9 +8,23 @@ import React, { useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTheme } from '../theme';
+import { useStore } from '../store';
+import { AVATAR_COLORS, getAvatarColor, getInitials } from './EditProfileModal';
 
 export function AppHeader({ onMenuPress, onAvatarPress, brand = 'Modern Library', avatarUri }) {
   const { C, F, themeVersion } = useTheme();
+  const { user } = useStore();
+
+  // Show the colored initials avatar only once the user has typed a name
+  // AND picked an explicit color in the profile settings. Otherwise fall
+  // back to the no-face person icon on the ink (navy) background — the
+  // original "default" look.
+  const hasName = !!(user?.name && user.name.trim());
+  const hasColor = AVATAR_COLORS.some(c => c.key === user?.avatarSeed);
+  const showInitials = hasName && hasColor;
+  const initials = showInitials ? getInitials(user.name) : '';
+  const avatarBg = showInitials ? getAvatarColor(user.avatarSeed, user.name) : C.ink;
+
   const s = useMemo(() => StyleSheet.create({
     bar: {
       flexDirection: 'row',
@@ -29,11 +43,17 @@ export function AppHeader({ onMenuPress, onAvatarPress, brand = 'Modern Library'
     },
     avatar: {
       width: 34, height: 34, borderRadius: 17,
-      backgroundColor: C.ink,
       alignItems: 'center', justifyContent: 'center',
       overflow: 'hidden',
     },
     avatarImg: { width: '100%', height: '100%' },
+    avatarInitials: {
+      fontFamily: F.serif,
+      fontSize: 13,
+      fontWeight: '700',
+      color: '#FFFFFF',
+      letterSpacing: -0.2,
+    },
   }), [themeVersion]);
 
   return (
@@ -50,13 +70,15 @@ export function AppHeader({ onMenuPress, onAvatarPress, brand = 'Modern Library'
       </View>
 
       <TouchableOpacity
-        style={s.avatar}
+        style={[s.avatar, { backgroundColor: avatarBg }]}
         onPress={onAvatarPress}
         activeOpacity={0.75}
         hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
       >
         {avatarUri ? (
           <Image source={{ uri: avatarUri }} style={s.avatarImg} />
+        ) : showInitials ? (
+          <Text style={s.avatarInitials}>{initials}</Text>
         ) : (
           <Ionicons name="person" size={16} color={C.white} />
         )}

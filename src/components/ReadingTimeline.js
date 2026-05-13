@@ -1804,7 +1804,7 @@ function DayPill({ day, isToday, isFuture, data, onPress }) {
 }
 
 // ── Main ───────────────────────────────────────────────────────────────
-export function ReadingTimeline({ notes, cards, books, onManageGoals, openDateKey, onDatePanelClosed }) {
+export function ReadingTimeline({ notes, books, onManageGoals, openDateKey, onDatePanelClosed }) {
   const { C, F, themeVersion } = useTheme();
   const t = useMemo(() => StyleSheet.create({
     wrap:      { marginBottom: 16 },

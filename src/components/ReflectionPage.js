@@ -96,7 +96,7 @@ export function ReflectionPage({ visible, dateKey, onClose }) {
     paddingBottom: 20,
   },
   kicker: {
-    fontFamily: F.serif,
+    fontFamily: F.sans,
     fontSize: 10,
     fontWeight: '700',
     color: C.amber,

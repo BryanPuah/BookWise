@@ -61,6 +61,8 @@ function blocksToText(blocks) {
     .map(b => {
       if (b.type === 'quote')   return `"${b.text}"${b.attribution ? ` — ${b.attribution}` : ''}`;
       if (b.type === 'thought') return `💭 ${b.text}`;
+      if (b.type === 'heading') return `## ${b.text}`;
+      if (b.type === 'bullet')  return `• ${b.text}`;
       if (b.type === 'image')   return b.text || '';  // caption only
       return b.text;
     })
@@ -95,6 +97,7 @@ function Toolbar({ onInsert, onPickFromGallery, onTakePhoto }) {
       minWidth: 30,
     },
     btnTxt: { fontFamily: F.serif, fontSize: 14, color: C.inkSoft, fontStyle: 'italic' },
+    btnTxtBold: { fontStyle: 'normal', fontWeight: '700', fontSize: 15 },
     divider: { width: 1, height: 14, backgroundColor: C.border, opacity: 0.7 },
     sectionDivider: { width: 1, height: 20, backgroundColor: C.borderMid, marginHorizontal: 4 },
     highlightSwatch: {
@@ -123,6 +126,14 @@ function Toolbar({ onInsert, onPickFromGallery, onTakePhoto }) {
       <View style={tb.sectionDivider} />
 
       {/* Block-type buttons */}
+      <TouchableOpacity style={tb.btn} onPress={() => onInsert('heading')} activeOpacity={0.6}>
+        <Text style={[tb.btnTxt, tb.btnTxtBold]}>H</Text>
+      </TouchableOpacity>
+      <View style={tb.divider} />
+      <TouchableOpacity style={tb.btn} onPress={() => onInsert('bullet')} activeOpacity={0.6}>
+        <Ionicons name="list-outline" size={17} color={C.inkSoft} />
+      </TouchableOpacity>
+      <View style={tb.divider} />
       <TouchableOpacity style={tb.btn} onPress={() => onInsert('quote')} activeOpacity={0.6}>
         <Text style={tb.btnTxt}>99</Text>
       </TouchableOpacity>
@@ -181,7 +192,7 @@ function TagRow({ selectedTypes, onToggle }) {
       shadowOpacity: 0.18, shadowRadius: 24, elevation: 16,
     },
     pickerTitle: {
-      fontFamily: F.serif,
+      fontFamily: F.sans,
       fontSize: 10, fontWeight: '700',
       color: C.inkMuted, letterSpacing: 1,
       paddingHorizontal: 16, paddingVertical: 10,
@@ -257,6 +268,17 @@ const FORMAT_DELIMS = {
   highlight: { prefix: '==',  suffix: '=='  },
 };
 
+// Inline block-type shortcuts. Typing one of these patterns at the start
+// of an empty paragraph converts the block to the matching type. The
+// trigger is the prefix character followed by a space — same convention
+// as Notion / Craft / Bear.
+const MD_SHORTCUTS = {
+  '# ': 'heading',
+  '- ': 'bullet',
+  '> ': 'quote',
+  '" ': 'quote',
+};
+
 // Wrap the selection [start, end] in `text` with markdown delimiters.
 // Returns { text, selection } so caller can update both.
 function wrapSelection(text, selection, prefix, suffix) {
@@ -294,6 +316,46 @@ function useBlkStyles() {
       minHeight: 24,
       padding: 0,
     },
+    headingWrap: {
+      paddingHorizontal: 20,
+      marginTop: 8,
+      marginBottom: 10,
+      position: 'relative',
+    },
+    heading: {
+      fontFamily: F.serif,
+      fontSize: 20,
+      fontWeight: '700',
+      color: C.ink,
+      lineHeight: 26,
+      letterSpacing: -0.3,
+      minHeight: 28,
+      padding: 0,
+    },
+    bulletWrap: {
+      flexDirection: 'row',
+      paddingHorizontal: 20,
+      marginBottom: 8,
+      gap: 10,
+      position: 'relative',
+    },
+    bulletDot: {
+      fontFamily: F.serif,
+      fontSize: 15,
+      color: C.inkSoft,
+      lineHeight: 23,
+      width: 12,
+      textAlign: 'center',
+    },
+    bulletText: {
+      flex: 1,
+      fontFamily: F.serif,
+      fontSize: 15,
+      color: C.ink,
+      lineHeight: 23,
+      minHeight: 24,
+      padding: 0,
+    },
     quoteWrap: {
       flexDirection: 'row',
       gap: 12,
@@ -317,7 +379,7 @@ function useBlkStyles() {
       paddingTop: 2,
     },
     attribution: {
-      fontFamily: F.serif,
+      fontFamily: F.sans,
       fontSize: 12,
       color: C.inkMuted,
       marginTop: 6,
@@ -409,7 +471,7 @@ function useBlkStyles() {
       justifyContent: 'center',
     },
     imageCaption: {
-      fontFamily: F.serif,
+      fontFamily: F.sans,
       fontSize: 13,
       color: C.inkMuted,
       fontStyle: 'italic',
@@ -454,6 +516,19 @@ const ParagraphBlock = React.forwardRef(function ParagraphBlock(
     focus: () => inputRef.current?.focus(),
   }), [block.text, selection, onChange]);
 
+  // Markdown auto-shortcuts — only fire on an empty paragraph when the
+  // user types a trigger pattern at the start. Notion/Craft/Bear pattern.
+  const handleChangeText = (newText) => {
+    if (block.text === '') {
+      const shortcut = MD_SHORTCUTS[newText];
+      if (shortcut) {
+        onChange({ ...block, type: shortcut, text: '', autoFocus: true });
+        return;
+      }
+    }
+    onChange({ ...block, text: newText });
+  };
+
   return (
     <Pressable onPress={() => inputRef.current?.focus()}>
       <View style={blk.paragraphWrap}>
@@ -461,7 +536,7 @@ const ParagraphBlock = React.forwardRef(function ParagraphBlock(
           ref={inputRef}
           style={blk.paragraph}
           value={block.text}
-          onChangeText={text => onChange({ ...block, text })}
+          onChangeText={handleChangeText}
           onFocus={onFocus}
           onSelectionChange={(e) => setSelection(e.nativeEvent.selection)}
           placeholder={placeholder}
@@ -480,7 +555,7 @@ const ParagraphBlock = React.forwardRef(function ParagraphBlock(
 });
 
 const QuoteBlock = React.forwardRef(function QuoteBlock(
-  { block, onChange, onRemove, onFocus },
+  { block, onChange, onRemove, autoFocus, onFocus },
   ref
 ) {
   const { C } = useTheme();
@@ -488,6 +563,13 @@ const QuoteBlock = React.forwardRef(function QuoteBlock(
   const quoteRef = useRef(null);
   const attribRef = useRef(null);
   const [selection, setSelection] = useState({ start: 0, end: 0 });
+
+  useEffect(() => {
+    if (autoFocus) {
+      const t = setTimeout(() => quoteRef.current?.focus(), 50);
+      return () => clearTimeout(t);
+    }
+  }, [autoFocus]);
 
   React.useImperativeHandle(ref, () => ({
     applyFormat: (type) => {
@@ -540,13 +622,20 @@ const QuoteBlock = React.forwardRef(function QuoteBlock(
 });
 
 const ThoughtBlock = React.forwardRef(function ThoughtBlock(
-  { block, onChange, onRemove, onFocus },
+  { block, onChange, onRemove, autoFocus, onFocus },
   ref
 ) {
   const { C } = useTheme();
   const blk = useBlkStyles();
   const inputRef = useRef(null);
   const [selection, setSelection] = useState({ start: 0, end: 0 });
+
+  useEffect(() => {
+    if (autoFocus) {
+      const t = setTimeout(() => inputRef.current?.focus(), 50);
+      return () => clearTimeout(t);
+    }
+  }, [autoFocus]);
 
   React.useImperativeHandle(ref, () => ({
     applyFormat: (type) => {
@@ -583,6 +672,117 @@ const ThoughtBlock = React.forwardRef(function ThoughtBlock(
         />
         {onRemove && (
           <TouchableOpacity onPress={onRemove} style={blk.removeBtnAbs} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+            <Ionicons name="close-circle" size={16} color={C.inkFaint} />
+          </TouchableOpacity>
+        )}
+      </View>
+    </Pressable>
+  );
+});
+
+const HeadingBlock = React.forwardRef(function HeadingBlock(
+  { block, onChange, onRemove, autoFocus, onFocus },
+  ref
+) {
+  const { C } = useTheme();
+  const blk = useBlkStyles();
+  const inputRef = useRef(null);
+  const [selection, setSelection] = useState({ start: 0, end: 0 });
+
+  useEffect(() => {
+    if (autoFocus) {
+      const t = setTimeout(() => inputRef.current?.focus(), 50);
+      return () => clearTimeout(t);
+    }
+  }, [autoFocus]);
+
+  React.useImperativeHandle(ref, () => ({
+    applyFormat: (type) => {
+      const d = FORMAT_DELIMS[type];
+      if (!d) return;
+      const wrapped = wrapSelection(block.text || '', selection, d.prefix, d.suffix);
+      onChange({ ...block, text: wrapped.text });
+      setTimeout(() => {
+        inputRef.current?.setNativeProps?.({ selection: wrapped.selection });
+        setSelection(wrapped.selection);
+      }, 16);
+    },
+    focus: () => inputRef.current?.focus(),
+  }), [block.text, selection, onChange]);
+
+  return (
+    <Pressable onPress={() => inputRef.current?.focus()}>
+      <View style={blk.headingWrap}>
+        <TextInput
+          ref={inputRef}
+          style={blk.heading}
+          value={block.text}
+          onChangeText={text => onChange({ ...block, text })}
+          onFocus={onFocus}
+          onSelectionChange={(e) => setSelection(e.nativeEvent.selection)}
+          placeholder="Heading"
+          placeholderTextColor={C.inkFaint}
+          multiline
+          textAlignVertical="top"
+        />
+        {block.text.length === 0 && onRemove && (
+          <TouchableOpacity onPress={onRemove} style={blk.removeBtn} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+            <Ionicons name="close-circle" size={16} color={C.inkFaint} />
+          </TouchableOpacity>
+        )}
+      </View>
+    </Pressable>
+  );
+});
+
+const BulletBlock = React.forwardRef(function BulletBlock(
+  { block, onChange, onRemove, autoFocus, onFocus },
+  ref
+) {
+  const { C } = useTheme();
+  const blk = useBlkStyles();
+  const inputRef = useRef(null);
+  const [selection, setSelection] = useState({ start: 0, end: 0 });
+
+  useEffect(() => {
+    if (autoFocus) {
+      const t = setTimeout(() => inputRef.current?.focus(), 50);
+      return () => clearTimeout(t);
+    }
+  }, [autoFocus]);
+
+  React.useImperativeHandle(ref, () => ({
+    applyFormat: (type) => {
+      const d = FORMAT_DELIMS[type];
+      if (!d) return;
+      const wrapped = wrapSelection(block.text || '', selection, d.prefix, d.suffix);
+      onChange({ ...block, text: wrapped.text });
+      setTimeout(() => {
+        inputRef.current?.setNativeProps?.({ selection: wrapped.selection });
+        setSelection(wrapped.selection);
+      }, 16);
+    },
+    focus: () => inputRef.current?.focus(),
+  }), [block.text, selection, onChange]);
+
+  return (
+    <Pressable onPress={() => inputRef.current?.focus()}>
+      <View style={blk.bulletWrap}>
+        <Text style={blk.bulletDot}>•</Text>
+        <TextInput
+          ref={inputRef}
+          style={blk.bulletText}
+          value={block.text}
+          onChangeText={text => onChange({ ...block, text })}
+          onFocus={onFocus}
+          onSelectionChange={(e) => setSelection(e.nativeEvent.selection)}
+          placeholder="List item"
+          placeholderTextColor={C.inkFaint}
+          multiline
+          textAlignVertical="top"
+        />
+        {block.text.length === 0 && onRemove && (
+          <TouchableOpacity onPress={onRemove} style={blk.removeBtn} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
             <Ionicons name="close-circle" size={16} color={C.inkFaint} />
           </TouchableOpacity>
         )}
@@ -681,7 +881,7 @@ function BookPicker({ books, onPick, onCancel }) {
         <View style={bp.empty}>
           <Text style={bp.emptyIcon}>📚</Text>
           <Text style={bp.emptyTitle}>No books in progress</Text>
-          <Text style={bp.emptySub}>Add a book from Discover to start capturing notes.</Text>
+          <Text style={bp.emptySub}>Go to the Add tab to find your first book — then come back here to capture notes.</Text>
         </View>
       ) : (
         <ScrollView contentContainerStyle={{ padding: 20, gap: 10 }}>
@@ -715,7 +915,7 @@ function BookPicker({ books, onPick, onCancel }) {
 
 
 // ── Main editor screen (step 2) ───────────────────────────────────────
-function EditorScreen({ book, initialData, onSave, onCancel }) {
+function EditorScreen({ book, initialData, onSave, onCancel, onChangeBook }) {
   const { C, F, themeVersion } = useTheme();
   const ed = useMemo(() => StyleSheet.create({
     safe: { flex: 1, backgroundColor: C.paper },
@@ -760,6 +960,22 @@ function EditorScreen({ book, initialData, onSave, onCancel }) {
       lineHeight: 28,
       color: C.ink,
       letterSpacing: -0.3,
+    },
+    // Inline "Change" affordance shown when book was pre-attached and the
+    // user is composing a new note — lets them swap target without
+    // backing out of the modal.
+    changeBookRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: 6,
+      gap: 4,
+    },
+    changeBookTxt: {
+      fontFamily: F.serif,
+      fontSize: 12,
+      color: C.inkMuted,
+      fontWeight: '600',
+      letterSpacing: 0.2,
     },
     toolbarWrap: {
       marginBottom: 10,
@@ -944,6 +1160,17 @@ function EditorScreen({ book, initialData, onSave, onCancel }) {
           <Text style={ed.appBarTitle}>
             Note on {book.title}
           </Text>
+          {onChangeBook && (
+            <TouchableOpacity
+              onPress={onChangeBook}
+              activeOpacity={0.6}
+              hitSlop={{ top: 6, bottom: 6, left: 4, right: 8 }}
+              style={ed.changeBookRow}
+            >
+              <Ionicons name="swap-horizontal" size={13} color={C.inkMuted} />
+              <Text style={ed.changeBookTxt}>Change book</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         <ScrollView
@@ -977,6 +1204,7 @@ function EditorScreen({ book, initialData, onSave, onCancel }) {
                   block={block}
                   onChange={updated => updateBlock(idx, updated)}
                   onRemove={removeFn}
+                  autoFocus={block.autoFocus}
                   onFocus={onFocusBlock}
                 />
               );
@@ -989,6 +1217,33 @@ function EditorScreen({ book, initialData, onSave, onCancel }) {
                   block={block}
                   onChange={updated => updateBlock(idx, updated)}
                   onRemove={removeFn}
+                  autoFocus={block.autoFocus}
+                  onFocus={onFocusBlock}
+                />
+              );
+            }
+            if (block.type === 'heading') {
+              return (
+                <HeadingBlock
+                  key={block.id}
+                  ref={registerBlockRef(block.id)}
+                  block={block}
+                  onChange={updated => updateBlock(idx, updated)}
+                  onRemove={removeFn}
+                  autoFocus={block.autoFocus}
+                  onFocus={onFocusBlock}
+                />
+              );
+            }
+            if (block.type === 'bullet') {
+              return (
+                <BulletBlock
+                  key={block.id}
+                  ref={registerBlockRef(block.id)}
+                  block={block}
+                  onChange={updated => updateBlock(idx, updated)}
+                  onRemove={removeFn}
+                  autoFocus={block.autoFocus}
                   onFocus={onFocusBlock}
                 />
               );
@@ -1052,24 +1307,26 @@ function EditorScreen({ book, initialData, onSave, onCancel }) {
 //   visible      — boolean
 //   books        — array of book objects from store
 //   initialNote  — null for new note, or an existing note to edit
+//   defaultBook  — book to pre-attach when launching a new note (FAB,
+//                  BookDetailScreen). User can still tap "Change" to swap.
 //   onSave(data) — called with the assembled note payload
 //   onClose()    — close without saving
-export function RichNoteEditor({ visible, books, initialNote, lockedBook, onSave, onClose }) {
+export function RichNoteEditor({ visible, books, initialNote, defaultBook, onSave, onClose }) {
   const [pickedBook, setPickedBook] = useState(null);
 
   // If editing, jump straight to step 2 with the note's existing book.
-  // If lockedBook is provided (e.g. from BookDetailScreen), skip the picker
-  // entirely and go straight to the editor with that book pre-selected.
+  // If defaultBook is provided, skip the picker and pre-attach that book —
+  // the editor still surfaces a "Change" link so the user can swap.
   useEffect(() => {
     if (visible && initialNote) {
       const book = books.find(b => b.id === initialNote.bookId);
       setPickedBook(book || null);
-    } else if (visible && lockedBook) {
-      setPickedBook(lockedBook);
+    } else if (visible && defaultBook) {
+      setPickedBook(defaultBook);
     } else if (visible) {
       setPickedBook(null);
     }
-  }, [visible, initialNote, lockedBook, books]);
+  }, [visible, initialNote, defaultBook, books]);
 
   const handleCancel = () => {
     setPickedBook(null);
@@ -1104,6 +1361,7 @@ export function RichNoteEditor({ visible, books, initialNote, lockedBook, onSave
             initialData={initialNote}
             onSave={handleSaveFromEditor}
             onCancel={handleCancel}
+            onChangeBook={!initialNote ? () => setPickedBook(null) : null}
           />
         )}
       </SafeAreaProvider>

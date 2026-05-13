@@ -1,45 +1,40 @@
 /**
- * ProfileScreen — the user's notetaking workspace at a glance.
+ * ProfileScreen — identity + workspace stats at a glance.
  *
  * Layout:
  *   1. Avatar + name + live header subtitle (notes · reflections · streak)
  *   2. STATS — 2×2 grid: Notes, Reflections, Books with notes, Streak
  *   3. ACCOUNT — Email row (taps EditProfileModal)
- *   4. APPEARANCE — Dark Mode switch + Accent + Background swatch pickers
- *   5. WORKSPACE — Goals & Habits (navigates to GoalsScreen),
- *                  Reading Reminders switch (local state)
- *   6. DATA — Export Notes (Markdown via Share sheet)
- *   7. ABOUT — Send Feedback (mailto), Version
- *   8. SUPPORT & LEGAL — Help Center, Privacy Policy
- *   9. Logout (outlined rose)
+ *   4. PREFERENCES — Settings row → SettingsScreen
+ *   5. Logout (outlined rose)
  *
- * Appearance — tapping an accent or background swatch calls
- * setAccent()/setBackground() from useTheme(); the Dark Mode switch
- * calls setMode() which flips the ink palette and surface tones
- * independently of the user's chosen light-mode background.
+ * Configuration (appearance, workspace, data, about) lives in
+ * SettingsScreen so the Profile tab stays focused on identity rather
+ * than scrolling past chrome every time it's opened.
  */
 
 import React, { useState, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  Image, Switch, Share, Linking, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useStore } from '../store';
-import { EditProfileModal, buildAvatarUrl } from '../components/EditProfileModal';
+import {
+  EditProfileModal, getAvatarColor, getInitials,
+} from '../components/EditProfileModal';
 import { useTheme } from '../theme';
-
-const APP_VERSION = '1.0.0';
-const FEEDBACK_EMAIL = 'feedback@bookwise.app';
+import { SettingRow } from '../components/SettingsRows';
 
 // Build a Markdown document from the user's notes + reflections. The
 // shape is friendly for re-import into Obsidian / Bear / Notion: H3 per
 // book, blockquote for `isQuote` notes, italic metadata line per note,
 // trailing reflections grouped chronologically. Empty fields are
 // skipped to keep the output tight.
-function buildMarkdownExport({ notes, reflections, books, user }) {
+//
+// Exported so SettingsScreen can call it from the Export Notes row.
+export function buildMarkdownExport({ notes, reflections, books, user }) {
   const lines = [];
   const today = new Date().toISOString().slice(0, 10);
   const owner = user?.name?.trim() || 'My';
@@ -125,204 +120,6 @@ function buildMarkdownExport({ notes, reflections, books, user }) {
   return lines.join('\n');
 }
 
-// Initials fallback when no avatar seed (legacy users)
-function getInitials(name) {
-  const parts = (name || '').trim().split(/\s+/).filter(Boolean);
-  if (!parts.length) return '?';
-  if (parts.length === 1) return parts[0][0].toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
-
-// Reusable row — left icon + label + right value/chevron/toggle
-function SettingRow({ icon, label, value, rightChevron, switchValue, onSwitchChange, onPress }) {
-  const { C, F, themeVersion } = useTheme();
-  const s = useMemo(() => StyleSheet.create({
-    row: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: 14,
-      paddingVertical: 14,
-    },
-    rowIconWrap: { width: 30, alignItems: 'center' },
-    rowLabel: {
-      flex: 1,
-      fontFamily: F.serif,
-      fontSize: 14,
-      color: C.ink,
-      fontWeight: '500',
-      marginLeft: 6,
-    },
-    rowRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    rowValue: {
-      fontFamily: F.serif,
-      fontSize: 13,
-      color: C.inkMuted,
-      fontWeight: '500',
-    },
-  }), [themeVersion]);
-
-  return (
-    <TouchableOpacity
-      style={s.row}
-      onPress={onPress}
-      activeOpacity={onPress ? 0.7 : 1}
-      disabled={!onPress}
-    >
-      <View style={s.rowIconWrap}>
-        <Ionicons name={icon} size={18} color={C.inkMuted} />
-      </View>
-      <Text style={s.rowLabel}>{label}</Text>
-      <View style={s.rowRight}>
-        {switchValue !== undefined && (
-          <Switch
-            value={switchValue}
-            onValueChange={onSwitchChange}
-            trackColor={{ false: C.cream, true: C.sage }}
-            thumbColor={C.white}
-            ios_backgroundColor={C.cream}
-          />
-        )}
-        {value ? <Text style={s.rowValue}>{value}</Text> : null}
-        {rightChevron && <Ionicons name="chevron-forward" size={16} color={C.inkFaint} />}
-      </View>
-    </TouchableOpacity>
-  );
-}
-
-// Generic swatch picker row — collapsible. Tap header to expand grid.
-// `variant` controls swatch styling:
-//   • 'accent'     — saturated chips with shadow + white check mark
-//   • 'background' — paper-tone chips with a thin border (so light
-//                    swatches stay visible against the card surface)
-function SwatchPicker({ icon, label, entries, activeKey, onPick, variant = 'accent' }) {
-  const { C, F, themeVersion } = useTheme();
-  const [expanded, setExpanded] = useState(false);
-  const isBackground = variant === 'background';
-
-  const s = useMemo(() => StyleSheet.create({
-    row: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: 14,
-      paddingVertical: 14,
-    },
-    rowIconWrap: { width: 30, alignItems: 'center' },
-    rowLabel: {
-      flex: 1,
-      fontFamily: F.serif,
-      fontSize: 14,
-      color: C.ink,
-      fontWeight: '500',
-      marginLeft: 6,
-    },
-    rowRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    rowValue: {
-      fontFamily: F.serif,
-      fontSize: 13,
-      color: C.inkMuted,
-      fontWeight: '500',
-    },
-    divider: {
-      height: 0.5,
-      backgroundColor: C.border,
-      marginLeft: 50,
-    },
-    gridWrap: {
-      paddingHorizontal: 18,
-      paddingTop: 14,
-      paddingBottom: 16,
-    },
-    grid: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 12,
-    },
-    swatchWrap: {
-      width: 52,
-      height: 52,
-      borderRadius: 26,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    swatchWrapActive: {
-      borderWidth: 2,
-      borderColor: C.ink,
-    },
-    swatch: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      alignItems: 'center',
-      justifyContent: 'center',
-      ...(isBackground
-        ? { borderWidth: 1, borderColor: C.borderMid }
-        : {
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 1 },
-            shadowOpacity: 0.08,
-            shadowRadius: 3,
-            elevation: 2,
-          }),
-    },
-  }), [themeVersion, isBackground]);
-
-  const activeEntry = entries.find(([k]) => k === activeKey);
-  const activeLabel = activeEntry?.[1]?.label || 'Default';
-
-  return (
-    <View>
-      <TouchableOpacity
-        style={s.row}
-        onPress={() => setExpanded(v => !v)}
-        activeOpacity={0.7}
-      >
-        <View style={s.rowIconWrap}>
-          <Ionicons name={icon} size={18} color={C.inkMuted} />
-        </View>
-        <Text style={s.rowLabel}>{label}</Text>
-        <View style={s.rowRight}>
-          <Text style={s.rowValue}>{activeLabel}</Text>
-          <Ionicons
-            name={expanded ? 'chevron-down' : 'chevron-forward'}
-            size={16}
-            color={C.inkFaint}
-          />
-        </View>
-      </TouchableOpacity>
-      {expanded && (
-        <>
-          <View style={s.divider} />
-          <View style={s.gridWrap}>
-            <View style={s.grid}>
-              {entries.map(([key, item]) => {
-                const active = key === activeKey;
-                // Background check mark needs to contrast against the
-                // light paper swatch — use ink. Accent check uses white.
-                const checkColor = isBackground ? C.ink : C.white;
-                return (
-                  <TouchableOpacity
-                    key={key}
-                    style={[s.swatchWrap, active && s.swatchWrapActive]}
-                    onPress={() => onPick(key)}
-                    activeOpacity={0.7}
-                    accessibilityLabel={`${item.label} ${isBackground ? 'background' : 'accent'}`}
-                  >
-                    <View style={[s.swatch, { backgroundColor: item.swatch }]}>
-                      {active && (
-                        <Ionicons name="checkmark" size={22} color={checkColor} />
-                      )}
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-        </>
-      )}
-    </View>
-  );
-}
-
 // Compact 2×2 stats grid — surfaces the user's notetaking output at a
 // glance. Numbers are derived live from the store on every render so the
 // grid stays in sync as notes/reflections are added.
@@ -347,7 +144,7 @@ function StatsGrid({ stats }) {
     },
     cellTopRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
     cellLabel: {
-      fontFamily: F.serif,
+      fontFamily: F.sans,
       fontSize: 10,
       fontWeight: '700',
       color: C.inkMuted,
@@ -401,12 +198,8 @@ export function ProfileScreen() {
   } = useStore();
   const {
     C, F, themeVersion,
-    themes, themeName, setAccent,
-    backgrounds, backgroundName, setBackground,
-    mode, setMode,
   } = useTheme();
   const [editOpen, setEditOpen] = useState(false);
-  const [reminders, setReminders] = useState(true);
 
   // Derived stats — books with at least one note (not "books read"),
   // since this app is a notetaking workspace, not a reading tracker.
@@ -442,16 +235,19 @@ export function ProfileScreen() {
       width: 88,
       height: 88,
       borderRadius: 44,
-      backgroundColor: C.cream,
-    },
-    avatarFallback: {
       alignItems: 'center',
       justifyContent: 'center',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.10,
+      shadowRadius: 6,
+      elevation: 3,
     },
-    avatarFallbackTxt: {
+    avatarInitials: {
       fontFamily: F.serif,
-      fontSize: 28,
-      color: C.ink,
+      fontSize: 34,
+      color: '#FFFFFF',
+      letterSpacing: -0.6,
     },
     editBadge: {
       position: 'absolute',
@@ -496,7 +292,7 @@ export function ProfileScreen() {
 
     // Section
     sectionLabel: {
-      fontFamily: F.serif,
+      fontFamily: F.sans,
       fontSize: 10,
       fontWeight: '700',
       color: C.inkMuted,
@@ -542,47 +338,7 @@ export function ProfileScreen() {
     },
   }), [themeVersion]);
 
-  // Build the export string lazily — only on tap — so we don't churn
-  // through every note on every render of the profile screen.
-  const handleExportNotes = async () => {
-    if (!notes.length && !reflections.length) {
-      Alert.alert(
-        'Nothing to export yet',
-        'Capture a note or write a reflection first — then come back here to share your library.',
-      );
-      return;
-    }
-    try {
-      const message = buildMarkdownExport({ notes, reflections, books, user });
-      await Share.share({
-        message,
-        title: 'Bookwise — Notes Export',
-      });
-    } catch (e) {
-      Alert.alert('Export failed', 'Could not open the share sheet. Try again.');
-    }
-  };
-
-  const handleSendFeedback = async () => {
-    const subject = encodeURIComponent('Bookwise feedback');
-    const body = encodeURIComponent(`App version: ${APP_VERSION}\n\n`);
-    const url = `mailto:${FEEDBACK_EMAIL}?subject=${subject}&body=${body}`;
-    const supported = await Linking.canOpenURL(url);
-    if (!supported) {
-      Alert.alert(
-        'No mail app',
-        `Send feedback to ${FEEDBACK_EMAIL}.`,
-      );
-      return;
-    }
-    Linking.openURL(url);
-  };
-
-  const handleOpenGoals = () => {
-    // Profile lives in a sibling tab to LibraryStack — hop through the
-    // Library tab to reach the Goals screen nested in that stack.
-    navigation.navigate('Library', { screen: 'Goals' });
-  };
+  const handleOpenSettings = () => navigation.navigate('Settings');
 
   // Live subtitle under the user name — replaces the old hardcoded
   // "Archivist & Enthusiastic Reader" line with a meaningful summary.
@@ -604,13 +360,9 @@ export function ProfileScreen() {
           activeOpacity={0.85}
         >
           <View style={s.avatarWrap}>
-            {user.avatarSeed ? (
-              <Image source={{ uri: buildAvatarUrl(user.avatarSeed, 240) }} style={s.avatar} />
-            ) : (
-              <View style={[s.avatar, s.avatarFallback]}>
-                <Text style={s.avatarFallbackTxt}>{getInitials(user.name)}</Text>
-              </View>
-            )}
+            <View style={[s.avatar, { backgroundColor: getAvatarColor(user.avatarSeed, user.name) }]}>
+              <Text style={s.avatarInitials}>{getInitials(user.name)}</Text>
+            </View>
             {/* Edit pencil badge */}
             <View style={s.editBadge}>
               <Ionicons name="pencil" size={11} color={C.white} />
@@ -635,96 +387,14 @@ export function ProfileScreen() {
           />
         </View>
 
-        {/* APPEARANCE — dark mode + accent + background */}
-        <Text style={s.sectionLabel}>APPEARANCE</Text>
+        {/* PREFERENCES — single entry into the full Settings screen */}
+        <Text style={s.sectionLabel}>PREFERENCES</Text>
         <View style={s.card}>
           <SettingRow
-            icon="moon-outline"
-            label="Dark Mode"
-            switchValue={mode === 'dark'}
-            onSwitchChange={(v) => setMode(v ? 'dark' : 'light')}
-          />
-          <View style={s.divider} />
-          <SwatchPicker
-            icon="color-palette-outline"
-            label="Accent Color"
-            entries={Object.entries(themes)}
-            activeKey={themeName}
-            onPick={setAccent}
-            variant="accent"
-          />
-          <View style={s.divider} />
-          <SwatchPicker
-            icon="contrast-outline"
-            label="Background"
-            entries={Object.entries(backgrounds)}
-            activeKey={backgroundName}
-            onPick={setBackground}
-            variant="background"
-          />
-        </View>
-
-        {/* WORKSPACE — entry to goals/habits (data the store already tracks) */}
-        <Text style={s.sectionLabel}>WORKSPACE</Text>
-        <View style={s.card}>
-          <SettingRow
-            icon="checkmark-circle-outline"
-            label="Goals & Habits"
+            icon="settings-outline"
+            label="Settings"
             rightChevron
-            onPress={handleOpenGoals}
-          />
-          <View style={s.divider} />
-          <SettingRow
-            icon="notifications-outline"
-            label="Reading Reminders"
-            switchValue={reminders}
-            onSwitchChange={setReminders}
-          />
-        </View>
-
-        {/* DATA — export keeps the user's notes portable */}
-        <Text style={s.sectionLabel}>DATA</Text>
-        <View style={s.card}>
-          <SettingRow
-            icon="share-outline"
-            label="Export Notes (Markdown)"
-            rightChevron
-            onPress={handleExportNotes}
-          />
-        </View>
-
-        {/* ABOUT */}
-        <Text style={s.sectionLabel}>ABOUT</Text>
-        <View style={s.card}>
-          <SettingRow
-            icon="chatbubble-ellipses-outline"
-            label="Send Feedback"
-            rightChevron
-            onPress={handleSendFeedback}
-          />
-          <View style={s.divider} />
-          <SettingRow
-            icon="information-circle-outline"
-            label="Version"
-            value={APP_VERSION}
-          />
-        </View>
-
-        {/* SUPPORT & LEGAL */}
-        <Text style={s.sectionLabel}>SUPPORT & LEGAL</Text>
-        <View style={s.card}>
-          <SettingRow
-            icon="help-circle-outline"
-            label="Help Center"
-            rightChevron
-            onPress={() => Alert.alert('Help Center', 'Coming soon.')}
-          />
-          <View style={s.divider} />
-          <SettingRow
-            icon="shield-outline"
-            label="Privacy Policy"
-            rightChevron
-            onPress={() => Alert.alert('Privacy Policy', 'Coming soon.')}
+            onPress={handleOpenSettings}
           />
         </View>
 

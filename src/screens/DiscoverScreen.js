@@ -133,7 +133,7 @@ function GenreSheet({ onSelect, onClose, activeGenres = [] }) {
     genreSheet:         { height: sheetMaxHeight },
     genreSheetTitle:    { fontFamily: F.serif, fontSize: 18, fontWeight: '700', color: C.ink, paddingHorizontal: 20, paddingBottom: 16, letterSpacing: -0.3 },
     genreGroup:         { paddingHorizontal: 20, marginBottom: 20 },
-    genreGroupLabel:    { fontFamily: F.serif, fontSize: 11, fontWeight: '700', color: C.inkFaint, letterSpacing: 0.8, marginBottom: 10 },
+    genreGroupLabel:    { fontFamily: F.sans, fontSize: 11, fontWeight: '700', color: C.inkFaint, letterSpacing: 0.8, marginBottom: 10 },
     genreGroupItems:    { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     genreItem:          { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: C.cream, borderWidth: 1, borderColor: C.border },
     genreItemTxt:       { fontFamily: F.serif, fontSize: 13, fontWeight: '500', color: C.ink },
@@ -225,8 +225,8 @@ function AddReadingItemSheet({ onAdd, onClose }) {
     ownBookSub:       { fontFamily: F.serif, fontSize: 13, color: C.inkMuted, marginBottom: 22, lineHeight: 19 },
     ownBookForm:      { gap: 16, marginBottom: 16 },
     ownBookField:     { gap: 6 },
-    ownBookFieldLabel:{ fontFamily: F.serif, fontSize: 11, fontWeight: '700', color: C.inkMuted, letterSpacing: 0.5 },
-    ownBookInput:     { backgroundColor: C.cream, borderRadius: 12, borderWidth: 1, borderColor: C.border, paddingHorizontal: 14, paddingVertical: 12, fontFamily: F.serif, fontSize: 15, color: C.ink },
+    ownBookFieldLabel:{ fontFamily: F.sans, fontSize: 11, fontWeight: '700', color: C.inkMuted, letterSpacing: 0.5 },
+    ownBookInput:     { backgroundColor: C.cream, borderRadius: 12, borderWidth: 1, borderColor: C.border, paddingHorizontal: 14, paddingVertical: 12, fontFamily: F.sans, fontSize: 15, color: C.ink },
 
     // Format chips inside the manual-add sheet
     formatChipsRow:   { gap: 6, paddingTop: 8, paddingRight: 4 },
@@ -956,7 +956,7 @@ export function DiscoverScreen() {
       paddingVertical: 14,
       gap: 10,
     },
-    searchInput: { flex: 1, fontFamily: F.serif, fontSize: 15, color: C.ink },
+    searchInput: { flex: 1, fontFamily: F.sans, fontSize: 15, color: C.ink },
     searchClearBtn: { padding: 2 },
 
     // + Add — same pill style with subtle ink accent

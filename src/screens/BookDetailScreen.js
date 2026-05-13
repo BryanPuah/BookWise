@@ -17,8 +17,9 @@
  *   - Internal NoteCard duplicate
  *   - Dark gradient hero
  *
- * Adding a note now opens RichNoteEditor with lockedBook so the user
- * skips the book picker step and lands directly in the editor.
+ * Adding a note now opens RichNoteEditor with defaultBook so the user
+ * skips the book picker step and lands directly in the editor (with a
+ * "Change book" link if they want to swap).
  */
 
 import React, { useState, useMemo } from 'react';
@@ -268,7 +269,7 @@ export function BookDetailScreen({ route, navigation }) {
       marginBottom: 5,
     },
     pageInput: {
-      fontFamily: F.serif,
+      fontFamily: F.sans,
       backgroundColor: C.cream,
       borderWidth: 1,
       borderColor: C.border,
@@ -461,12 +462,12 @@ export function BookDetailScreen({ route, navigation }) {
     >
       <SafeAreaView style={s.safe} edges={['top', 'bottom']}>
         {/* Rich note editor — handles both new and edit paths.
-            lockedBook skips the picker so the user is in the editor
-            immediately. */}
+            defaultBook skips the picker so the user is in the editor
+            immediately, with a "Change book" affordance if they want to swap. */}
         <RichNoteEditor
           visible={editorOpen}
           books={books}
-          lockedBook={book}
+          defaultBook={book}
           initialNote={editingNote}
           onSave={handleSaveNote}
           onClose={() => {

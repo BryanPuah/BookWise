@@ -22,11 +22,18 @@
  */
 
 import { useEffect, useReducer } from 'react';
+import { Platform } from 'react-native';
 
 // ── Static design tokens (never theme-dependent) ───────────────────────
+// `serif` is the reading face (DM Serif Display, loaded via expo-google-fonts).
+// `sans` is the chrome face — small uppercase labels, form inputs, tab bar.
+// Writing in a display serif at 10–11px is eye-strain territory, so anything
+// label-like or input-like gets the system sans fallback (SF on iOS, Roboto
+// on Android) for legibility.
 export const F = {
   serif:       'DMSerifDisplay_400Regular',
   serifItalic: 'DMSerifDisplay_400Regular_Italic',
+  sans:        Platform.OS === 'ios' ? 'System' : 'sans-serif',
 };
 
 export const SP = {

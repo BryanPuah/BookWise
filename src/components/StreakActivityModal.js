@@ -89,28 +89,6 @@ export function StreakActivityModal({ visible, onClose }) {
   title: { fontFamily: F.serif, fontSize: 18, color: C.ink, letterSpacing: -0.2 },
   closeBtn: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center' },
 
-  // Summary row
-  summary: {
-    flexDirection: 'row',
-    marginHorizontal: 16,
-    marginTop: 20,
-    backgroundColor: C.white,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: C.border,
-    paddingVertical: 18,
-  },
-  summaryItem: { flex: 1, alignItems: 'center' },
-  summaryDivider: { width: 0.5, backgroundColor: C.border },
-  summaryNum: {
-    fontFamily: F.serif,
-    fontSize: 32,
-    color: C.ink,
-    letterSpacing: -0.6,
-    marginBottom: 2,
-  },
-  summaryLabel: { fontSize: 11, color: C.inkMuted, fontWeight: '600', letterSpacing: 0.4 },
-
   // Grid
   gridKicker: {
     fontSize: 10,
@@ -181,21 +159,12 @@ export function StreakActivityModal({ visible, onClose }) {
     lineHeight: 18,
   },
   }), [themeVersion]);
-  const { activeDays, currentStreak } = useStore();
+  const { activeDays } = useStore();
   const activeSet = useMemo(() => new Set(activeDays || []), [activeDays]);
 
   const { weeks, today } = useMemo(buildYearGrid, []);
   const monthLabels = useMemo(() => getMonthLabels(weeks), [weeks]);
   const todayKey = ymdKey(today);
-
-  // Total active days in the visible window
-  const totalActive = useMemo(() => {
-    let n = 0;
-    weeks.forEach(w => w.forEach(d => {
-      if (activeSet.has(ymdKey(d)) && d <= today) n++;
-    }));
-    return n;
-  }, [weeks, activeSet, today]);
 
   return (
     <Modal
@@ -215,21 +184,6 @@ export function StreakActivityModal({ visible, onClose }) {
           >
             <Ionicons name="close" size={22} color={C.ink} />
           </TouchableOpacity>
-        </View>
-
-        {/* Headline numbers */}
-        <View style={s.summary}>
-          <View style={s.summaryItem}>
-            <Text style={[s.summaryNum, { color: C.rose }]}>
-              {currentStreak > 0 ? currentStreak : '0'}
-            </Text>
-            <Text style={s.summaryLabel}>Current streak</Text>
-          </View>
-          <View style={s.summaryDivider} />
-          <View style={s.summaryItem}>
-            <Text style={s.summaryNum}>{totalActive}</Text>
-            <Text style={s.summaryLabel}>Active days · 12mo</Text>
-          </View>
         </View>
 
         {/* Activity grid — horizontal scroll on small screens */}

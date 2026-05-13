@@ -17,13 +17,13 @@ import { HomeScreen }          from './src/screens/HomeScreen';
 import { FinishedBooksScreen } from './src/screens/FinishedBooksScreen';
 import { BookDetailScreen }    from './src/screens/BookDetailScreen';
 import { NotesScreen }         from './src/screens/NotesScreen';
-import { ReviewScreen }        from './src/screens/ReviewScreen';
 import { DiscoverScreen }      from './src/screens/DiscoverScreen';
 import { GoalsScreen }         from './src/screens/GoalsScreen';
 import { ProfileScreen }       from './src/screens/ProfileScreen';
+import { SettingsScreen }      from './src/screens/SettingsScreen';
 import { LoginScreen }         from './src/screens/LoginScreen';
 import { RichNoteEditor }      from './src/components/RichNoteEditor';
-import { useTheme } from './src/theme';
+import { useTheme, F } from './src/theme';
 
 const Tab   = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -34,7 +34,6 @@ function LibraryStack() {
       <Stack.Screen name="LibraryHome"   component={HomeScreen} />
       <Stack.Screen name="BookDetail"    component={BookDetailScreen} />
       <Stack.Screen name="FinishedBooks" component={FinishedBooksScreen} />
-      <Stack.Screen name="Profile"       component={ProfileScreen} />
       <Stack.Screen name="Goals"         component={GoalsScreen} />
     </Stack.Navigator>
   );
@@ -45,6 +44,16 @@ function DiscoverStack() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="DiscoverHome" component={DiscoverScreen} />
       <Stack.Screen name="BookDetail"   component={BookDetailScreen} />
+    </Stack.Navigator>
+  );
+}
+
+function ProfileStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="ProfileHome" component={ProfileScreen} />
+      <Stack.Screen name="Settings"    component={SettingsScreen} />
+      <Stack.Screen name="Goals"       component={GoalsScreen} />
     </Stack.Navigator>
   );
 }
@@ -65,6 +74,7 @@ function TabItem({ name, nameActive, label, active }) {
       backgroundColor: C.sagePale,
     },
     label: {
+      fontFamily: F.sans,
       fontSize: 10,
       color: C.inkMuted,
       fontWeight: '500',
@@ -119,7 +129,7 @@ function CaptureFAB({ onPress }) {
 
 // ── Tab navigator ──────────────────────────────────────────────────────
 function Tabs() {
-  const { books, addNote, user } = useStore();
+  const { books, addNote, user, currentBook } = useStore();
   const { C } = useTheme();
   const [showCapture, setShowCapture] = useState(false);
 
@@ -180,11 +190,11 @@ function Tabs() {
           }}
         />
         <Tab.Screen
-          name="Discover"
+          name="Add"
           component={DiscoverStack}
           options={{
             tabBarIcon: ({ focused }) => (
-              <TabItem name="search-outline" nameActive="search" label="Explore" active={focused} />
+              <TabItem name="search-outline" nameActive="search" label="Add" active={focused} />
             ),
           }}
         />
@@ -199,7 +209,7 @@ function Tabs() {
         />
         <Tab.Screen
           name="Profile"
-          component={ProfileScreen}
+          component={ProfileStack}
           options={{
             tabBarIcon: ({ focused }) => (
               <TabItem name="person-outline" nameActive="person" label="Profile" active={focused} />
@@ -214,6 +224,7 @@ function Tabs() {
         visible={showCapture}
         books={books}
         initialNote={null}
+        defaultBook={currentBook}
         onSave={(data) => { handleSave(data); setShowCapture(false); }}
         onClose={() => setShowCapture(false)}
       />

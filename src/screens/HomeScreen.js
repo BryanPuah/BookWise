@@ -25,7 +25,6 @@ const COLLECTION_TABS = [
   { id: 'finished',     label: 'Finished'     },
   { id: 'want_to_read', label: 'Want to Read' },
   { id: 'reflections',  label: 'Reflections'  },
-  { id: 'collections',  label: 'Collections'  },
 ];
 
 // ── Range definitions ────────────────────────────────────────────────
@@ -74,7 +73,7 @@ function RangePickerModal({ visible, currentRange, onSelect, onClose }) {
       elevation: 16,
     },
     title: {
-      fontFamily: F.serif,
+      fontFamily: F.sans,
       fontSize: 11, fontWeight: '700',
       color: C.inkMuted, letterSpacing: 1,
       paddingHorizontal: 16, paddingVertical: 10,
@@ -232,7 +231,7 @@ function StreakCard({ streak, onPress }) {
 // ── Main screen ────────────────────────────────────────────────────────
 export function HomeScreen({ navigation }) {
   const { C, F, themeVersion } = useTheme();
-  const { books, notes, cards, dueCards, readingBooks, currentStreak, reflections, user } = useStore();
+  const { books, notes, readingBooks, currentStreak, reflections, user } = useStore();
 
   // First name for the greeting — split on whitespace to handle "Julian Barnes" → "Julian".
   // Falls back to the whole name if no spaces (e.g. single-word names).
@@ -255,11 +254,18 @@ export function HomeScreen({ navigation }) {
   const finished   = books.filter(b => b.status === 'finished');
   const wantToRead = books.filter(b => b.status === 'want_to_read');
 
+  // First-time gate: zero books, zero notes, zero reflections. Drives the
+  // "Get Started" card that replaces the currently-reading hero on first
+  // launch so a fresh user gets an actionable next step instead of a
+  // blank empty-hero with no context.
+  const isFirstTime = books.length === 0 && notes.length === 0 && reflections.length === 0;
+  const todayKey    = new Date().toISOString().slice(0, 10);
+
   // Books shown in the grid below the tab strip
   const collectionBooks = useMemo(() => {
     if (activeCollection === 'finished')     return finished;
     if (activeCollection === 'want_to_read') return wantToRead;
-    return []; // Collections — placeholder, no data model yet
+    return [];
   }, [activeCollection, finished, wantToRead]);
 
   // Range-aware counts
@@ -295,31 +301,6 @@ export function HomeScreen({ navigation }) {
 
   const s = useMemo(() => StyleSheet.create({
     safe: { flex: 1, backgroundColor: C.paper },
-
-    // Library sub-header (Figma)
-    libraryHeader: {
-      flexDirection: 'row',
-      alignItems: 'baseline',
-      justifyContent: 'space-between',
-      paddingHorizontal: 20,
-      marginTop: 8,
-      marginBottom: 14,
-    },
-    libraryHeaderTitle: {
-      fontFamily: F.serif,
-      fontSize: 22,
-      color: C.ink,
-      letterSpacing: -0.3,
-    },
-    viewCollectionBtn: {
-      paddingVertical: 4,
-    },
-    viewCollectionTxt: {
-      fontFamily: F.serif,
-      fontSize: 12,
-      color: C.inkMuted,
-      fontWeight: '500',
-    },
 
     // Hero card — light Figma style with book cover on the left
     heroCard: {
@@ -363,7 +344,7 @@ export function HomeScreen({ navigation }) {
       marginBottom: 8,
     },
     heroTagPillTxt: {
-      fontFamily: F.serif,
+      fontFamily: F.sans,
       fontSize: 10,
       fontWeight: '700',
       color: C.ink,
@@ -472,12 +453,81 @@ export function HomeScreen({ navigation }) {
     emptyHeroBtn:    { backgroundColor: C.ink, paddingHorizontal: 20, paddingVertical: 11, borderRadius: 22 },
     emptyHeroBtnTxt: { fontFamily: F.serif, color: C.white, fontSize: 13, fontWeight: '600' },
 
+    // Get Started card — shown only on the all-zero first launch (no
+    // books, no notes, no reflections). Replaces the carousel/empty-hero
+    // until the user has any content of any kind.
+    welcomeCard: {
+      marginHorizontal: 8,
+      marginBottom: 20,
+      borderRadius: 20,
+      backgroundColor: C.white,
+      borderLeftWidth: 6,
+      borderLeftColor: C.sage,
+      paddingHorizontal: 22,
+      paddingVertical: 22,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.06,
+      shadowRadius: 10,
+      elevation: 3,
+    },
+    welcomeKicker: {
+      fontFamily: F.sans,
+      fontSize: 10,
+      fontWeight: '700',
+      color: C.amber,
+      letterSpacing: 1.6,
+      marginBottom: 8,
+    },
+    welcomeTitle: {
+      fontFamily: F.serif,
+      fontSize: 22,
+      color: C.ink,
+      letterSpacing: -0.3,
+      lineHeight: 28,
+      marginBottom: 6,
+    },
+    welcomeSub: {
+      fontFamily: F.serif,
+      fontSize: 13,
+      color: C.inkMuted,
+      lineHeight: 19,
+      marginBottom: 16,
+    },
+    welcomeStep: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 14,
+      paddingVertical: 12,
+      paddingHorizontal: 4,
+      borderTopWidth: 0.5,
+      borderTopColor: C.border,
+    },
+    welcomeStepIcon: {
+      fontSize: 22,
+    },
+    welcomeStepTitle: {
+      fontFamily: F.serif,
+      fontSize: 15,
+      color: C.ink,
+      fontWeight: '600',
+      letterSpacing: -0.1,
+      marginBottom: 2,
+    },
+    welcomeStepBody: {
+      fontFamily: F.serif,
+      fontSize: 12,
+      color: C.inkMuted,
+      lineHeight: 17,
+    },
+
     // Goals
     // Stats row — three big numerals evenly spaced across the row
     goalsWrap: {
       flexDirection: 'row',
       paddingHorizontal: 24,
-      paddingVertical: 28,
+      paddingTop: 12,
+      paddingBottom: 14,
       justifyContent: 'space-between',
     },
     goalStat: {
@@ -503,22 +553,7 @@ export function HomeScreen({ navigation }) {
       letterSpacing: -0.1,
     },
 
-    // Review banner
-    reviewBanner: {
-      marginHorizontal: 20, backgroundColor: C.amberPale, borderRadius: 14,
-      padding: 14, flexDirection: 'row', alignItems: 'center', gap: 14,
-      borderWidth: 1, borderColor: 'rgba(212,181,122,0.3)',
-      marginTop: 24, marginBottom: 8,
-    },
-    reviewLeft: {
-      width: 40, height: 40, borderRadius: 12,
-      backgroundColor: C.ink, alignItems: 'center', justifyContent: 'center',
-    },
-    reviewNum: { fontFamily: F.serif, fontSize: 18, fontWeight: '800', color: C.white },
-    reviewTitle: { fontFamily: F.serif, fontSize: 14, fontWeight: '700', color: C.ink },
-    reviewSub: { fontFamily: F.serif, fontSize: 11, color: C.inkMuted, marginTop: 2 },
-
-    // ── Collection tabs (Finished / Want to Read / Collections) ─────
+    // ── Collection tabs (Finished / Want to Read / Reflections) ─────
     collectionTabs: {
       flexDirection: 'row',
       gap: 28,
@@ -657,32 +692,57 @@ export function HomeScreen({ navigation }) {
 
         {/* ── TOP APP BAR ────────────────────────────────────────── */}
         <AppHeader
-          brand={`Welcome back, ${firstName}`}
-          onAvatarPress={() => navigation.navigate('Profile')}
+          brand={isFirstTime ? `Welcome, ${firstName}` : `Welcome back, ${firstName}`}
+          onAvatarPress={() => navigation.getParent('MainTabs')?.navigate('Profile')}
         />
 
         {/* ── READING TIMELINE ────────────────────────────────────── */}
         <ReadingTimeline
           notes={notes}
-          cards={cards}
           books={books}
           onManageGoals={() => navigation.navigate('Goals')}
         />
 
-        {/* ── LIBRARY SUB-HEADER (Figma) ─────────────────────────── */}
-        <View style={s.libraryHeader}>
-          <Text style={s.libraryHeaderTitle}>Library</Text>
-          <TouchableOpacity
-            style={s.viewCollectionBtn}
-            onPress={() => navigation.navigate('Discover')}
-            activeOpacity={0.6}
-          >
-            <Text style={s.viewCollectionTxt}>View Collection</Text>
-          </TouchableOpacity>
-        </View>
+        {/* ── CURRENTLY READING HERO ─ or ─ Get Started card ────── */}
+        {isFirstTime ? (
+          <View style={s.welcomeCard}>
+            <Text style={s.welcomeKicker}>WELCOME{firstName !== 'Reader' ? `, ${firstName.toUpperCase()}` : ''}</Text>
+            <Text style={s.welcomeTitle}>Let's start your library.</Text>
+            <Text style={s.welcomeSub}>
+              Two quick ways to begin — there's no wrong order.
+            </Text>
 
-        {/* ── CURRENTLY READING HERO (carousel preserved) ────────── */}
-        {readingBooks.length > 0 ? (
+            <TouchableOpacity
+              style={s.welcomeStep}
+              onPress={() => navigation.navigate('Add')}
+              activeOpacity={0.7}
+            >
+              <Text style={s.welcomeStepIcon}>📚</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={s.welcomeStepTitle}>Add your first book</Text>
+                <Text style={s.welcomeStepBody}>
+                  Search OpenLibrary, or add a book, article, or PDF by hand.
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={C.inkFaint} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={s.welcomeStep}
+              onPress={() => setReflectionDate(todayKey)}
+              activeOpacity={0.7}
+            >
+              <Text style={s.welcomeStepIcon}>✍️</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={s.welcomeStepTitle}>Write today's reflection</Text>
+                <Text style={s.welcomeStepBody}>
+                  A line or two about what you read, thought, or noticed today.
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={C.inkFaint} />
+            </TouchableOpacity>
+          </View>
+        ) : readingBooks.length > 0 ? (
           <View style={s.heroCard}>
             <ScrollView
               ref={heroScrollRef}
@@ -807,7 +867,7 @@ export function HomeScreen({ navigation }) {
         ) : (
           <TouchableOpacity
             style={s.emptyHero}
-            onPress={() => navigation.navigate('Discover')}
+            onPress={() => navigation.navigate('Add')}
             activeOpacity={0.8}
           >
             <Text style={s.emptyHeroIcon}>📖</Text>
@@ -836,25 +896,7 @@ export function HomeScreen({ navigation }) {
           />
         </View>
 
-        {/* ── REVIEW PROMPT ───────────────────────────────────────── */}
-        {dueCards.length > 0 && (
-          <TouchableOpacity
-            style={s.reviewBanner}
-            onPress={() => navigation.getParent('MainTabs')?.navigate('Review')}
-            activeOpacity={0.85}
-          >
-            <View style={s.reviewLeft}>
-              <Text style={s.reviewNum}>{dueCards.length}</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={s.reviewTitle}>Flashcards ready</Text>
-              <Text style={s.reviewSub}>Review now to retain what you've read</Text>
-            </View>
-            <Text style={{ fontFamily: F.serif, color: C.amber, fontSize: 20, fontWeight: '600' }}>→</Text>
-          </TouchableOpacity>
-        )}
-
-        {/* ── COLLECTIONS TABS — Finished / Want to Read / Collections ── */}
+        {/* ── COLLECTIONS TABS — Finished / Want to Read / Reflections ── */}
         <View style={s.collectionTabs}>
           {COLLECTION_TABS.map(tab => {
             const active = tab.id === activeCollection;
@@ -922,19 +964,15 @@ export function HomeScreen({ navigation }) {
           {collectionBooks.length === 0 ? (
             <TouchableOpacity
               style={s.collectionEmpty}
-              onPress={() => navigation.navigate('Discover')}
+              onPress={() => navigation.navigate('Add')}
               activeOpacity={0.7}
             >
               <Text style={s.collectionEmptyTxt}>
                 {activeCollection === 'finished'
                   ? 'No finished books yet.'
-                  : activeCollection === 'want_to_read'
-                    ? 'Nothing saved to read later yet.'
-                    : 'Collections coming soon.'}
+                  : 'Nothing saved to read later yet.'}
               </Text>
-              {activeCollection !== 'collections' && (
-                <Text style={s.collectionEmptyLink}>+ Add a book →</Text>
-              )}
+              <Text style={s.collectionEmptyLink}>+ Add a book →</Text>
             </TouchableOpacity>
           ) : (
             collectionBooks.map(b => (

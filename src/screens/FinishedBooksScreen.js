@@ -132,10 +132,10 @@ export function FinishedBooksScreen({ navigation }) {
           </Text>
           <TouchableOpacity
             style={s.browseBtn}
-            onPress={() => navigation.navigate('Discover')}
+            onPress={() => navigation.navigate('Add')}
             activeOpacity={0.8}
           >
-            <Text style={s.browseBtnTxt}>Browse books →</Text>
+            <Text style={s.browseBtnTxt}>Add a book →</Text>
           </TouchableOpacity>
         </View>
       )}

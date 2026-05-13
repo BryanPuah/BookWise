@@ -13,25 +13,11 @@
 import React, { useState, useMemo } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  KeyboardAvoidingView, Platform, Image,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useStore } from '../store';
 import { useTheme } from '../theme';
-
-// Build the same avatar URL used by ProfileScreen so the user has an
-// avatar from the moment they log in (replaceable later via edit).
-function buildAvatarUrl(seed) {
-  return `https://api.dicebear.com/7.x/avataaars/png?seed=${encodeURIComponent(seed)}&size=200`;
-}
-
-// Generate a fresh, lowercase, slug-like seed. We use the name plus a small
-// random suffix so two people named "John" get different avatars.
-function makeSeed(name) {
-  const slug = (name || 'reader').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
-  const tail = Math.random().toString(36).slice(2, 6);
-  return `${slug}-${tail}`;
-}
 
 export function LoginScreen() {
   const { C, F, themeVersion } = useTheme();
@@ -51,7 +37,7 @@ export function LoginScreen() {
       marginBottom: 60,
     },
     brandKicker: {
-      fontFamily: F.serif,
+      fontFamily: F.sans,
       fontSize: 11,
       fontWeight: '700',
       color: C.amber,
@@ -78,7 +64,7 @@ export function LoginScreen() {
       gap: 8,
     },
     label: {
-      fontFamily: F.serif,
+      fontFamily: F.sans,
       fontSize: 11,
       fontWeight: '700',
       color: C.inkMuted,
@@ -92,7 +78,7 @@ export function LoginScreen() {
       borderRadius: 12,
       paddingHorizontal: 16,
       paddingVertical: 14,
-      fontFamily: F.serif,
+      fontFamily: F.sans,
       fontSize: 16,
       color: C.ink,
       marginBottom: 16,
@@ -124,10 +110,12 @@ export function LoginScreen() {
   const handleContinue = () => {
     if (!canContinue) return;
     const cleanName = name.trim();
-    const seed = makeSeed(cleanName);
-    // Auto-generate an email from the name; user can change it later
+    // Auto-generate an email from the name; user can change it later.
+    // avatarSeed is left blank so the initials-circle color is derived
+    // from the name hash — user can pick an explicit color later via
+    // EditProfileModal.
     const email = `${cleanName.toLowerCase().replace(/\s+/g, '.')}@bookwise.app`;
-    updateUser({ name: cleanName, email, avatarSeed: seed });
+    updateUser({ name: cleanName, email, avatarSeed: '' });
   };
 
   return (

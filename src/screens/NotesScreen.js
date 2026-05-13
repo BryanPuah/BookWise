@@ -9,14 +9,14 @@
  * Top app bar reused from AppHeader component.
  * The "+ Add Note" FAB lives in App.js — no in-screen add button.
  *
- * Preserved logic: addNote, updateNote, deleteNote, addCard, card generation,
- * search, type filters, starring, BookNotesScreen, AddNoteModal, EditNoteModal.
+ * Preserved logic: addNote, updateNote, deleteNote, search, type filters,
+ * starring, BookNotesScreen. Add/Edit flows now route through RichNoteEditor.
  */
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  TextInput, StyleSheet, Modal, Image, Dimensions,
+  TextInput, StyleSheet, Image, Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Swipeable, Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -68,510 +68,176 @@ function formatDate(dateStr) {
   return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }).toUpperCase();
 }
 
-function buildCardFromNote(noteText, bookTitle) {
-  const text     = noteText.trim();
-  const isQuote  = text.startsWith('"') || text.startsWith('“');
-  const hasNum   = /\d+%|\d+x|\d+\s*times|\d+\s*days/i.test(text);
-  const hasCause = /because|therefore|as a result|which means|leads to/i.test(text);
-
-  let question;
-  if (isQuote)
-    question = `What does this passage from "${bookTitle}" mean, and why is it significant?`;
-  else if (hasNum)
-    question = `What does the figure in this note from "${bookTitle}" demonstrate?`;
-  else if (hasCause)
-    question = `Explain the cause-and-effect relationship in this note from "${bookTitle}".`;
-  else
-    question = `Explain the concept from "${bookTitle}" in your own words — what is it and why does it matter?`;
-
-  return { question, answer: text };
-}
-
-// ── Edit Note Modal ───────────────────────────────────────────────────
-function EditNoteModal({ visible, note, onSave, onClose }) {
-  const { C, F, themeVersion } = useTheme();
-  const mo = useMemo(() => StyleSheet.create({
-    safe: { flex: 1, backgroundColor: C.paper },
-    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: C.border },
-    title: { fontFamily: F.serif, fontSize: 18, color: C.ink, letterSpacing: -0.2 },
-    cancel: { fontFamily: F.serif, fontSize: 14, color: C.inkMuted },
-    save: { fontFamily: F.serif, fontSize: 14, color: C.ink, fontWeight: '700' },
-    saveOff: { opacity: 0.3 },
-    scroll: { flex: 1 },
-    label: { fontFamily: F.serif, fontSize: 10, fontWeight: '700', color: C.inkMuted, letterSpacing: 1, marginHorizontal: 20, marginTop: 22, marginBottom: 8 },
-    optional: { fontFamily: F.serif, fontWeight: '400', color: C.inkFaint },
-
-    step1Strip: { backgroundColor: C.cream, borderBottomWidth: 1, borderBottomColor: C.border, paddingHorizontal: 20, paddingVertical: 14 },
-    step1StripTxt: { fontFamily: F.serif, fontSize: 17, color: C.ink, letterSpacing: -0.2 },
-
-    emptyBooks: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 40 },
-    emptyBooksIcon: { fontSize: 40, marginBottom: 12 },
-    emptyBooksTxt: { fontFamily: F.serif, fontSize: 18, color: C.ink, marginBottom: 6 },
-    emptyBooksSub: { fontFamily: F.serif, fontSize: 13, color: C.inkMuted, textAlign: 'center', lineHeight: 20 },
-
-    bookRow: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: C.white, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: C.border },
-    bookRowActive: { borderColor: C.ink, backgroundColor: C.amberPale },
-    bookRowInfo: { flex: 1 },
-    bookRowTitle: { fontFamily: F.serif, fontSize: 14, fontWeight: '700', color: C.ink, lineHeight: 20, marginBottom: 3 },
-    bookRowAuthor: { fontFamily: F.serif, fontSize: 12, color: C.inkMuted, marginBottom: 8 },
-    bookRowStatus: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, backgroundColor: C.amberPale },
-    bookRowStatusTxt: { fontFamily: F.serif, fontSize: 11, fontWeight: '600', color: C.ink },
-    bookRowArrow: { fontFamily: F.serif, fontSize: 22, color: C.inkFaint, fontWeight: '300' },
-
-    selectedBookBanner: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: C.cream, paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
-    selectedBookTitle: { fontFamily: F.serif, fontSize: 13, fontWeight: '700', color: C.ink },
-    selectedBookAuthor: { fontFamily: F.serif, fontSize: 11, color: C.inkMuted, marginTop: 2 },
-    selectedBookChange: { fontFamily: F.serif, fontSize: 12, color: C.ink, fontWeight: '600' },
-
-    typePill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16, backgroundColor: C.cream, borderWidth: 1, borderColor: C.border },
-    typePillActive: { backgroundColor: C.ink, borderColor: C.ink },
-    typePillIcon: { fontSize: 13 },
-    typePillTxt: { fontFamily: F.serif, fontSize: 12, fontWeight: '600', color: C.inkSoft },
-    typePillTxtActive: { fontFamily: F.serif, color: C.white },
-    typeHint: { fontFamily: F.serif, fontSize: 12, color: C.inkMuted, fontStyle: 'italic', marginHorizontal: 20, marginTop: 8 },
-
-    mainInput: { marginHorizontal: 20, backgroundColor: C.white, borderRadius: 12, borderWidth: 1, borderColor: C.border, padding: 14, fontFamily: F.serif, fontSize: 14, color: C.ink, minHeight: 100, textAlignVertical: 'top', lineHeight: 22 },
-    thinkInput: { marginHorizontal: 20, backgroundColor: C.sagePale, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(122,139,94,0.25)', padding: 14, fontFamily: F.serif, fontSize: 14, color: C.ink, minHeight: 80, textAlignVertical: 'top', lineHeight: 22 },
-
-    locRow: { flexDirection: 'row', marginHorizontal: 20, gap: 10 },
-    locLabel: { fontFamily: F.serif, fontSize: 10, color: C.inkMuted, fontWeight: '600', marginBottom: 5 },
-    locInput: { backgroundColor: C.white, borderRadius: 10, borderWidth: 1, borderColor: C.border, padding: 10, fontFamily: F.serif, fontSize: 13, color: C.ink },
-
-    bookCtx: { marginHorizontal: 20, marginTop: 16, backgroundColor: C.cream, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: C.border },
-    bookCtxLbl: { fontFamily: F.serif, fontSize: 10, fontWeight: '700', color: C.inkMuted, letterSpacing: 0.8, marginBottom: 4 },
-    bookCtxTitle: { fontFamily: F.serif, fontSize: 16, color: C.ink },
-    bookCtxMeta: { fontFamily: F.serif, fontSize: 11, color: C.inkMuted, marginTop: 4 },
-  }), [themeVersion]);
-
-  const [text, setText]         = useState('');
-  const [thinking, setThinking] = useState('');
-  const [page, setPage]         = useState('');
-  const [chapter, setChapter]   = useState('');
-  const [type, setType]         = useState('insight');
-
-  React.useEffect(() => {
-    if (note) {
-      setText(String(note.text || ''));
-      setThinking(String(note.thinking || ''));
-      setPage(String(note.page || ''));
-      setChapter(String(note.chapter || ''));
-      setType(note.type || 'insight');
-    }
-  }, [note]);
-
-  const handleSave = () => {
-    if (!text.trim()) return;
-    onSave({
-      text:     text.trim(),
-      thinking: String(thinking || '').trim(),
-      page:     String(page     || '').trim(),
-      chapter:  String(chapter  || '').trim(),
-      type,
-    });
-    onClose();
-  };
-
-  return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <SafeAreaView style={mo.safe}>
-        <View style={mo.header}>
-          <TouchableOpacity onPress={onClose}>
-            <Text style={mo.cancel}>Cancel</Text>
-          </TouchableOpacity>
-          <Text style={mo.title}>Edit Note</Text>
-          <TouchableOpacity onPress={handleSave} disabled={!text.trim()}>
-            <Text style={[mo.save, !text.trim() && mo.saveOff]}>Save</Text>
-          </TouchableOpacity>
-        </View>
-
-        <ScrollView style={mo.scroll} keyboardShouldPersistTaps="handled">
-          {note && (
-            <View style={mo.bookCtx}>
-              <Text style={mo.bookCtxLbl}>EDITING NOTE FROM</Text>
-              <Text style={mo.bookCtxTitle} numberOfLines={2}>{note.bookTitle}</Text>
-              {note.page ? (
-                <Text style={mo.bookCtxMeta}>
-                  Page {note.page}{note.chapter ? ` · ${note.chapter}` : ''}
-                </Text>
-              ) : null}
-            </View>
-          )}
-
-          <Text style={mo.label}>NOTE TYPE</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 20, gap: 8 }}>
-            {Object.entries(NT).map(([key, val]) => (
-              <TouchableOpacity key={key}
-                style={[mo.typePill, type === key && mo.typePillActive]}
-                onPress={() => setType(key)} activeOpacity={0.8}>
-                <Text style={mo.typePillIcon}>{val.icon}</Text>
-                <Text style={[mo.typePillTxt, type === key && mo.typePillTxtActive]}>{val.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          <Text style={mo.label}>
-            {type === 'quote' ? 'QUOTE' : type === 'question' ? 'QUESTION' :
-             type === 'action' ? 'ACTION' : type === 'summary' ? 'SUMMARY' :
-             type === 'connection' ? 'CONNECTING IDEA' : 'INSIGHT'}
-          </Text>
-          <TextInput style={mo.mainInput}
-            value={text} onChangeText={setText} multiline numberOfLines={5}
-            textAlignVertical="top" placeholderTextColor={C.inkFaint}
-            placeholder="Edit your note..." />
-
-          <Text style={mo.label}>MY THINKING <Text style={mo.optional}>— your reflection</Text></Text>
-          <TextInput style={mo.thinkInput}
-            value={thinking} onChangeText={setThinking} multiline numberOfLines={3}
-            textAlignVertical="top" placeholderTextColor={C.inkFaint}
-            placeholder="Your reflection or interpretation..." />
-
-          <Text style={mo.label}>LOCATION</Text>
-          <View style={mo.locRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={mo.locLabel}>Page</Text>
-              <TextInput style={mo.locInput} value={page} onChangeText={setPage}
-                keyboardType="numeric" placeholder="e.g. 148" placeholderTextColor={C.inkFaint} />
-            </View>
-            <View style={{ flex: 2 }}>
-              <Text style={mo.locLabel}>Chapter / Section</Text>
-              <TextInput style={mo.locInput} value={chapter} onChangeText={setChapter}
-                placeholder="e.g. Chapter 4" placeholderTextColor={C.inkFaint} />
-            </View>
-          </View>
-          <View style={{ height: 48 }} />
-        </ScrollView>
-      </SafeAreaView>
-    </Modal>
-  );
-}
-
-// ── Add Note Modal — 2-step (preserved logic, restyled) ───────────────
-function AddNoteModal({ visible, books, onSave, onClose }) {
-  const { C, F, themeVersion } = useTheme();
-  const mo = useMemo(() => StyleSheet.create({
-    safe: { flex: 1, backgroundColor: C.paper },
-    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: C.border },
-    title: { fontFamily: F.serif, fontSize: 18, color: C.ink, letterSpacing: -0.2 },
-    cancel: { fontFamily: F.serif, fontSize: 14, color: C.inkMuted },
-    save: { fontFamily: F.serif, fontSize: 14, color: C.ink, fontWeight: '700' },
-    saveOff: { opacity: 0.3 },
-    scroll: { flex: 1 },
-    label: { fontFamily: F.serif, fontSize: 10, fontWeight: '700', color: C.inkMuted, letterSpacing: 1, marginHorizontal: 20, marginTop: 22, marginBottom: 8 },
-    optional: { fontFamily: F.serif, fontWeight: '400', color: C.inkFaint },
-
-    step1Strip: { backgroundColor: C.cream, borderBottomWidth: 1, borderBottomColor: C.border, paddingHorizontal: 20, paddingVertical: 14 },
-    step1StripTxt: { fontFamily: F.serif, fontSize: 17, color: C.ink, letterSpacing: -0.2 },
-
-    emptyBooks: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 40 },
-    emptyBooksIcon: { fontSize: 40, marginBottom: 12 },
-    emptyBooksTxt: { fontFamily: F.serif, fontSize: 18, color: C.ink, marginBottom: 6 },
-    emptyBooksSub: { fontFamily: F.serif, fontSize: 13, color: C.inkMuted, textAlign: 'center', lineHeight: 20 },
-
-    bookRow: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: C.white, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: C.border },
-    bookRowActive: { borderColor: C.ink, backgroundColor: C.amberPale },
-    bookRowInfo: { flex: 1 },
-    bookRowTitle: { fontFamily: F.serif, fontSize: 14, fontWeight: '700', color: C.ink, lineHeight: 20, marginBottom: 3 },
-    bookRowAuthor: { fontFamily: F.serif, fontSize: 12, color: C.inkMuted, marginBottom: 8 },
-    bookRowStatus: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, backgroundColor: C.amberPale },
-    bookRowStatusTxt: { fontFamily: F.serif, fontSize: 11, fontWeight: '600', color: C.ink },
-    bookRowArrow: { fontFamily: F.serif, fontSize: 22, color: C.inkFaint, fontWeight: '300' },
-
-    selectedBookBanner: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: C.cream, paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
-    selectedBookTitle: { fontFamily: F.serif, fontSize: 13, fontWeight: '700', color: C.ink },
-    selectedBookAuthor: { fontFamily: F.serif, fontSize: 11, color: C.inkMuted, marginTop: 2 },
-    selectedBookChange: { fontFamily: F.serif, fontSize: 12, color: C.ink, fontWeight: '600' },
-
-    typePill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16, backgroundColor: C.cream, borderWidth: 1, borderColor: C.border },
-    typePillActive: { backgroundColor: C.ink, borderColor: C.ink },
-    typePillIcon: { fontSize: 13 },
-    typePillTxt: { fontFamily: F.serif, fontSize: 12, fontWeight: '600', color: C.inkSoft },
-    typePillTxtActive: { fontFamily: F.serif, color: C.white },
-    typeHint: { fontFamily: F.serif, fontSize: 12, color: C.inkMuted, fontStyle: 'italic', marginHorizontal: 20, marginTop: 8 },
-
-    mainInput: { marginHorizontal: 20, backgroundColor: C.white, borderRadius: 12, borderWidth: 1, borderColor: C.border, padding: 14, fontFamily: F.serif, fontSize: 14, color: C.ink, minHeight: 100, textAlignVertical: 'top', lineHeight: 22 },
-    thinkInput: { marginHorizontal: 20, backgroundColor: C.sagePale, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(122,139,94,0.25)', padding: 14, fontFamily: F.serif, fontSize: 14, color: C.ink, minHeight: 80, textAlignVertical: 'top', lineHeight: 22 },
-
-    locRow: { flexDirection: 'row', marginHorizontal: 20, gap: 10 },
-    locLabel: { fontFamily: F.serif, fontSize: 10, color: C.inkMuted, fontWeight: '600', marginBottom: 5 },
-    locInput: { backgroundColor: C.white, borderRadius: 10, borderWidth: 1, borderColor: C.border, padding: 10, fontFamily: F.serif, fontSize: 13, color: C.ink },
-
-    bookCtx: { marginHorizontal: 20, marginTop: 16, backgroundColor: C.cream, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: C.border },
-    bookCtxLbl: { fontFamily: F.serif, fontSize: 10, fontWeight: '700', color: C.inkMuted, letterSpacing: 0.8, marginBottom: 4 },
-    bookCtxTitle: { fontFamily: F.serif, fontSize: 16, color: C.ink },
-    bookCtxMeta: { fontFamily: F.serif, fontSize: 11, color: C.inkMuted, marginTop: 4 },
-  }), [themeVersion]);
-
-  const [step, setStep]         = useState(1);
-  const [bookId, setBookId]     = useState('');
-  const [type, setType]         = useState('insight');
-  const [text, setText]         = useState('');
-  const [thinking, setThinking] = useState('');
-  const [page, setPage]         = useState('');
-  const [chapter, setChapter]   = useState('');
-
-  const activeBooks = books.filter(b => b.status !== 'want_to_read');
-  const selectedBook = books.find(b => b.id === bookId);
-
-  const reset = () => {
-    setStep(1); setBookId(''); setType('insight');
-    setText(''); setThinking(''); setPage(''); setChapter('');
-  };
-
-  const handleClose = () => { reset(); onClose(); };
-
-  const handleSave = () => {
-    if (!text.trim() || !bookId) return;
-    onSave({
-      bookId,
-      bookTitle: selectedBook?.title || '',
-      type, text: text.trim(),
-      thinking: thinking.trim(),
-      page: String(page || '').trim(),
-      chapter: String(chapter || '').trim(),
-    });
-    reset(); onClose();
-  };
-
-  const t = NT[type] || NT.insight;
-
-  return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleClose}>
-      <SafeAreaView style={mo.safe}>
-
-        {step === 1 && (
-          <>
-            <View style={mo.header}>
-              <TouchableOpacity onPress={handleClose}>
-                <Text style={mo.cancel}>Cancel</Text>
-              </TouchableOpacity>
-              <Text style={mo.title}>New Note</Text>
-              <View style={{ width: 52 }} />
-            </View>
-
-            <View style={mo.step1Strip}>
-              <Text style={mo.step1StripTxt}>Which book is this note about?</Text>
-            </View>
-
-            {activeBooks.length === 0 && (
-              <View style={mo.emptyBooks}>
-                <Text style={mo.emptyBooksIcon}>📚</Text>
-                <Text style={mo.emptyBooksTxt}>No books in progress</Text>
-                <Text style={mo.emptyBooksSub}>
-                  Add a book from Discover and start reading to attach notes.
-                </Text>
-              </View>
-            )}
-
-            <ScrollView showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ padding: 20, gap: 10 }}>
-              {activeBooks.map(b => (
-                <TouchableOpacity
-                  key={b.id}
-                  style={[mo.bookRow, bookId === b.id && mo.bookRowActive]}
-                  onPress={() => { setBookId(b.id); setStep(2); }}
-                  activeOpacity={0.8}
-                >
-                  <BookCover title={b.title} author={b.author} cover={b.cover}
-                    coverId={b.coverId} width={48} height={68} />
-                  <View style={mo.bookRowInfo}>
-                    <Text style={mo.bookRowTitle} numberOfLines={2}>{b.title}</Text>
-                    <Text style={mo.bookRowAuthor}>{b.author}</Text>
-                    <View style={mo.bookRowStatus}>
-                      <Text style={mo.bookRowStatusTxt}>
-                        {b.status === 'reading' ? '📖 Reading'
-                          : b.status === 'finished' ? '✓ Finished'
-                          : 'Want to read'}
-                      </Text>
-                    </View>
-                  </View>
-                  <Text style={mo.bookRowArrow}>›</Text>
-                </TouchableOpacity>
-              ))}
-              <View style={{ height: 40 }} />
-            </ScrollView>
-          </>
-        )}
-
-        {step === 2 && (
-          <>
-            <View style={mo.header}>
-              <TouchableOpacity onPress={() => setStep(1)}>
-                <Text style={mo.cancel}>← Back</Text>
-              </TouchableOpacity>
-              <Text style={mo.title}>New Note</Text>
-              <TouchableOpacity onPress={handleSave} disabled={!text.trim()}>
-                <Text style={[mo.save, !text.trim() && mo.saveOff]}>Save</Text>
-              </TouchableOpacity>
-            </View>
-
-            {selectedBook && (
-              <TouchableOpacity style={mo.selectedBookBanner} onPress={() => setStep(1)} activeOpacity={0.8}>
-                <BookCover title={selectedBook.title} author={selectedBook.author}
-                  cover={selectedBook.cover} coverId={selectedBook.coverId} width={32} height={44} />
-                <View style={{ flex: 1 }}>
-                  <Text style={mo.selectedBookTitle} numberOfLines={1}>{selectedBook.title}</Text>
-                  <Text style={mo.selectedBookAuthor}>{selectedBook.author}</Text>
-                </View>
-                <Text style={mo.selectedBookChange}>Change</Text>
-              </TouchableOpacity>
-            )}
-
-            <ScrollView style={mo.scroll} keyboardShouldPersistTaps="handled">
-              <Text style={mo.label}>NOTE TYPE</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ paddingHorizontal: 20, gap: 8 }}>
-                {Object.entries(NT).map(([key, val]) => (
-                  <TouchableOpacity key={key}
-                    style={[mo.typePill, type === key && mo.typePillActive]}
-                    onPress={() => setType(key)} activeOpacity={0.8}>
-                    <Text style={mo.typePillIcon}>{val.icon}</Text>
-                    <Text style={[mo.typePillTxt, type === key && mo.typePillTxtActive]}>{val.label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-              <Text style={mo.typeHint}>{t.desc}</Text>
-
-              <Text style={mo.label}>
-                {type === 'quote' ? 'QUOTE' : type === 'question' ? 'QUESTION' :
-                 type === 'action' ? 'ACTION' : type === 'summary' ? 'SUMMARY' :
-                 type === 'connection' ? 'CONNECTING IDEA' : 'INSIGHT'}
-              </Text>
-              <TextInput style={mo.mainInput}
-                value={text} onChangeText={setText} multiline numberOfLines={4}
-                textAlignVertical="top" placeholderTextColor={C.inkFaint}
-                autoFocus
-                placeholder={
-                  type === 'quote'      ? 'Paste or type the exact words...' :
-                  type === 'question'   ? 'What do you want to investigate?' :
-                  type === 'action'     ? 'What will you specifically do?' :
-                  type === 'summary'    ? 'Distil the chapter to its core idea...' :
-                  type === 'connection' ? 'What idea connects across books?' :
-                  'What did you realise or understand?'
-                } />
-
-              <Text style={mo.label}>
-                MY THINKING <Text style={mo.optional}>— why this matters to you</Text>
-              </Text>
-              <TextInput style={mo.thinkInput}
-                value={thinking} onChangeText={setThinking} multiline numberOfLines={3}
-                textAlignVertical="top" placeholderTextColor={C.inkFaint}
-                placeholder="How does this change how you think or act?" />
-
-              <Text style={mo.label}>LOCATION</Text>
-              <View style={mo.locRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={mo.locLabel}>Page</Text>
-                  <TextInput style={mo.locInput} value={page} onChangeText={setPage}
-                    keyboardType="numeric" placeholder="e.g. 148" placeholderTextColor={C.inkFaint} />
-                </View>
-                <View style={{ flex: 2 }}>
-                  <Text style={mo.locLabel}>Chapter / Section</Text>
-                  <TextInput style={mo.locInput} value={chapter} onChangeText={setChapter}
-                    placeholder="e.g. Chapter 4" placeholderTextColor={C.inkFaint} />
-                </View>
-              </View>
-
-              <View style={{ height: 48 }} />
-            </ScrollView>
-          </>
-        )}
-      </SafeAreaView>
-    </Modal>
-  );
-}
-
 // ── Note card ──────────────────────────────────────────────────────────
+// Visual accent for each note type — drives the left stripe color and the
+// type chip tint so the eye can sort cards by category at a glance.
+function typeAccent(typeKey, C) {
+  switch (typeKey) {
+    case 'quote':      return { stripe: C.ink,    chipBg: C.cream,    chipInk: C.ink };
+    case 'insight':    return { stripe: C.amber,  chipBg: C.amberPale, chipInk: C.ink };
+    case 'question':   return { stripe: C.amber,  chipBg: C.amberPale, chipInk: C.ink };
+    case 'action':     return { stripe: C.sage,   chipBg: C.sagePale,  chipInk: C.ink };
+    case 'summary':    return { stripe: C.amber,  chipBg: C.amberPale, chipInk: C.ink };
+    case 'connection': return { stripe: C.sage,   chipBg: C.sagePale,  chipInk: C.ink };
+    default:           return { stripe: C.inkMuted, chipBg: C.cream,   chipInk: C.ink };
+  }
+}
+
 export function NoteCard({ note, onDelete, onEdit, showBook = false }) {
   const { C, F, themeVersion } = useTheme();
+
+  const hasBlocks = Array.isArray(note.blocks) && note.blocks.length > 0;
+
+  // Types row — multi-type if note.types[] exists, otherwise primary type
+  const typesList = Array.isArray(note.types) && note.types.length
+    ? note.types
+    : [note.type || 'insight'];
+
+  const primaryType = typesList[0];
+  const isQuote = primaryType === 'quote' || note.isQuote;
+  const accent = typeAccent(primaryType, C);
+
   const nc = useMemo(() => StyleSheet.create({
-    // Card — wraps inside Swipeable so corner radius applies cleanly
+    // Outer wrapper — handles the rounded shell + left accent stripe
     card: {
+      flexDirection: 'row',
       backgroundColor: C.white,
-      borderRadius: 14,
-      marginBottom: 12,
+      borderRadius: 16,
+      marginBottom: 14,
       borderWidth: 1,
       borderColor: C.border,
-      padding: 18,
+      overflow: 'hidden',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.04,
+      shadowRadius: 3,
+      elevation: 1,
+    },
+    accentStripe: {
+      width: 4,
+      backgroundColor: accent.stripe,
+    },
+    body: {
+      flex: 1,
+      padding: 16,
     },
 
-    // Top row — date stamp on left, tag chips on right
-    topRow: {
+    // Header — type chips on the left, date on the right
+    header: {
       flexDirection: 'row',
-      justifyContent: 'space-between',
       alignItems: 'center',
-      marginBottom: 10,
+      justifyContent: 'space-between',
+      marginBottom: 12,
       gap: 8,
     },
-    date: {
+    chipsRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 6,
+      flexShrink: 1,
+    },
+    chip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 9,
+      paddingVertical: 4,
+      borderRadius: 999,
+    },
+    chipIcon: {
+      fontSize: 10,
+    },
+    chipTxt: {
       fontFamily: F.serif,
       fontSize: 10,
+      fontWeight: '700',
+      letterSpacing: 0.6,
+    },
+    chipMore: {
+      backgroundColor: C.cream,
+    },
+    chipMoreTxt: {
+      fontFamily: F.serif,
+      fontSize: 10,
+      fontWeight: '700',
       color: C.inkMuted,
+      letterSpacing: 0.4,
+      paddingHorizontal: 9,
+      paddingVertical: 4,
+    },
+    date: {
+      fontFamily: F.sans,
+      fontSize: 10,
+      color: C.inkFaint,
       fontWeight: '600',
       letterSpacing: 0.8,
     },
-    typesWrap: {
-      flexDirection: 'row',
-      gap: 4,
-      flexShrink: 1,
-      flexWrap: 'wrap',
-      justifyContent: 'flex-end',
-    },
-    typePill: {
-      backgroundColor: C.amberPale,
-      paddingHorizontal: 9,
-      paddingVertical: 3,
-      borderRadius: 6,
-    },
-    typePillTxt: {
-      fontFamily: F.serif,
-      fontSize: 9,
-      fontWeight: '700',
-      color: C.ink,
-      letterSpacing: 0.5,
-    },
 
-    // Serif title — the visual anchor of the card
-    cardTitle: {
+    // Title — the visual anchor. Slightly larger and tighter than before.
+    title: {
       fontFamily: F.serif,
-      fontSize: 19,
+      fontSize: 18,
       color: C.ink,
       letterSpacing: -0.3,
+      lineHeight: 25,
+      marginBottom: 6,
+    },
+    // Quote variant — italic & indented with a leading mark for poetry
+    titleQuote: {
+      fontFamily: F.serif,
+      fontStyle: 'italic',
+      fontSize: 17,
+      color: C.ink,
       lineHeight: 26,
-      marginBottom: 8,
+      marginBottom: 6,
     },
 
-    // Image thumbnail on note cards with image blocks
+    // Image thumbnail
     thumbnail: {
       width: '100%',
       height: 160,
       borderRadius: 10,
       backgroundColor: C.cream,
+      marginTop: 6,
       marginBottom: 8,
     },
 
-    // Body text — muted grey, 14px, 3 lines max
-    bodyText: {
+    // Body — readable serif, comfortable line height
+    bodyTxt: {
       fontFamily: F.serif,
       fontSize: 14,
-      color: C.inkMuted,
-      lineHeight: 21,
+      color: C.inkSoft,
+      lineHeight: 22,
+    },
+    bodyTxtQuote: {
+      fontFamily: F.serif,
+      fontStyle: 'italic',
+      fontSize: 14,
+      color: C.inkSoft,
+      lineHeight: 22,
     },
 
-    // Book reference row at the bottom
-    bookRefRow: {
+    // Footer — book + page + chapter, structured as comma-separated
+    // metadata so it reads like a bibliographic line.
+    footer: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 7,
       marginTop: 14,
-      paddingTop: 12,
+      paddingTop: 11,
       borderTopWidth: 0.5,
       borderTopColor: C.border,
     },
-    bookRef: {
+    footerBook: {
       flex: 1,
       fontFamily: F.serif,
       fontSize: 12,
+      color: C.ink,
+      fontWeight: '600',
+    },
+    footerMeta: {
+      fontFamily: F.serif,
+      fontSize: 11,
       color: C.inkMuted,
       fontWeight: '500',
     },
@@ -580,11 +246,11 @@ export function NoteCard({ note, onDelete, onEdit, showBook = false }) {
     deleteAction: {
       justifyContent: 'center',
       alignItems: 'flex-end',
-      marginBottom: 12,
+      marginBottom: 14,
     },
     deleteBtn: {
       backgroundColor: C.rose,
-      borderRadius: 14,
+      borderRadius: 16,
       width: 90,
       height: '100%',
       alignItems: 'center',
@@ -598,14 +264,7 @@ export function NoteCard({ note, onDelete, onEdit, showBook = false }) {
       fontWeight: '700',
       letterSpacing: 0.4,
     },
-  }), [themeVersion]);
-
-  const hasBlocks = Array.isArray(note.blocks) && note.blocks.length > 0;
-
-  // Types row — multi-type if note.types[] exists, otherwise primary type
-  const typesList = Array.isArray(note.types) && note.types.length
-    ? note.types
-    : [note.type || 'insight'];
+  }), [themeVersion, accent.stripe]);
 
   // Find first image block (if any) — used to show a thumbnail on the card
   const firstImageBlock = hasBlocks
@@ -664,63 +323,84 @@ export function NoteCard({ note, onDelete, onEdit, showBook = false }) {
         onPress={() => onEdit && onEdit(note)}
         activeOpacity={0.85}
       >
-        {/* Top row: date + type tags */}
-        <View style={nc.topRow}>
-          <Text style={nc.date}>{formatDate(note.date)}</Text>
-          <View style={nc.typesWrap}>
-            {typesList.slice(0, 3).map(typeKey => {
-              const meta = NT[typeKey] || NT.insight;
-              return (
-                <View key={typeKey} style={nc.typePill}>
-                  <Text style={nc.typePillTxt}>{meta.label.toUpperCase()}</Text>
+        {/* Left accent stripe — color-codes the card by primary note type */}
+        <View style={nc.accentStripe} />
+
+        <View style={nc.body}>
+          {/* Header — type chips with icons, right-aligned date */}
+          <View style={nc.header}>
+            <View style={nc.chipsRow}>
+              {typesList.slice(0, 2).map(typeKey => {
+                const meta = NT[typeKey] || NT.insight;
+                const acc = typeAccent(typeKey, C);
+                return (
+                  <View key={typeKey} style={[nc.chip, { backgroundColor: acc.chipBg }]}>
+                    <Text style={nc.chipIcon}>{meta.icon}</Text>
+                    <Text style={[nc.chipTxt, { color: acc.chipInk }]}>
+                      {meta.label.toUpperCase()}
+                    </Text>
+                  </View>
+                );
+              })}
+              {typesList.length > 2 && (
+                <View style={nc.chipMore}>
+                  <Text style={nc.chipMoreTxt}>+{typesList.length - 2}</Text>
                 </View>
-              );
-            })}
-            {typesList.length > 3 && (
-              <View style={nc.typePill}>
-                <Text style={nc.typePillTxt}>+{typesList.length - 3}</Text>
-              </View>
-            )}
+              )}
+            </View>
+            <Text style={nc.date}>{timeAgo(note.date).toUpperCase()}</Text>
           </View>
+
+          {/* Title — italic for quotes, upright for everything else */}
+          {cardTitle ? (
+            <MarkdownText
+              style={isQuote ? nc.titleQuote : nc.title}
+              numberOfLines={2}
+            >
+              {isQuote ? `“${cardTitle}”` : cardTitle}
+            </MarkdownText>
+          ) : null}
+
+          {/* Image thumbnail — shown when note has an image block */}
+          {firstImageBlock ? (
+            <Image
+              source={{ uri: firstImageBlock.uri }}
+              style={nc.thumbnail}
+              resizeMode="cover"
+            />
+          ) : null}
+
+          {/* Body paragraph — 3 lines max */}
+          {cardBody ? (
+            <MarkdownText
+              style={isQuote ? nc.bodyTxtQuote : nc.bodyTxt}
+              numberOfLines={3}
+            >
+              {cardBody}
+            </MarkdownText>
+          ) : null}
+
+          {/* Footer — book + page + chapter on a bibliographic line */}
+          {showBook && (
+            <View style={nc.footer}>
+              <Ionicons name="book-outline" size={13} color={C.inkMuted} />
+              <Text style={nc.footerBook} numberOfLines={1}>{note.bookTitle}</Text>
+              {note.page ? (
+                <Text style={nc.footerMeta}>· p.{note.page}</Text>
+              ) : null}
+              {note.chapter ? (
+                <Text style={nc.footerMeta} numberOfLines={1}>· {note.chapter}</Text>
+              ) : null}
+            </View>
+          )}
         </View>
-
-        {/* Serif title */}
-        {cardTitle ? (
-          <MarkdownText style={nc.cardTitle} numberOfLines={2}>
-            {cardTitle}
-          </MarkdownText>
-        ) : null}
-
-        {/* Image thumbnail — shown when note has an image block */}
-        {firstImageBlock ? (
-          <Image
-            source={{ uri: firstImageBlock.uri }}
-            style={nc.thumbnail}
-            resizeMode="cover"
-          />
-        ) : null}
-
-        {/* Body paragraph — muted, 3 lines max */}
-        {cardBody ? (
-          <MarkdownText style={nc.bodyText} numberOfLines={3}>
-            {cardBody}
-          </MarkdownText>
-        ) : null}
-
-        {/* Book reference at the bottom */}
-        {showBook && (
-          <View style={nc.bookRefRow}>
-            <Ionicons name="book-outline" size={13} color={C.inkMuted} />
-            <Text style={nc.bookRef} numberOfLines={1}>{note.bookTitle}</Text>
-          </View>
-        )}
       </TouchableOpacity>
     </Swipeable>
   );
 }
 
 // ── Explore view — flat browse, dual filters (genre + type) ───────────
-function ExploreView({ notes, cards, books, onStar, onDelete, onMakeCard, generating, onEdit }) {
+function ExploreView({ notes, books, onStar, onDelete, onEdit }) {
   const { C, F, themeVersion } = useTheme();
   const ev = useMemo(() => StyleSheet.create({
     searchWrap: {
@@ -732,7 +412,7 @@ function ExploreView({ notes, cards, books, onStar, onDelete, onMakeCard, genera
       marginHorizontal: 20, marginTop: 8, marginBottom: 14,
       gap: 10,
     },
-    search: { flex: 1, fontFamily: F.serif, fontSize: 15, color: C.ink },
+    search: { flex: 1, fontFamily: F.sans, fontSize: 15, color: C.ink },
     filterSection: { marginBottom: 10 },
     genreChip: {
       paddingHorizontal: 14, paddingVertical: 7,
@@ -760,7 +440,6 @@ function ExploreView({ notes, cards, books, onStar, onDelete, onMakeCard, genera
   }), [themeVersion]);
 
   const [search, setSearch] = useState('');
-  const cardNoteIds = new Set(cards.map(c => c.noteId));
 
   const filtered = useMemo(() => {
     let list = notes;
@@ -828,7 +507,7 @@ function ExploreView({ notes, cards, books, onStar, onDelete, onMakeCard, genera
 }
 
 // ── Book Notes Screen — dedicated full-screen notes for one book ────────
-function BookNotesScreen({ book, notes, cards, onStar, onDelete, onMakeCard, generating, onEdit, onBack, navigation }) {
+function BookNotesScreen({ book, notes, onStar, onDelete, onEdit, onBack, navigation }) {
   const { C, F, themeVersion } = useTheme();
   const bns = useMemo(() => StyleSheet.create({
     header: { backgroundColor: C.white, borderBottomWidth: 0.5, borderBottomColor: C.border, paddingBottom: 14 },
@@ -851,7 +530,6 @@ function BookNotesScreen({ book, notes, cards, onStar, onDelete, onMakeCard, gen
     emptySub: { fontFamily: F.serif, fontSize: 13, color: C.inkMuted, textAlign: 'center', lineHeight: 20 },
   }), [themeVersion]);
 
-  const cardNoteIds = new Set(cards.map(c => c.noteId));
   const starred     = notes.filter(n => n.starred).length;
 
   const typeCounts = Object.entries(NT).reduce((a, [k]) => {
@@ -920,7 +598,7 @@ function BookNotesScreen({ book, notes, cards, onStar, onDelete, onMakeCard, gen
 }
 
 // ── By Book view ───────────────────────────────────────────────────────
-function ByBookView({ notes, books, cards, onStar, onDelete, onMakeCard, generating, navigation, onEdit }) {
+function ByBookView({ notes, books, onStar, onDelete, navigation, onEdit }) {
   const { C, F, themeVersion } = useTheme();
   const bbv = useMemo(() => StyleSheet.create({
     bookBlock: {
@@ -963,11 +641,8 @@ function ByBookView({ notes, books, cards, onStar, onDelete, onMakeCard, generat
         <BookNotesScreen
           book={group.book}
           notes={group.notes}
-          cards={cards}
           onStar={onStar}
           onDelete={onDelete}
-          onMakeCard={onMakeCard}
-          generating={generating}
           onEdit={onEdit}
           onBack={() => setSelectedBook(null)}
           navigation={navigation}
@@ -1103,7 +778,7 @@ function TypeNotesScreen({ typeKey, typeMeta, notes, onDelete, onEdit, onBack })
 }
 
 // ── By Type view — list of types, tap to drill in ─────────────────────
-function ByTypeView({ notes, cards, onDelete, onEdit }) {
+function ByTypeView({ notes, onDelete, onEdit }) {
   const { C, F, themeVersion } = useTheme();
   const btv = useMemo(() => StyleSheet.create({
     typeBlock: {
@@ -1797,12 +1472,11 @@ export function NotesScreen({ navigation }) {
     },
   }), [themeVersion]);
 
-  const { notes, books, cards, addNote, addCard, deleteNote, updateNote } = useStore();
+  const { notes, books, addNote, deleteNote, updateNote } = useStore();
   const [view, setView]                   = useState('explore');
   const [showModal, setShowModal]         = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editNote, setEditNote]           = useState(null);
-  const [generating, setGenerating]       = useState(null);
 
   const handleSave = (data) => {
     addNote({
@@ -1852,21 +1526,6 @@ export function NotesScreen({ navigation }) {
 
   const handleDelete = (id) => deleteNote(id);
 
-  const handleMakeCard = (note) => {
-    setGenerating(note.id);
-    const fullText = note.thinking
-      ? `${note.text}\n\nMy thinking: ${note.thinking}`
-      : note.text;
-    const card = buildCardFromNote(fullText, note.bookTitle);
-    addCard({
-      id: Date.now().toString(), noteId: note.id,
-      bookId: note.bookId, bookTitle: note.bookTitle,
-      question: card.question, answer: card.answer,
-      due: new Date().toISOString(),
-    });
-    setGenerating(null);
-  };
-
   const VIEWS = [
     { key: 'explore',  label: 'Explore' },
     { key: 'by_book',  label: 'By Book' },
@@ -1875,12 +1534,10 @@ export function NotesScreen({ navigation }) {
   ];
 
   const sharedProps = {
-    notes, books, cards,
+    notes, books,
     onStar: handleStar,
     onDelete: handleDelete,
-    onMakeCard: handleMakeCard,
     onEdit: handleEdit,
-    generating,
   };
 
   return (
@@ -1909,7 +1566,7 @@ export function NotesScreen({ navigation }) {
       />
 
       {/* Top app bar */}
-      <AppHeader onAvatarPress={() => navigation.navigate('Library', { screen: 'Profile' })} />
+      <AppHeader onAvatarPress={() => navigation.navigate('Profile')} />
 
       {/* Tab strip */}
       <View style={s.tabStrip}>
@@ -1932,7 +1589,7 @@ export function NotesScreen({ navigation }) {
       {/* Views */}
       {view === 'explore' && <ExploreView {...sharedProps} />}
       {view === 'by_book' && <ByBookView {...sharedProps} navigation={navigation} />}
-      {view === 'by_type' && <ByTypeView notes={notes} cards={cards} onDelete={handleDelete} onEdit={handleEdit} />}
+      {view === 'by_type' && <ByTypeView notes={notes} onDelete={handleDelete} onEdit={handleEdit} />}
       {view === 'graph'   && <GraphView notes={notes} books={books} onEdit={handleEdit} />}
 
     </SafeAreaView>
