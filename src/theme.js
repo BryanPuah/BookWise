@@ -33,8 +33,11 @@ export const SP = {
   xs: 4, sm: 8, md: 12, lg: 16, xl: 20, '2xl': 24, '3xl': 32, '4xl': 40,
 };
 
-// ── Ink + semantic tokens (constant across all themes) ─────────────────
-const INK_BASE = {
+// ── Ink + semantic tokens ──────────────────────────────────────────────
+// Two ink palettes — light (dark ink on paper) and dark (light ink on
+// near-black surfaces). The active mode is chosen by `_mode` and applied
+// in `buildPalette()`.
+const LIGHT_INK = {
   ink:        '#1A1E3A',
   inkSoft:    '#3A3E5A',
   inkMuted:   '#6E7188',
@@ -45,6 +48,29 @@ const INK_BASE = {
 
   border:     'rgba(26,30,58,0.10)',
   borderMid:  'rgba(26,30,58,0.16)',
+};
+
+const DARK_INK = {
+  ink:        '#ECEDF5',
+  inkSoft:    '#C3C6D8',
+  inkMuted:   '#9094AC',
+  inkFaint:   '#5C5F76',
+
+  forest:     '#34D399',
+  rose:       '#F87171',
+
+  border:     'rgba(236,237,245,0.10)',
+  borderMid:  'rgba(236,237,245,0.18)',
+};
+
+// Dark surface palette — used when `_mode === 'dark'`. Replaces whichever
+// background swatch the user picked; the swatch picker remembers their
+// light-mode choice so flipping back restores it.
+const DARK_SURFACES = {
+  label: 'Dark',
+  swatch: '#1A1B26',
+  paper: '#15161F', cream: '#1F2030', creamDark: '#2A2C40', creamDeep: '#383B54',
+  white: '#1F2030',
 };
 
 // ── Background registry — Substack-style paper tones ───────────────────
@@ -205,21 +231,31 @@ export const DEFAULT_THEME = 'olive';
 // `heroTop`, `heroBot`, `paper`, `cream`, etc. — we map the active
 // accent + background into those legacy keys so we don't have to rename
 // every reference in the app.
-function buildPalette(themeName, backgroundName) {
+function buildPalette(themeName, backgroundName, mode) {
   const t = THEMES[themeName] || THEMES[DEFAULT_THEME];
-  const b = BACKGROUNDS[backgroundName] || BACKGROUNDS[DEFAULT_BACKGROUND];
+  const isDark = mode === 'dark';
+  const b = isDark
+    ? DARK_SURFACES
+    : (BACKGROUNDS[backgroundName] || BACKGROUNDS[DEFAULT_BACKGROUND]);
+  const ink = isDark ? DARK_INK : LIGHT_INK;
+  // In dark mode, pale pill/badge backgrounds (sagePale/amberPale) and
+  // mid-tones (amberLight) are replaced with a fixed dark surface tint
+  // so chips stay readable against the light ink. Without this, pills
+  // like `bg: C.amberPale + color: C.ink` blow out — a pale cream chip
+  // with near-white text. The fixed tint is the same across every
+  // accent, so pill appearance is consistent app-wide in dark mode.
   return {
-    ...INK_BASE,
+    ...ink,
     paper:       b.paper,
     cream:       b.cream,
     creamDark:   b.creamDark,
     creamDeep:   b.creamDeep,
     white:       b.white,
     sage:        t.accent,
-    sagePale:    t.accentPale,
+    sagePale:    isDark ? '#2A2C40' : t.accentPale,
     amber:       t.highlight,
-    amberPale:   t.highlightPale,
-    amberLight:  t.highlightLight,
+    amberPale:   isDark ? '#2A2C40' : t.highlightPale,
+    amberLight:  isDark ? '#383B54' : t.highlightLight,
     heroTop:     t.heroTop,
     heroBot:     t.heroBot,
   };
@@ -244,9 +280,10 @@ function buildCovers(themeName) {
 // the codebase reads via `C.heroTop` (which we verified before this).
 let _themeName = DEFAULT_THEME;
 let _backgroundName = DEFAULT_BACKGROUND;
+let _mode = 'light';
 let _themeVersion = 0;
 
-export const C = buildPalette(_themeName, _backgroundName);
+export const C = buildPalette(_themeName, _backgroundName, _mode);
 export const covers = buildCovers(_themeName);
 
 const listeners = new Set();
@@ -259,13 +296,17 @@ export function getBackgroundName() {
   return _backgroundName;
 }
 
+export function getMode() {
+  return _mode;
+}
+
 function notify() {
   _themeVersion++;
   listeners.forEach(fn => fn());
 }
 
 function rebuildPalette() {
-  const nextC = buildPalette(_themeName, _backgroundName);
+  const nextC = buildPalette(_themeName, _backgroundName, _mode);
   Object.keys(C).forEach(k => { if (!(k in nextC)) delete C[k]; });
   Object.assign(C, nextC);
 }
@@ -283,6 +324,17 @@ export function setAccent(name) {
 export function setBackground(name) {
   if (!BACKGROUNDS[name] || name === _backgroundName) return;
   _backgroundName = name;
+  rebuildPalette();
+  notify();
+}
+
+// Toggle between light and dark mode. The user's chosen background swatch
+// is preserved across the flip — when they return to light, their last
+// paper tone comes back.
+export function setMode(name) {
+  if (name !== 'light' && name !== 'dark') return;
+  if (name === _mode) return;
+  _mode = name;
   rebuildPalette();
   notify();
 }
@@ -314,10 +366,12 @@ export function useTheme() {
     covers,
     themeName: _themeName,
     backgroundName: _backgroundName,
+    mode: _mode,
     themeVersion: _themeVersion,
     setTheme,
     setAccent,
     setBackground,
+    setMode,
     themes: THEMES,
     backgrounds: BACKGROUNDS,
   };
