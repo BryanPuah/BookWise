@@ -27,7 +27,12 @@ import { BookCover } from '../components/BookCover';
 import { AppHeader } from '../components/AppHeader';
 import { RichNoteEditor } from '../components/RichNoteEditor';
 import { MarkdownText } from '../components/MarkdownText';
-import { C, F } from '../theme';
+import { useTheme, C } from '../theme';
+
+// NOTE: The module-level `C` import below is used ONLY by the `NT` constant.
+// Its colors are frozen to the default theme — acceptable trade-off for v1.
+// All component-level styling MUST use the `C` returned by `useTheme()` so
+// styles rebuild when the theme changes.
 
 // ── Note type definitions (preserved) ─────────────────────────────────
 const NT = {
@@ -65,6 +70,60 @@ function formatDate(dateStr) {
 
 // ── Edit Note Modal ───────────────────────────────────────────────────
 function EditNoteModal({ visible, note, onSave, onClose }) {
+  const { C, F, themeVersion } = useTheme();
+  const mo = useMemo(() => StyleSheet.create({
+    safe: { flex: 1, backgroundColor: C.paper },
+    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: C.border },
+    title: { fontFamily: F.serif, fontSize: 18, color: C.ink, letterSpacing: -0.2 },
+    cancel: { fontFamily: F.serif, fontSize: 14, color: C.inkMuted },
+    save: { fontFamily: F.serif, fontSize: 14, color: C.ink, fontWeight: '700' },
+    saveOff: { opacity: 0.3 },
+    scroll: { flex: 1 },
+    label: { fontFamily: F.serif, fontSize: 10, fontWeight: '700', color: C.inkMuted, letterSpacing: 1, marginHorizontal: 20, marginTop: 22, marginBottom: 8 },
+    optional: { fontFamily: F.serif, fontWeight: '400', color: C.inkFaint },
+
+    step1Strip: { backgroundColor: C.cream, borderBottomWidth: 1, borderBottomColor: C.border, paddingHorizontal: 20, paddingVertical: 14 },
+    step1StripTxt: { fontFamily: F.serif, fontSize: 17, color: C.ink, letterSpacing: -0.2 },
+
+    emptyBooks: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 40 },
+    emptyBooksIcon: { fontSize: 40, marginBottom: 12 },
+    emptyBooksTxt: { fontFamily: F.serif, fontSize: 18, color: C.ink, marginBottom: 6 },
+    emptyBooksSub: { fontFamily: F.serif, fontSize: 13, color: C.inkMuted, textAlign: 'center', lineHeight: 20 },
+
+    bookRow: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: C.white, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: C.border },
+    bookRowActive: { borderColor: C.ink, backgroundColor: C.amberPale },
+    bookRowInfo: { flex: 1 },
+    bookRowTitle: { fontFamily: F.serif, fontSize: 14, fontWeight: '700', color: C.ink, lineHeight: 20, marginBottom: 3 },
+    bookRowAuthor: { fontFamily: F.serif, fontSize: 12, color: C.inkMuted, marginBottom: 8 },
+    bookRowStatus: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, backgroundColor: C.amberPale },
+    bookRowStatusTxt: { fontFamily: F.serif, fontSize: 11, fontWeight: '600', color: C.ink },
+    bookRowArrow: { fontFamily: F.serif, fontSize: 22, color: C.inkFaint, fontWeight: '300' },
+
+    selectedBookBanner: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: C.cream, paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
+    selectedBookTitle: { fontFamily: F.serif, fontSize: 13, fontWeight: '700', color: C.ink },
+    selectedBookAuthor: { fontFamily: F.serif, fontSize: 11, color: C.inkMuted, marginTop: 2 },
+    selectedBookChange: { fontFamily: F.serif, fontSize: 12, color: C.ink, fontWeight: '600' },
+
+    typePill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16, backgroundColor: C.cream, borderWidth: 1, borderColor: C.border },
+    typePillActive: { backgroundColor: C.ink, borderColor: C.ink },
+    typePillIcon: { fontSize: 13 },
+    typePillTxt: { fontFamily: F.serif, fontSize: 12, fontWeight: '600', color: C.inkSoft },
+    typePillTxtActive: { fontFamily: F.serif, color: C.white },
+    typeHint: { fontFamily: F.serif, fontSize: 12, color: C.inkMuted, fontStyle: 'italic', marginHorizontal: 20, marginTop: 8 },
+
+    mainInput: { marginHorizontal: 20, backgroundColor: C.white, borderRadius: 12, borderWidth: 1, borderColor: C.border, padding: 14, fontFamily: F.serif, fontSize: 14, color: C.ink, minHeight: 100, textAlignVertical: 'top', lineHeight: 22 },
+    thinkInput: { marginHorizontal: 20, backgroundColor: C.sagePale, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(122,139,94,0.25)', padding: 14, fontFamily: F.serif, fontSize: 14, color: C.ink, minHeight: 80, textAlignVertical: 'top', lineHeight: 22 },
+
+    locRow: { flexDirection: 'row', marginHorizontal: 20, gap: 10 },
+    locLabel: { fontFamily: F.serif, fontSize: 10, color: C.inkMuted, fontWeight: '600', marginBottom: 5 },
+    locInput: { backgroundColor: C.white, borderRadius: 10, borderWidth: 1, borderColor: C.border, padding: 10, fontFamily: F.serif, fontSize: 13, color: C.ink },
+
+    bookCtx: { marginHorizontal: 20, marginTop: 16, backgroundColor: C.cream, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: C.border },
+    bookCtxLbl: { fontFamily: F.serif, fontSize: 10, fontWeight: '700', color: C.inkMuted, letterSpacing: 0.8, marginBottom: 4 },
+    bookCtxTitle: { fontFamily: F.serif, fontSize: 16, color: C.ink },
+    bookCtxMeta: { fontFamily: F.serif, fontSize: 11, color: C.inkMuted, marginTop: 4 },
+  }), [themeVersion]);
+
   const [text, setText]         = useState('');
   const [thinking, setThinking] = useState('');
   const [page, setPage]         = useState('');
@@ -170,6 +229,60 @@ function EditNoteModal({ visible, note, onSave, onClose }) {
 
 // ── Add Note Modal — 2-step (preserved logic, restyled) ───────────────
 function AddNoteModal({ visible, books, onSave, onClose }) {
+  const { C, F, themeVersion } = useTheme();
+  const mo = useMemo(() => StyleSheet.create({
+    safe: { flex: 1, backgroundColor: C.paper },
+    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: C.border },
+    title: { fontFamily: F.serif, fontSize: 18, color: C.ink, letterSpacing: -0.2 },
+    cancel: { fontFamily: F.serif, fontSize: 14, color: C.inkMuted },
+    save: { fontFamily: F.serif, fontSize: 14, color: C.ink, fontWeight: '700' },
+    saveOff: { opacity: 0.3 },
+    scroll: { flex: 1 },
+    label: { fontFamily: F.serif, fontSize: 10, fontWeight: '700', color: C.inkMuted, letterSpacing: 1, marginHorizontal: 20, marginTop: 22, marginBottom: 8 },
+    optional: { fontFamily: F.serif, fontWeight: '400', color: C.inkFaint },
+
+    step1Strip: { backgroundColor: C.cream, borderBottomWidth: 1, borderBottomColor: C.border, paddingHorizontal: 20, paddingVertical: 14 },
+    step1StripTxt: { fontFamily: F.serif, fontSize: 17, color: C.ink, letterSpacing: -0.2 },
+
+    emptyBooks: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 40 },
+    emptyBooksIcon: { fontSize: 40, marginBottom: 12 },
+    emptyBooksTxt: { fontFamily: F.serif, fontSize: 18, color: C.ink, marginBottom: 6 },
+    emptyBooksSub: { fontFamily: F.serif, fontSize: 13, color: C.inkMuted, textAlign: 'center', lineHeight: 20 },
+
+    bookRow: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: C.white, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: C.border },
+    bookRowActive: { borderColor: C.ink, backgroundColor: C.amberPale },
+    bookRowInfo: { flex: 1 },
+    bookRowTitle: { fontFamily: F.serif, fontSize: 14, fontWeight: '700', color: C.ink, lineHeight: 20, marginBottom: 3 },
+    bookRowAuthor: { fontFamily: F.serif, fontSize: 12, color: C.inkMuted, marginBottom: 8 },
+    bookRowStatus: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, backgroundColor: C.amberPale },
+    bookRowStatusTxt: { fontFamily: F.serif, fontSize: 11, fontWeight: '600', color: C.ink },
+    bookRowArrow: { fontFamily: F.serif, fontSize: 22, color: C.inkFaint, fontWeight: '300' },
+
+    selectedBookBanner: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: C.cream, paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
+    selectedBookTitle: { fontFamily: F.serif, fontSize: 13, fontWeight: '700', color: C.ink },
+    selectedBookAuthor: { fontFamily: F.serif, fontSize: 11, color: C.inkMuted, marginTop: 2 },
+    selectedBookChange: { fontFamily: F.serif, fontSize: 12, color: C.ink, fontWeight: '600' },
+
+    typePill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16, backgroundColor: C.cream, borderWidth: 1, borderColor: C.border },
+    typePillActive: { backgroundColor: C.ink, borderColor: C.ink },
+    typePillIcon: { fontSize: 13 },
+    typePillTxt: { fontFamily: F.serif, fontSize: 12, fontWeight: '600', color: C.inkSoft },
+    typePillTxtActive: { fontFamily: F.serif, color: C.white },
+    typeHint: { fontFamily: F.serif, fontSize: 12, color: C.inkMuted, fontStyle: 'italic', marginHorizontal: 20, marginTop: 8 },
+
+    mainInput: { marginHorizontal: 20, backgroundColor: C.white, borderRadius: 12, borderWidth: 1, borderColor: C.border, padding: 14, fontFamily: F.serif, fontSize: 14, color: C.ink, minHeight: 100, textAlignVertical: 'top', lineHeight: 22 },
+    thinkInput: { marginHorizontal: 20, backgroundColor: C.sagePale, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(122,139,94,0.25)', padding: 14, fontFamily: F.serif, fontSize: 14, color: C.ink, minHeight: 80, textAlignVertical: 'top', lineHeight: 22 },
+
+    locRow: { flexDirection: 'row', marginHorizontal: 20, gap: 10 },
+    locLabel: { fontFamily: F.serif, fontSize: 10, color: C.inkMuted, fontWeight: '600', marginBottom: 5 },
+    locInput: { backgroundColor: C.white, borderRadius: 10, borderWidth: 1, borderColor: C.border, padding: 10, fontFamily: F.serif, fontSize: 13, color: C.ink },
+
+    bookCtx: { marginHorizontal: 20, marginTop: 16, backgroundColor: C.cream, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: C.border },
+    bookCtxLbl: { fontFamily: F.serif, fontSize: 10, fontWeight: '700', color: C.inkMuted, letterSpacing: 0.8, marginBottom: 4 },
+    bookCtxTitle: { fontFamily: F.serif, fontSize: 16, color: C.ink },
+    bookCtxMeta: { fontFamily: F.serif, fontSize: 11, color: C.inkMuted, marginTop: 4 },
+  }), [themeVersion]);
+
   const [step, setStep]         = useState(1);
   const [bookId, setBookId]     = useState('');
   const [type, setType]         = useState('insight');
@@ -351,6 +464,123 @@ function AddNoteModal({ visible, books, onSave, onClose }) {
 
 // ── Note card ──────────────────────────────────────────────────────────
 export function NoteCard({ note, onDelete, onEdit, showBook = false }) {
+  const { C, F, themeVersion } = useTheme();
+  const nc = useMemo(() => StyleSheet.create({
+    // Card — wraps inside Swipeable so corner radius applies cleanly
+    card: {
+      backgroundColor: C.white,
+      borderRadius: 14,
+      marginBottom: 12,
+      borderWidth: 1,
+      borderColor: C.border,
+      padding: 18,
+    },
+
+    // Top row — date stamp on left, tag chips on right
+    topRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 10,
+      gap: 8,
+    },
+    date: {
+      fontFamily: F.serif,
+      fontSize: 10,
+      color: C.inkMuted,
+      fontWeight: '600',
+      letterSpacing: 0.8,
+    },
+    typesWrap: {
+      flexDirection: 'row',
+      gap: 4,
+      flexShrink: 1,
+      flexWrap: 'wrap',
+      justifyContent: 'flex-end',
+    },
+    typePill: {
+      backgroundColor: C.amberPale,
+      paddingHorizontal: 9,
+      paddingVertical: 3,
+      borderRadius: 6,
+    },
+    typePillTxt: {
+      fontFamily: F.serif,
+      fontSize: 9,
+      fontWeight: '700',
+      color: C.ink,
+      letterSpacing: 0.5,
+    },
+
+    // Serif title — the visual anchor of the card
+    cardTitle: {
+      fontFamily: F.serif,
+      fontSize: 19,
+      color: C.ink,
+      letterSpacing: -0.3,
+      lineHeight: 26,
+      marginBottom: 8,
+    },
+
+    // Image thumbnail on note cards with image blocks
+    thumbnail: {
+      width: '100%',
+      height: 160,
+      borderRadius: 10,
+      backgroundColor: C.cream,
+      marginBottom: 8,
+    },
+
+    // Body text — muted grey, 14px, 3 lines max
+    bodyText: {
+      fontFamily: F.serif,
+      fontSize: 14,
+      color: C.inkMuted,
+      lineHeight: 21,
+    },
+
+    // Book reference row at the bottom
+    bookRefRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 7,
+      marginTop: 14,
+      paddingTop: 12,
+      borderTopWidth: 0.5,
+      borderTopColor: C.border,
+    },
+    bookRef: {
+      flex: 1,
+      fontFamily: F.serif,
+      fontSize: 12,
+      color: C.inkMuted,
+      fontWeight: '500',
+    },
+
+    // Swipe-to-delete action — slides in from the right
+    deleteAction: {
+      justifyContent: 'center',
+      alignItems: 'flex-end',
+      marginBottom: 12,
+    },
+    deleteBtn: {
+      backgroundColor: C.rose,
+      borderRadius: 14,
+      width: 90,
+      height: '100%',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 4,
+    },
+    deleteTxt: {
+      fontFamily: F.serif,
+      color: C.white,
+      fontSize: 12,
+      fontWeight: '700',
+      letterSpacing: 0.4,
+    },
+  }), [themeVersion]);
+
   const hasBlocks = Array.isArray(note.blocks) && note.blocks.length > 0;
 
   // Types row — multi-type if note.types[] exists, otherwise primary type
@@ -472,6 +702,44 @@ export function NoteCard({ note, onDelete, onEdit, showBook = false }) {
 
 // ── Explore view — flat browse, dual filters (genre + type) ───────────
 function ExploreView({ notes, cards, books, onStar, onDelete, onMakeCard, generating, onEdit }) {
+  const { C, F, themeVersion } = useTheme();
+  const ev = useMemo(() => StyleSheet.create({
+    searchWrap: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: C.cream,
+      borderRadius: 14,
+      paddingHorizontal: 16, paddingVertical: 14,
+      marginHorizontal: 20, marginTop: 8, marginBottom: 14,
+      gap: 10,
+    },
+    search: { flex: 1, fontFamily: F.serif, fontSize: 15, color: C.ink },
+    filterSection: { marginBottom: 10 },
+    genreChip: {
+      paddingHorizontal: 14, paddingVertical: 7,
+      borderRadius: 16,
+      backgroundColor: C.amberPale,
+    },
+    genreChipActive: { backgroundColor: C.ink },
+    genreChipTxt: { fontFamily: F.serif, fontSize: 12, fontWeight: '600', color: C.ink },
+    genreChipTxtActive: { fontFamily: F.serif, color: C.white },
+    typeChip: {
+      flexDirection: 'row', alignItems: 'center', gap: 4,
+      paddingHorizontal: 12, paddingVertical: 6,
+      borderRadius: 16,
+      backgroundColor: C.cream,
+      borderWidth: 1, borderColor: C.border,
+    },
+    typeChipActive: { backgroundColor: C.sagePale, borderColor: C.sage },
+    typeChipIcon: { fontSize: 13 },
+    typeChipTxt: { fontFamily: F.serif, fontSize: 12, fontWeight: '600', color: C.inkSoft },
+    typeChipTxtActive: { fontFamily: F.serif, color: C.ink, fontWeight: '700' },
+    listWrap: { paddingHorizontal: 20, paddingTop: 12 },
+    emptyState: { alignItems: 'center', paddingTop: 48, paddingHorizontal: 30 },
+    emptyStateTitle: { fontFamily: F.serif, fontSize: 18, color: C.ink, marginBottom: 6, textAlign: 'center' },
+    emptyStateSub: { fontFamily: F.serif, fontSize: 13, color: C.inkMuted, textAlign: 'center', lineHeight: 20 },
+  }), [themeVersion]);
+
   const [search, setSearch] = useState('');
   const cardNoteIds = new Set(cards.map(c => c.noteId));
 
@@ -542,6 +810,28 @@ function ExploreView({ notes, cards, books, onStar, onDelete, onMakeCard, genera
 
 // ── Book Notes Screen — dedicated full-screen notes for one book ────────
 function BookNotesScreen({ book, notes, cards, onStar, onDelete, onMakeCard, generating, onEdit, onBack, navigation }) {
+  const { C, F, themeVersion } = useTheme();
+  const bns = useMemo(() => StyleSheet.create({
+    header: { backgroundColor: C.white, borderBottomWidth: 0.5, borderBottomColor: C.border, paddingBottom: 14 },
+    backBtn: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 8, alignSelf: 'flex-start' },
+    backTxt: { fontFamily: F.serif, fontSize: 14, color: C.inkSoft, fontWeight: '600' },
+    headerInfo: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20 },
+    bookTitle: { fontFamily: F.serif, fontSize: 18, color: C.ink, lineHeight: 24, letterSpacing: -0.2 },
+    bookAuthor: { fontFamily: F.serif, fontSize: 12, color: C.inkMuted, marginTop: 2 },
+    countRow: { flexDirection: 'row', gap: 10, marginTop: 5 },
+    noteCount: { fontFamily: F.serif, fontSize: 11, color: C.inkMuted },
+    starCount: { fontFamily: F.serif, fontSize: 11, color: C.amber, fontWeight: '600' },
+    typePills: { flexDirection: 'row', gap: 6, flexWrap: 'wrap', paddingHorizontal: 20, marginTop: 12 },
+    typeTag: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+    typeTagTxt: { fontFamily: F.serif, fontSize: 11, fontWeight: '700', color: C.ink },
+    openBtn: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, backgroundColor: C.ink },
+    openBtnTxt: { fontFamily: F.serif, fontSize: 12, color: C.white, fontWeight: '700' },
+    empty: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 30 },
+    emptyIcon: { fontSize: 40, marginBottom: 12 },
+    emptyTitle: { fontFamily: F.serif, fontSize: 18, color: C.ink, marginBottom: 6 },
+    emptySub: { fontFamily: F.serif, fontSize: 13, color: C.inkMuted, textAlign: 'center', lineHeight: 20 },
+  }), [themeVersion]);
+
   const cardNoteIds = new Set(cards.map(c => c.noteId));
   const starred     = notes.filter(n => n.starred).length;
 
@@ -612,6 +902,31 @@ function BookNotesScreen({ book, notes, cards, onStar, onDelete, onMakeCard, gen
 
 // ── By Book view ───────────────────────────────────────────────────────
 function ByBookView({ notes, books, cards, onStar, onDelete, onMakeCard, generating, navigation, onEdit }) {
+  const { C, F, themeVersion } = useTheme();
+  const bbv = useMemo(() => StyleSheet.create({
+    bookBlock: {
+      backgroundColor: C.white,
+      borderRadius: 14,
+      borderWidth: 1, borderColor: C.border,
+      marginBottom: 12,
+      overflow: 'hidden',
+    },
+    bookHead: { flexDirection: 'row', alignItems: 'center', padding: 14, gap: 14 },
+    bookMeta: { flex: 1 },
+    bookTitle: { fontFamily: F.serif, fontSize: 16, color: C.ink, letterSpacing: -0.2 },
+    bookAuthor: { fontFamily: F.serif, fontSize: 11, color: C.inkMuted, marginTop: 2 },
+    countRow: { flexDirection: 'row', gap: 10, marginTop: 5 },
+    noteCount: { fontFamily: F.serif, fontSize: 11, color: C.inkMuted },
+    starCount: { fontFamily: F.serif, fontSize: 11, color: C.amber, fontWeight: '600' },
+    typePills: { flexDirection: 'row', gap: 5, marginTop: 7, flexWrap: 'wrap' },
+    typeTag: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8 },
+    typeTagTxt: { fontFamily: F.serif, fontSize: 10, fontWeight: '700', color: C.ink },
+    empty: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 30 },
+    emptyIcon: { fontSize: 40, marginBottom: 12 },
+    emptyTitle: { fontFamily: F.serif, fontSize: 18, color: C.ink, marginBottom: 6 },
+    emptySub: { fontFamily: F.serif, fontSize: 13, color: C.inkMuted, textAlign: 'center', lineHeight: 20 },
+  }), [themeVersion]);
+
   const [selectedBook, setSelectedBook] = useState(null);
 
   const grouped = useMemo(() => {
@@ -700,6 +1015,28 @@ function ByBookView({ notes, books, cards, onStar, onDelete, onMakeCard, generat
 
 // ── Type Notes Screen — dedicated full-screen notes for one type ───────
 function TypeNotesScreen({ typeKey, typeMeta, notes, onDelete, onEdit, onBack }) {
+  const { C, F, themeVersion } = useTheme();
+  const tns = useMemo(() => StyleSheet.create({
+    header: { backgroundColor: C.white, borderBottomWidth: 0.5, borderBottomColor: C.border, paddingBottom: 18 },
+    backBtn: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 8, alignSelf: 'flex-start' },
+    backTxt: { fontFamily: F.serif, fontSize: 14, color: C.inkSoft, fontWeight: '600' },
+    headerInfo: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20 },
+    iconWrap: {
+      width: 52, height: 52, borderRadius: 12,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    icon: { fontSize: 24 },
+    typeTitle: { fontFamily: F.serif, fontSize: 20, color: C.ink, lineHeight: 26, letterSpacing: -0.3 },
+    typeDesc: { fontFamily: F.serif, fontSize: 12, color: C.inkMuted, marginTop: 3 },
+    countRow: { flexDirection: 'row', gap: 10, marginTop: 6 },
+    noteCount: { fontFamily: F.serif, fontSize: 11, color: C.inkMuted },
+    starCount: { fontFamily: F.serif, fontSize: 11, color: C.amber, fontWeight: '600' },
+    empty: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 30 },
+    emptyIcon: { fontSize: 40, marginBottom: 12 },
+    emptyTitle: { fontFamily: F.serif, fontSize: 18, color: C.ink, marginBottom: 6 },
+    emptySub: { fontFamily: F.serif, fontSize: 13, color: C.inkMuted, textAlign: 'center', lineHeight: 20 },
+  }), [themeVersion]);
+
   const starred = notes.filter(n => n.starred).length;
   const sorted  = [...notes.filter(n => n.starred), ...notes.filter(n => !n.starred)];
 
@@ -748,6 +1085,33 @@ function TypeNotesScreen({ typeKey, typeMeta, notes, onDelete, onEdit, onBack })
 
 // ── By Type view — list of types, tap to drill in ─────────────────────
 function ByTypeView({ notes, cards, onDelete, onEdit }) {
+  const { C, F, themeVersion } = useTheme();
+  const btv = useMemo(() => StyleSheet.create({
+    typeBlock: {
+      backgroundColor: C.white,
+      borderRadius: 14,
+      borderWidth: 1, borderColor: C.border,
+      marginBottom: 12,
+      overflow: 'hidden',
+    },
+    typeHead: { flexDirection: 'row', alignItems: 'center', padding: 14, gap: 14 },
+    iconWrap: {
+      width: 44, height: 44, borderRadius: 10,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    icon: { fontSize: 20 },
+    typeMeta: { flex: 1 },
+    typeTitle: { fontFamily: F.serif, fontSize: 16, color: C.ink, letterSpacing: -0.2 },
+    typeDesc: { fontFamily: F.serif, fontSize: 11, color: C.inkMuted, marginTop: 2 },
+    countRow: { flexDirection: 'row', gap: 10, marginTop: 5 },
+    noteCount: { fontFamily: F.serif, fontSize: 11, color: C.inkMuted },
+    starCount: { fontFamily: F.serif, fontSize: 11, color: C.amber, fontWeight: '600' },
+    empty: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 30 },
+    emptyIcon: { fontSize: 40, marginBottom: 12 },
+    emptyTitle: { fontFamily: F.serif, fontSize: 18, color: C.ink, marginBottom: 6 },
+    emptySub: { fontFamily: F.serif, fontSize: 13, color: C.inkMuted, textAlign: 'center', lineHeight: 20 },
+  }), [themeVersion]);
+
   const [selectedType, setSelectedType] = useState(null);
 
   // Group notes by type, keeping only types that have notes
@@ -825,6 +1189,26 @@ function ByTypeView({ notes, cards, onDelete, onEdit }) {
 
 
 export function NotesScreen({ navigation }) {
+  const { C, F, themeVersion } = useTheme();
+  const s = useMemo(() => StyleSheet.create({
+    safe: { flex: 1, backgroundColor: C.paper },
+    tabStrip: {
+      flexDirection: 'row',
+      gap: 28,
+      paddingHorizontal: 20,
+      borderBottomWidth: 0.5,
+      borderBottomColor: C.border,
+      marginBottom: 8,
+    },
+    tab: { paddingBottom: 12, paddingTop: 4 },
+    tabTxt: { fontFamily: F.serif, fontSize: 14, color: C.inkMuted, fontWeight: '500' },
+    tabTxtActive: { fontFamily: F.serif, color: C.ink, fontWeight: '700' },
+    tabUnderline: {
+      position: 'absolute', bottom: 0, left: 0, right: 0,
+      height: 2, backgroundColor: C.ink, borderRadius: 1,
+    },
+  }), [themeVersion]);
+
   const { notes, books, cards, addNote, addCard, deleteNote, updateNote } = useStore();
   const [view, setView]                   = useState('explore');
   const [showModal, setShowModal]         = useState(false);
@@ -968,322 +1352,3 @@ export function NotesScreen({ navigation }) {
   );
 }
 
-// ── Main screen styles ────────────────────────────────────────────────
-const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.paper },
-  tabStrip: {
-    flexDirection: 'row',
-    gap: 28,
-    paddingHorizontal: 20,
-    borderBottomWidth: 0.5,
-    borderBottomColor: C.border,
-    marginBottom: 8,
-  },
-  tab: { paddingBottom: 12, paddingTop: 4 },
-  tabTxt: { fontSize: 14, color: C.inkMuted, fontWeight: '500' },
-  tabTxtActive: { color: C.ink, fontWeight: '700' },
-  tabUnderline: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    height: 2, backgroundColor: C.ink, borderRadius: 1,
-  },
-});
-
-// ── Modal styles ──────────────────────────────────────────────────────
-const mo = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.paper },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: C.border },
-  title: { fontFamily: F.serif, fontSize: 18, color: C.ink, letterSpacing: -0.2 },
-  cancel: { fontSize: 14, color: C.inkMuted },
-  save: { fontSize: 14, color: C.ink, fontWeight: '700' },
-  saveOff: { opacity: 0.3 },
-  scroll: { flex: 1 },
-  label: { fontSize: 10, fontWeight: '700', color: C.inkMuted, letterSpacing: 1, marginHorizontal: 20, marginTop: 22, marginBottom: 8 },
-  optional: { fontWeight: '400', color: C.inkFaint },
-
-  step1Strip: { backgroundColor: C.cream, borderBottomWidth: 1, borderBottomColor: C.border, paddingHorizontal: 20, paddingVertical: 14 },
-  step1StripTxt: { fontFamily: F.serif, fontSize: 17, color: C.ink, letterSpacing: -0.2 },
-
-  emptyBooks: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 40 },
-  emptyBooksIcon: { fontSize: 40, marginBottom: 12 },
-  emptyBooksTxt: { fontFamily: F.serif, fontSize: 18, color: C.ink, marginBottom: 6 },
-  emptyBooksSub: { fontSize: 13, color: C.inkMuted, textAlign: 'center', lineHeight: 20 },
-
-  bookRow: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: C.white, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: C.border },
-  bookRowActive: { borderColor: C.ink, backgroundColor: C.amberPale },
-  bookRowInfo: { flex: 1 },
-  bookRowTitle: { fontSize: 14, fontWeight: '700', color: C.ink, lineHeight: 20, marginBottom: 3 },
-  bookRowAuthor: { fontSize: 12, color: C.inkMuted, marginBottom: 8 },
-  bookRowStatus: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, backgroundColor: C.amberPale },
-  bookRowStatusTxt: { fontSize: 11, fontWeight: '600', color: C.ink },
-  bookRowArrow: { fontSize: 22, color: C.inkFaint, fontWeight: '300' },
-
-  selectedBookBanner: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: C.cream, paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
-  selectedBookTitle: { fontSize: 13, fontWeight: '700', color: C.ink },
-  selectedBookAuthor: { fontSize: 11, color: C.inkMuted, marginTop: 2 },
-  selectedBookChange: { fontSize: 12, color: C.ink, fontWeight: '600' },
-
-  typePill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16, backgroundColor: C.cream, borderWidth: 1, borderColor: C.border },
-  typePillActive: { backgroundColor: C.ink, borderColor: C.ink },
-  typePillIcon: { fontSize: 13 },
-  typePillTxt: { fontSize: 12, fontWeight: '600', color: C.inkSoft },
-  typePillTxtActive: { color: C.white },
-  typeHint: { fontSize: 12, color: C.inkMuted, fontStyle: 'italic', marginHorizontal: 20, marginTop: 8 },
-
-  mainInput: { marginHorizontal: 20, backgroundColor: C.white, borderRadius: 12, borderWidth: 1, borderColor: C.border, padding: 14, fontSize: 14, color: C.ink, minHeight: 100, textAlignVertical: 'top', lineHeight: 22 },
-  thinkInput: { marginHorizontal: 20, backgroundColor: C.sagePale, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(122,139,94,0.25)', padding: 14, fontSize: 14, color: C.ink, minHeight: 80, textAlignVertical: 'top', lineHeight: 22 },
-
-  locRow: { flexDirection: 'row', marginHorizontal: 20, gap: 10 },
-  locLabel: { fontSize: 10, color: C.inkMuted, fontWeight: '600', marginBottom: 5 },
-  locInput: { backgroundColor: C.white, borderRadius: 10, borderWidth: 1, borderColor: C.border, padding: 10, fontSize: 13, color: C.ink },
-
-  bookCtx: { marginHorizontal: 20, marginTop: 16, backgroundColor: C.cream, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: C.border },
-  bookCtxLbl: { fontSize: 10, fontWeight: '700', color: C.inkMuted, letterSpacing: 0.8, marginBottom: 4 },
-  bookCtxTitle: { fontFamily: F.serif, fontSize: 16, color: C.ink },
-  bookCtxMeta: { fontSize: 11, color: C.inkMuted, marginTop: 4 },
-});
-
-// ── Note card styles — Figma-aligned ──────────────────────────────────
-const nc = StyleSheet.create({
-  // Card — wraps inside Swipeable so corner radius applies cleanly
-  card: {
-    backgroundColor: C.white,
-    borderRadius: 14,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: C.border,
-    padding: 18,
-  },
-
-  // Top row — date stamp on left, tag chips on right
-  topRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-    gap: 8,
-  },
-  date: {
-    fontSize: 10,
-    color: C.inkMuted,
-    fontWeight: '600',
-    letterSpacing: 0.8,
-  },
-  typesWrap: {
-    flexDirection: 'row',
-    gap: 4,
-    flexShrink: 1,
-    flexWrap: 'wrap',
-    justifyContent: 'flex-end',
-  },
-  typePill: {
-    backgroundColor: C.amberPale,
-    paddingHorizontal: 9,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  typePillTxt: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: C.ink,
-    letterSpacing: 0.5,
-  },
-
-  // Serif title — the visual anchor of the card
-  cardTitle: {
-    fontFamily: F.serif,
-    fontSize: 19,
-    color: C.ink,
-    letterSpacing: -0.3,
-    lineHeight: 26,
-    marginBottom: 8,
-  },
-
-  // Image thumbnail on note cards with image blocks
-  thumbnail: {
-    width: '100%',
-    height: 160,
-    borderRadius: 10,
-    backgroundColor: C.cream,
-    marginBottom: 8,
-  },
-
-  // Body text — muted grey, 14px, 3 lines max
-  bodyText: {
-    fontSize: 14,
-    color: C.inkMuted,
-    lineHeight: 21,
-  },
-
-  // Book reference row at the bottom
-  bookRefRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    marginTop: 14,
-    paddingTop: 12,
-    borderTopWidth: 0.5,
-    borderTopColor: C.border,
-  },
-  bookRef: {
-    flex: 1,
-    fontSize: 12,
-    color: C.inkMuted,
-    fontWeight: '500',
-  },
-
-  // Swipe-to-delete action — slides in from the right
-  deleteAction: {
-    justifyContent: 'center',
-    alignItems: 'flex-end',
-    marginBottom: 12,
-  },
-  deleteBtn: {
-    backgroundColor: C.rose,
-    borderRadius: 14,
-    width: 90,
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-  },
-  deleteTxt: {
-    color: C.white,
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.4,
-  },
-});
-
-// ── Explore view styles ───────────────────────────────────────────────
-const ev = StyleSheet.create({
-  searchWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: C.cream,
-    borderRadius: 14,
-    paddingHorizontal: 16, paddingVertical: 14,
-    marginHorizontal: 20, marginTop: 8, marginBottom: 14,
-    gap: 10,
-  },
-  search: { flex: 1, fontSize: 15, color: C.ink },
-  filterSection: { marginBottom: 10 },
-  genreChip: {
-    paddingHorizontal: 14, paddingVertical: 7,
-    borderRadius: 16,
-    backgroundColor: C.amberPale,
-  },
-  genreChipActive: { backgroundColor: C.ink },
-  genreChipTxt: { fontSize: 12, fontWeight: '600', color: C.ink },
-  genreChipTxtActive: { color: C.white },
-  typeChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 12, paddingVertical: 6,
-    borderRadius: 16,
-    backgroundColor: C.cream,
-    borderWidth: 1, borderColor: C.border,
-  },
-  typeChipActive: { backgroundColor: C.sagePale, borderColor: C.sage },
-  typeChipIcon: { fontSize: 13 },
-  typeChipTxt: { fontSize: 12, fontWeight: '600', color: C.inkSoft },
-  typeChipTxtActive: { color: C.ink, fontWeight: '700' },
-  listWrap: { paddingHorizontal: 20, paddingTop: 12 },
-  emptyState: { alignItems: 'center', paddingTop: 48, paddingHorizontal: 30 },
-  emptyStateTitle: { fontFamily: F.serif, fontSize: 18, color: C.ink, marginBottom: 6, textAlign: 'center' },
-  emptyStateSub: { fontSize: 13, color: C.inkMuted, textAlign: 'center', lineHeight: 20 },
-});
-
-// ── By Book view styles ───────────────────────────────────────────────
-const bbv = StyleSheet.create({
-  bookBlock: {
-    backgroundColor: C.white,
-    borderRadius: 14,
-    borderWidth: 1, borderColor: C.border,
-    marginBottom: 12,
-    overflow: 'hidden',
-  },
-  bookHead: { flexDirection: 'row', alignItems: 'center', padding: 14, gap: 14 },
-  bookMeta: { flex: 1 },
-  bookTitle: { fontFamily: F.serif, fontSize: 16, color: C.ink, letterSpacing: -0.2 },
-  bookAuthor: { fontSize: 11, color: C.inkMuted, marginTop: 2 },
-  countRow: { flexDirection: 'row', gap: 10, marginTop: 5 },
-  noteCount: { fontSize: 11, color: C.inkMuted },
-  starCount: { fontSize: 11, color: C.amber, fontWeight: '600' },
-  typePills: { flexDirection: 'row', gap: 5, marginTop: 7, flexWrap: 'wrap' },
-  typeTag: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8 },
-  typeTagTxt: { fontSize: 10, fontWeight: '700', color: C.ink },
-  empty: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 30 },
-  emptyIcon: { fontSize: 40, marginBottom: 12 },
-  emptyTitle: { fontFamily: F.serif, fontSize: 18, color: C.ink, marginBottom: 6 },
-  emptySub: { fontSize: 13, color: C.inkMuted, textAlign: 'center', lineHeight: 20 },
-});
-
-// ── BookNotesScreen styles ────────────────────────────────────────────
-const bns = StyleSheet.create({
-  header: { backgroundColor: C.white, borderBottomWidth: 0.5, borderBottomColor: C.border, paddingBottom: 14 },
-  backBtn: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 8, alignSelf: 'flex-start' },
-  backTxt: { fontSize: 14, color: C.inkSoft, fontWeight: '600' },
-  headerInfo: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20 },
-  bookTitle: { fontFamily: F.serif, fontSize: 18, color: C.ink, lineHeight: 24, letterSpacing: -0.2 },
-  bookAuthor: { fontSize: 12, color: C.inkMuted, marginTop: 2 },
-  countRow: { flexDirection: 'row', gap: 10, marginTop: 5 },
-  noteCount: { fontSize: 11, color: C.inkMuted },
-  starCount: { fontSize: 11, color: C.amber, fontWeight: '600' },
-  typePills: { flexDirection: 'row', gap: 6, flexWrap: 'wrap', paddingHorizontal: 20, marginTop: 12 },
-  typeTag: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  typeTagTxt: { fontSize: 11, fontWeight: '700', color: C.ink },
-  openBtn: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, backgroundColor: C.ink },
-  openBtnTxt: { fontSize: 12, color: C.white, fontWeight: '700' },
-  empty: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 30 },
-  emptyIcon: { fontSize: 40, marginBottom: 12 },
-  emptyTitle: { fontFamily: F.serif, fontSize: 18, color: C.ink, marginBottom: 6 },
-  emptySub: { fontSize: 13, color: C.inkMuted, textAlign: 'center', lineHeight: 20 },
-});
-
-// ── ByTypeView styles ─────────────────────────────────────────────────
-const btv = StyleSheet.create({
-  typeBlock: {
-    backgroundColor: C.white,
-    borderRadius: 14,
-    borderWidth: 1, borderColor: C.border,
-    marginBottom: 12,
-    overflow: 'hidden',
-  },
-  typeHead: { flexDirection: 'row', alignItems: 'center', padding: 14, gap: 14 },
-  iconWrap: {
-    width: 44, height: 44, borderRadius: 10,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  icon: { fontSize: 20 },
-  typeMeta: { flex: 1 },
-  typeTitle: { fontFamily: F.serif, fontSize: 16, color: C.ink, letterSpacing: -0.2 },
-  typeDesc: { fontSize: 11, color: C.inkMuted, marginTop: 2 },
-  countRow: { flexDirection: 'row', gap: 10, marginTop: 5 },
-  noteCount: { fontSize: 11, color: C.inkMuted },
-  starCount: { fontSize: 11, color: C.amber, fontWeight: '600' },
-  empty: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 30 },
-  emptyIcon: { fontSize: 40, marginBottom: 12 },
-  emptyTitle: { fontFamily: F.serif, fontSize: 18, color: C.ink, marginBottom: 6 },
-  emptySub: { fontSize: 13, color: C.inkMuted, textAlign: 'center', lineHeight: 20 },
-});
-
-// ── TypeNotesScreen styles ────────────────────────────────────────────
-const tns = StyleSheet.create({
-  header: { backgroundColor: C.white, borderBottomWidth: 0.5, borderBottomColor: C.border, paddingBottom: 18 },
-  backBtn: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 8, alignSelf: 'flex-start' },
-  backTxt: { fontSize: 14, color: C.inkSoft, fontWeight: '600' },
-  headerInfo: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20 },
-  iconWrap: {
-    width: 52, height: 52, borderRadius: 12,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  icon: { fontSize: 24 },
-  typeTitle: { fontFamily: F.serif, fontSize: 20, color: C.ink, lineHeight: 26, letterSpacing: -0.3 },
-  typeDesc: { fontSize: 12, color: C.inkMuted, marginTop: 3 },
-  countRow: { flexDirection: 'row', gap: 10, marginTop: 6 },
-  noteCount: { fontSize: 11, color: C.inkMuted },
-  starCount: { fontSize: 11, color: C.amber, fontWeight: '600' },
-  empty: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 30 },
-  emptyIcon: { fontSize: 40, marginBottom: 12 },
-  emptyTitle: { fontFamily: F.serif, fontSize: 18, color: C.ink, marginBottom: 6 },
-  emptySub: { fontSize: 13, color: C.inkMuted, textAlign: 'center', lineHeight: 20 },
-});

@@ -1,10 +1,34 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { covers } from '../theme';
+import { useTheme } from '../theme';
 
 export function BookCover({ title, author, cover = 'sage', coverId, width = 88, height = 124 }) {
+  const { covers, F, themeVersion } = useTheme();
   const [imgError, setImgError] = useState(false);
+
+  const s = useMemo(() => StyleSheet.create({
+    wrap: { overflow: 'hidden' },
+    shadow: {
+      shadowColor: '#000',
+      shadowOffset: { width: 3, height: 6 },
+      shadowOpacity: 0.28,
+      shadowRadius: 12,
+      elevation: 10,
+    },
+    image: {},
+    grad: { padding: 8, justifyContent: 'flex-end', overflow: 'hidden' },
+    spine: {
+      position: 'absolute', left: 0, top: 6,
+      width: 3, backgroundColor: 'rgba(0,0,0,0.2)',
+    },
+    titleTxt: {
+      fontFamily: F.serif,
+      color: 'rgba(255,255,255,0.92)',
+      lineHeight: 13, marginBottom: 3, fontStyle: 'italic',
+    },
+    authorTxt: { fontFamily: F.serif, color: 'rgba(255,255,255,0.55)' },
+  }), [themeVersion]);
 
   const cols  = covers[cover] || covers.sage;
   const fs    = width < 70 ? 7 : width < 90 ? 9 : 11;
@@ -46,25 +70,3 @@ export function BookCover({ title, author, cover = 'sage', coverId, width = 88, 
     </View>
   );
 }
-
-const s = StyleSheet.create({
-  wrap: { overflow: 'hidden' },
-  shadow: {
-    shadowColor: '#000',
-    shadowOffset: { width: 3, height: 6 },
-    shadowOpacity: 0.28,
-    shadowRadius: 12,
-    elevation: 10,
-  },
-  image: {},
-  grad: { padding: 8, justifyContent: 'flex-end', overflow: 'hidden' },
-  spine: {
-    position: 'absolute', left: 0, top: 6,
-    width: 3, backgroundColor: 'rgba(0,0,0,0.2)',
-  },
-  titleTxt: {
-    color: 'rgba(255,255,255,0.92)',
-    lineHeight: 13, marginBottom: 3, fontStyle: 'italic',
-  },
-  authorTxt: { color: 'rgba(255,255,255,0.55)' },
-});

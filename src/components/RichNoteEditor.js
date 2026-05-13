@@ -19,7 +19,7 @@
  * selected type) so the existing NotesScreen list view keeps working.
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View, Text, TextInput, ScrollView, TouchableOpacity, Pressable,
   StyleSheet, Modal, KeyboardAvoidingView, Platform, Alert, Image,
@@ -29,7 +29,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import * as ImagePicker from 'expo-image-picker';
 import { BookCover } from './BookCover';
 import { AppHeader } from './AppHeader';
-import { C, F } from '../theme';
+import { useTheme } from '../theme';
 
 // ── Note type definitions ─────────────────────────────────────────────
 const TYPES = [
@@ -70,6 +70,39 @@ function blocksToText(blocks) {
 
 // ── Toolbar ────────────────────────────────────────────────────────────
 function Toolbar({ onInsert, onPickFromGallery, onTakePhoto }) {
+  const { C, F, themeVersion } = useTheme();
+  const tb = useMemo(() => StyleSheet.create({
+    scrollContent: {
+      paddingHorizontal: 20,
+    },
+    bar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: C.white,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: C.border,
+      paddingHorizontal: 4,
+      paddingVertical: 4,
+      gap: 0,
+    },
+    btn: {
+      paddingHorizontal: 9,
+      paddingVertical: 7,
+      borderRadius: 6,
+      alignItems: 'center',
+      justifyContent: 'center',
+      minWidth: 30,
+    },
+    btnTxt: { fontFamily: F.serif, fontSize: 14, color: C.inkSoft, fontStyle: 'italic' },
+    divider: { width: 1, height: 14, backgroundColor: C.border, opacity: 0.7 },
+    sectionDivider: { width: 1, height: 20, backgroundColor: C.borderMid, marginHorizontal: 4 },
+    highlightSwatch: {
+      backgroundColor: C.amberPale,
+      paddingHorizontal: 5,
+      borderRadius: 3,
+    },
+  }), [themeVersion]);
   return (
     <ScrollView
       horizontal
@@ -106,41 +139,60 @@ function Toolbar({ onInsert, onPickFromGallery, onTakePhoto }) {
   );
 }
 
-const tb = StyleSheet.create({
-  scrollContent: {
-    paddingHorizontal: 20,
-  },
-  bar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: C.white,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: C.border,
-    paddingHorizontal: 4,
-    paddingVertical: 4,
-    gap: 0,
-  },
-  btn: {
-    paddingHorizontal: 9,
-    paddingVertical: 7,
-    borderRadius: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: 30,
-  },
-  btnTxt: { fontFamily: F.serif, fontSize: 14, color: C.inkSoft, fontStyle: 'italic' },
-  divider: { width: 1, height: 14, backgroundColor: C.border, opacity: 0.7 },
-  sectionDivider: { width: 1, height: 20, backgroundColor: C.borderMid, marginHorizontal: 4 },
-  highlightSwatch: {
-    backgroundColor: C.amberPale,
-    paddingHorizontal: 5,
-    borderRadius: 3,
-  },
-});
-
 // ── Tag row ────────────────────────────────────────────────────────────
 function TagRow({ selectedTypes, onToggle }) {
+  const { C, F, themeVersion } = useTheme();
+  const tg = useMemo(() => StyleSheet.create({
+    wrap: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      gap: 8,
+      paddingHorizontal: 20,
+      marginTop: 2,
+      marginBottom: 10,
+    },
+    chip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: C.amberPale,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 12,
+    },
+    chipTxt: { fontFamily: F.serif, fontSize: 12, color: C.ink, fontWeight: '600' },
+    addBtn: { paddingHorizontal: 8, paddingVertical: 4 },
+    addBtnTxt: { fontFamily: F.serif, fontSize: 12, color: C.inkMuted, fontWeight: '500' },
+    pickerBackdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.4)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingHorizontal: 40,
+    },
+    pickerCard: {
+      width: '100%',
+      maxWidth: 280,
+      backgroundColor: C.paper,
+      borderRadius: 16,
+      paddingVertical: 8,
+      shadowColor: '#000', shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.18, shadowRadius: 24, elevation: 16,
+    },
+    pickerTitle: {
+      fontFamily: F.serif,
+      fontSize: 10, fontWeight: '700',
+      color: C.inkMuted, letterSpacing: 1,
+      paddingHorizontal: 16, paddingVertical: 10,
+    },
+    pickerRow: {
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      paddingHorizontal: 16, paddingVertical: 13,
+    },
+    pickerIcon: { fontSize: 16 },
+    pickerLabel: { fontFamily: F.serif, fontSize: 15, color: C.ink, fontWeight: '500' },
+  }), [themeVersion]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const unselected = TYPES.filter(t => !selectedTypes.includes(t.key));
 
@@ -196,56 +248,6 @@ function TagRow({ selectedTypes, onToggle }) {
   );
 }
 
-const tg = StyleSheet.create({
-  wrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 8,
-    paddingHorizontal: 20,
-    marginTop: 2,
-    marginBottom: 10,
-  },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: C.amberPale,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  chipTxt: { fontSize: 12, color: C.ink, fontWeight: '600' },
-  addBtn: { paddingHorizontal: 8, paddingVertical: 4 },
-  addBtnTxt: { fontSize: 12, color: C.inkMuted, fontWeight: '500' },
-  pickerBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 40,
-  },
-  pickerCard: {
-    width: '100%',
-    maxWidth: 280,
-    backgroundColor: C.paper,
-    borderRadius: 16,
-    paddingVertical: 8,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18, shadowRadius: 24, elevation: 16,
-  },
-  pickerTitle: {
-    fontSize: 10, fontWeight: '700',
-    color: C.inkMuted, letterSpacing: 1,
-    paddingHorizontal: 16, paddingVertical: 10,
-  },
-  pickerRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingHorizontal: 16, paddingVertical: 13,
-  },
-  pickerIcon: { fontSize: 16 },
-  pickerLabel: { fontSize: 15, color: C.ink, fontWeight: '500' },
-});
 
 // Markdown wrap helpers — used by both inline format and the block components
 const FORMAT_DELIMS = {
@@ -272,11 +274,159 @@ function wrapSelection(text, selection, prefix, suffix) {
   return { text: next, selection: newSel };
 }
 
+// ── Block styles helper ───────────────────────────────────────────────
+// Each block component is a separate React component, so each calls
+// useBlkStyles to build the theme-aware StyleSheet. Keeping the body
+// identical across block types is easier with this shared hook.
+function useBlkStyles() {
+  const { C, F, themeVersion } = useTheme();
+  return useMemo(() => StyleSheet.create({
+    paragraphWrap: {
+      paddingHorizontal: 20,
+      marginBottom: 18,
+      position: 'relative',
+    },
+    paragraph: {
+      fontFamily: F.serif,
+      fontSize: 15,
+      color: C.ink,
+      lineHeight: 23,
+      minHeight: 24,
+      padding: 0,
+    },
+    quoteWrap: {
+      flexDirection: 'row',
+      gap: 12,
+      paddingHorizontal: 20,
+      marginBottom: 18,
+      position: 'relative',
+    },
+    quoteRule: {
+      width: 2,
+      backgroundColor: C.inkMuted,
+      alignSelf: 'stretch',
+      marginVertical: 4,
+    },
+    quoteText: {
+      fontFamily: F.serifItalic,
+      fontSize: 15,
+      color: C.inkSoft,
+      fontStyle: 'italic',
+      lineHeight: 22,
+      padding: 0,
+      paddingTop: 2,
+    },
+    attribution: {
+      fontFamily: F.serif,
+      fontSize: 12,
+      color: C.inkMuted,
+      marginTop: 6,
+      padding: 0,
+    },
+    thoughtWrap: {
+      marginHorizontal: 20,
+      marginBottom: 18,
+      backgroundColor: C.sagePale,
+      borderRadius: 10,
+      borderLeftWidth: 3,
+      borderLeftColor: C.sage,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      position: 'relative',
+    },
+    thoughtHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      marginBottom: 6,
+    },
+    thoughtLabel: {
+      fontFamily: F.serif,
+      fontSize: 10,
+      fontWeight: '700',
+      color: C.inkSoft,
+      letterSpacing: 0.8,
+    },
+    thoughtText: {
+      fontFamily: F.serif,
+      fontSize: 13,
+      color: C.inkSoft,
+      fontStyle: 'italic',
+      lineHeight: 19,
+      minHeight: 40,
+      padding: 0,
+    },
+    removeBtn: {
+      position: 'absolute',
+      top: 0, right: 20,
+      paddingTop: 2,
+    },
+    removeBtnAbs: {
+      position: 'absolute',
+      top: 8, right: 8,
+    },
+
+    // Image block
+    imageWrap: {
+      paddingHorizontal: 20,
+      marginBottom: 18,
+    },
+    imageFrame: {
+      width: '100%',
+      borderRadius: 12,
+      overflow: 'hidden',
+      backgroundColor: C.cream,
+      position: 'relative',
+    },
+    image: {
+      width: '100%',
+      height: '100%',
+    },
+    imagePlaceholder: {
+      width: '100%',
+      borderRadius: 12,
+      backgroundColor: C.cream,
+      borderWidth: 1,
+      borderColor: C.border,
+      borderStyle: 'dashed',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      position: 'relative',
+    },
+    imagePlaceholderTxt: {
+      fontFamily: F.serif,
+      fontSize: 12,
+      color: C.inkFaint,
+    },
+    imageRemoveBtn: {
+      position: 'absolute',
+      top: 8, right: 8,
+      width: 24, height: 24,
+      borderRadius: 12,
+      backgroundColor: 'rgba(0,0,0,0.55)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    imageCaption: {
+      fontFamily: F.serif,
+      fontSize: 13,
+      color: C.inkMuted,
+      fontStyle: 'italic',
+      marginTop: 8,
+      padding: 0,
+      minHeight: 18,
+    },
+  }), [themeVersion]);
+}
+
 // ── Block components ──────────────────────────────────────────────────
 const ParagraphBlock = React.forwardRef(function ParagraphBlock(
   { block, onChange, onRemove, placeholder, autoFocus, onFocus },
   ref
 ) {
+  const { C } = useTheme();
+  const blk = useBlkStyles();
   const inputRef = useRef(null);
   const [selection, setSelection] = useState({ start: 0, end: 0 });
 
@@ -333,6 +483,8 @@ const QuoteBlock = React.forwardRef(function QuoteBlock(
   { block, onChange, onRemove, onFocus },
   ref
 ) {
+  const { C } = useTheme();
+  const blk = useBlkStyles();
   const quoteRef = useRef(null);
   const attribRef = useRef(null);
   const [selection, setSelection] = useState({ start: 0, end: 0 });
@@ -391,6 +543,8 @@ const ThoughtBlock = React.forwardRef(function ThoughtBlock(
   { block, onChange, onRemove, onFocus },
   ref
 ) {
+  const { C } = useTheme();
+  const blk = useBlkStyles();
   const inputRef = useRef(null);
   const [selection, setSelection] = useState({ start: 0, end: 0 });
 
@@ -439,6 +593,8 @@ const ThoughtBlock = React.forwardRef(function ThoughtBlock(
 
 // ── Image block — shows the picked/captured image with optional caption ──
 function ImageBlock({ block, onChange, onRemove }) {
+  const { C } = useTheme();
+  const blk = useBlkStyles();
   // Aspect ratio: fall back to 4:3 if dimensions unknown
   const aspect = (block.width && block.height) ? (block.width / block.height) : (4 / 3);
 
@@ -477,141 +633,34 @@ function ImageBlock({ block, onChange, onRemove }) {
   );
 }
 
-const blk = StyleSheet.create({
-  paragraphWrap: {
-    paddingHorizontal: 20,
-    marginBottom: 18,
-    position: 'relative',
-  },
-  paragraph: {
-    fontSize: 15,
-    color: C.ink,
-    lineHeight: 23,
-    minHeight: 24,
-    padding: 0,
-  },
-  quoteWrap: {
-    flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 20,
-    marginBottom: 18,
-    position: 'relative',
-  },
-  quoteRule: {
-    width: 2,
-    backgroundColor: C.inkMuted,
-    alignSelf: 'stretch',
-    marginVertical: 4,
-  },
-  quoteText: {
-    fontFamily: F.serifItalic,
-    fontSize: 15,
-    color: C.inkSoft,
-    fontStyle: 'italic',
-    lineHeight: 22,
-    padding: 0,
-    paddingTop: 2,
-  },
-  attribution: {
-    fontSize: 12,
-    color: C.inkMuted,
-    marginTop: 6,
-    padding: 0,
-  },
-  thoughtWrap: {
-    marginHorizontal: 20,
-    marginBottom: 18,
-    backgroundColor: C.sagePale,
-    borderRadius: 10,
-    borderLeftWidth: 3,
-    borderLeftColor: C.sage,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    position: 'relative',
-  },
-  thoughtHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    marginBottom: 6,
-  },
-  thoughtLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: C.inkSoft,
-    letterSpacing: 0.8,
-  },
-  thoughtText: {
-    fontSize: 13,
-    color: C.inkSoft,
-    fontStyle: 'italic',
-    lineHeight: 19,
-    minHeight: 40,
-    padding: 0,
-  },
-  removeBtn: {
-    position: 'absolute',
-    top: 0, right: 20,
-    paddingTop: 2,
-  },
-  removeBtnAbs: {
-    position: 'absolute',
-    top: 8, right: 8,
-  },
-
-  // Image block
-  imageWrap: {
-    paddingHorizontal: 20,
-    marginBottom: 18,
-  },
-  imageFrame: {
-    width: '100%',
-    borderRadius: 12,
-    overflow: 'hidden',
-    backgroundColor: C.cream,
-    position: 'relative',
-  },
-  image: {
-    width: '100%',
-    height: '100%',
-  },
-  imagePlaceholder: {
-    width: '100%',
-    borderRadius: 12,
-    backgroundColor: C.cream,
-    borderWidth: 1,
-    borderColor: C.border,
-    borderStyle: 'dashed',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    position: 'relative',
-  },
-  imagePlaceholderTxt: {
-    fontSize: 12,
-    color: C.inkFaint,
-  },
-  imageRemoveBtn: {
-    position: 'absolute',
-    top: 8, right: 8,
-    width: 24, height: 24,
-    borderRadius: 12,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  imageCaption: {
-    fontSize: 13,
-    color: C.inkMuted,
-    fontStyle: 'italic',
-    marginTop: 8,
-    padding: 0,
-    minHeight: 18,
-  },
-});
 
 // ── Book picker step (step 1) ─────────────────────────────────────────
 function BookPicker({ books, onPick, onCancel }) {
+  const { C, F, themeVersion } = useTheme();
+  const bp = useMemo(() => StyleSheet.create({
+    safe: { flex: 1, backgroundColor: C.paper },
+    header: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      padding: 20, borderBottomWidth: 1, borderBottomColor: C.border,
+    },
+    cancel: { fontFamily: F.serif, fontSize: 14, color: C.inkMuted },
+    title: { fontFamily: F.serif, fontSize: 18, color: C.ink, letterSpacing: -0.2 },
+    strip: { backgroundColor: C.cream, paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.border },
+    stripTxt: { fontFamily: F.serif, fontSize: 17, color: C.ink, letterSpacing: -0.2 },
+    empty: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 40 },
+    emptyIcon: { fontSize: 40, marginBottom: 12 },
+    emptyTitle: { fontFamily: F.serif, fontSize: 18, color: C.ink, marginBottom: 6 },
+    emptySub: { fontFamily: F.serif, fontSize: 13, color: C.inkMuted, textAlign: 'center', lineHeight: 20 },
+    bookRow: {
+      flexDirection: 'row', alignItems: 'center', gap: 14,
+      backgroundColor: C.white, borderRadius: 14, padding: 14,
+      borderWidth: 1, borderColor: C.border,
+    },
+    bookTitle: { fontFamily: F.serif, fontSize: 14, fontWeight: '700', color: C.ink, lineHeight: 20, marginBottom: 3 },
+    bookAuthor: { fontFamily: F.serif, fontSize: 12, color: C.inkMuted, marginBottom: 8 },
+    statusPill: { alignSelf: 'flex-start', backgroundColor: C.amberPale, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
+    statusTxt: { fontFamily: F.serif, fontSize: 11, fontWeight: '600', color: C.ink },
+  }), [themeVersion]);
   const activeBooks = books.filter(b => b.status !== 'want_to_read');
 
   return (
@@ -664,33 +713,74 @@ function BookPicker({ books, onPick, onCancel }) {
   );
 }
 
-const bp = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.paper },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    padding: 20, borderBottomWidth: 1, borderBottomColor: C.border,
-  },
-  cancel: { fontSize: 14, color: C.inkMuted },
-  title: { fontFamily: F.serif, fontSize: 18, color: C.ink, letterSpacing: -0.2 },
-  strip: { backgroundColor: C.cream, paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.border },
-  stripTxt: { fontFamily: F.serif, fontSize: 17, color: C.ink, letterSpacing: -0.2 },
-  empty: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 40 },
-  emptyIcon: { fontSize: 40, marginBottom: 12 },
-  emptyTitle: { fontFamily: F.serif, fontSize: 18, color: C.ink, marginBottom: 6 },
-  emptySub: { fontSize: 13, color: C.inkMuted, textAlign: 'center', lineHeight: 20 },
-  bookRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    backgroundColor: C.white, borderRadius: 14, padding: 14,
-    borderWidth: 1, borderColor: C.border,
-  },
-  bookTitle: { fontSize: 14, fontWeight: '700', color: C.ink, lineHeight: 20, marginBottom: 3 },
-  bookAuthor: { fontSize: 12, color: C.inkMuted, marginBottom: 8 },
-  statusPill: { alignSelf: 'flex-start', backgroundColor: C.amberPale, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
-  statusTxt: { fontSize: 11, fontWeight: '600', color: C.ink },
-});
 
 // ── Main editor screen (step 2) ───────────────────────────────────────
 function EditorScreen({ book, initialData, onSave, onCancel }) {
+  const { C, F, themeVersion } = useTheme();
+  const ed = useMemo(() => StyleSheet.create({
+    safe: { flex: 1, backgroundColor: C.paper },
+    // Top bar is now a column — actions row on top, title below
+    appBar: {
+      paddingHorizontal: 20,
+      paddingTop: 8,
+      paddingBottom: 14,
+    },
+    // Row 1: back chevron (left) + Save pill (right)
+    appBarActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 12,
+    },
+    backBtn: {
+      width: 36,
+      height: 36,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginLeft: -8,  // visually align chevron flush left, accounting for hitslop
+    },
+    // Substack-style Save pill — solid navy, rounded, compact
+    savePill: {
+      backgroundColor: C.ink,
+      paddingHorizontal: 18,
+      paddingVertical: 8,
+      borderRadius: 20,
+    },
+    savePillTxt: {
+      fontFamily: F.serif,
+      fontSize: 13,
+      color: C.white,
+      fontWeight: '700',
+      letterSpacing: 0.2,
+    },
+    // Row 2: serif title that wraps across multiple lines if needed
+    appBarTitle: {
+      fontFamily: F.serif,
+      fontSize: 22,
+      lineHeight: 28,
+      color: C.ink,
+      letterSpacing: -0.3,
+    },
+    toolbarWrap: {
+      marginBottom: 10,
+    },
+    title: {
+      fontFamily: F.serif,
+      fontSize: 24,
+      color: C.ink,
+      letterSpacing: -0.4,
+      lineHeight: 30,
+      paddingHorizontal: 20,
+      paddingTop: 0,
+      paddingBottom: 0,
+      marginTop: 4,
+    },
+    // Fills the empty space at the bottom of the editor so users can tap
+    // anywhere below the last block to add or focus a paragraph.
+    tailZone: {
+      minHeight: 240,
+    },
+  }), [themeVersion]);
   // initialData provided when editing an existing note
   const [title, setTitle]     = useState(initialData?.title || '');
   const [blocks, setBlocks]   = useState(
@@ -952,69 +1042,6 @@ function EditorScreen({ book, initialData, onSave, onCancel }) {
   );
 }
 
-const ed = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.paper },
-  // Top bar is now a column — actions row on top, title below
-  appBar: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 14,
-  },
-  // Row 1: back chevron (left) + Save pill (right)
-  appBarActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  backBtn: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: -8,  // visually align chevron flush left, accounting for hitslop
-  },
-  // Substack-style Save pill — solid navy, rounded, compact
-  savePill: {
-    backgroundColor: C.ink,
-    paddingHorizontal: 18,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  savePillTxt: {
-    fontSize: 13,
-    color: C.white,
-    fontWeight: '700',
-    letterSpacing: 0.2,
-  },
-  // Row 2: serif title that wraps across multiple lines if needed
-  appBarTitle: {
-    fontFamily: F.serif,
-    fontSize: 22,
-    lineHeight: 28,
-    color: C.ink,
-    letterSpacing: -0.3,
-  },
-  toolbarWrap: {
-    marginBottom: 10,
-  },
-  title: {
-    fontFamily: F.serif,
-    fontSize: 24,
-    color: C.ink,
-    letterSpacing: -0.4,
-    lineHeight: 30,
-    paddingHorizontal: 20,
-    paddingTop: 0,
-    paddingBottom: 0,
-    marginTop: 4,
-  },
-  // Fills the empty space at the bottom of the editor so users can tap
-  // anywhere below the last block to add or focus a paragraph.
-  tailZone: {
-    minHeight: 240,
-  },
-});
 
 // ── Main export — RichNoteEditor Modal ────────────────────────────────
 // Two-step flow inside one modal:

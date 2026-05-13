@@ -21,7 +21,7 @@
  * skips the book picker step and lands directly in the editor.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
   StyleSheet, Alert, KeyboardAvoidingView, Platform,
@@ -32,12 +32,13 @@ import { useStore } from '../store';
 import { BookCover } from '../components/BookCover';
 import { RichNoteEditor } from '../components/RichNoteEditor';
 import { NoteCard } from './NotesScreen';
-import { C, F } from '../theme';
+import { useTheme } from '../theme';
 
 // ── Stars — interactive rating ────────────────────────────────────────
 function Stars({ rating = 0, onRate }) {
+  const { C } = useTheme();
   return (
-    <View style={s.stars}>
+    <View style={{ flexDirection: 'row', gap: 3 }}>
       {[1, 2, 3, 4, 5].map(n => (
         <TouchableOpacity
           key={n}
@@ -59,6 +60,299 @@ function Stars({ rating = 0, onRate }) {
 
 // ── Main screen ────────────────────────────────────────────────────────
 export function BookDetailScreen({ route, navigation }) {
+  const { C, F, themeVersion } = useTheme();
+  const s = useMemo(() => StyleSheet.create({
+    safe: { flex: 1, backgroundColor: C.paper },
+
+    // Top nav row
+    topNav: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: 12,
+      paddingTop: 8,
+      paddingBottom: 4,
+    },
+    iconBtn: {
+      width: 36,
+      height: 36,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 18,
+    },
+
+    // Hero card — unified container holding identity + status + progress
+    heroCard: {
+      marginHorizontal: 8,
+      marginTop: 8,
+      marginBottom: 16,
+      borderRadius: 20,
+      overflow: 'hidden',
+      backgroundColor: C.white,
+      borderLeftWidth: 6,
+      borderLeftColor: C.sage,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.06,
+      shadowRadius: 10,
+      elevation: 3,
+    },
+    heroInner: {
+      flexDirection: 'row',
+      padding: 18,
+      paddingBottom: 16,
+      gap: 16,
+      alignItems: 'flex-start',
+    },
+    heroCoverCol: { width: 106 },
+    heroInfoCol:  { flex: 1, paddingTop: 2 },
+
+    heroTagPill: {
+      alignSelf: 'flex-start',
+      backgroundColor: C.amberPale,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 8,
+      marginBottom: 10,
+    },
+    heroTagPillTxt: {
+      fontFamily: F.serif,
+      fontSize: 9,
+      fontWeight: '700',
+      color: C.ink,
+      letterSpacing: 0.6,
+    },
+    heroTitle: {
+      fontFamily: F.serif,
+      fontSize: 22,
+      color: C.ink,
+      letterSpacing: -0.3,
+      lineHeight: 28,
+      marginBottom: 4,
+    },
+    heroAuthor: {
+      fontFamily: F.serif,
+      fontSize: 13,
+      color: C.inkMuted,
+      marginBottom: 8,
+    },
+    stars: {
+      flexDirection: 'row',
+      gap: 3,
+    },
+
+    // Divider between identity and status/progress
+    heroDivider: {
+      height: 0.5,
+      backgroundColor: C.border,
+      marginHorizontal: 18,
+    },
+
+    // Bottom half — status + progress
+    heroBottom: {
+      paddingHorizontal: 18,
+      paddingTop: 16,
+      paddingBottom: 18,
+      gap: 16,
+    },
+
+    // Description — sits outside the card as commentary
+    descWrap: {
+      marginHorizontal: 20,
+      marginBottom: 16,
+    },
+    desc: {
+      fontFamily: F.serif,
+      fontSize: 13,
+      color: C.inkMuted,
+      lineHeight: 21,
+      fontWeight: '400',
+    },
+
+    // Status row inside the hero card
+    statusRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    statusBadge: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 20,
+    },
+    statusTxt: {
+      fontFamily: F.serif,
+      fontSize: 12,
+      fontWeight: '700',
+      letterSpacing: 0.3,
+    },
+    actionBtn: {
+      backgroundColor: C.ink,
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      borderRadius: 22,
+    },
+    actionBtnTxt: {
+      fontFamily: F.serif,
+      fontSize: 13,
+      color: C.white,
+      fontWeight: '700',
+    },
+    undoBtn: {
+      backgroundColor: C.cream,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      borderRadius: 22,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    undoBtnTxt: {
+      fontFamily: F.serif,
+      fontSize: 12,
+      color: C.inkMuted,
+      fontWeight: '600',
+    },
+
+    // Reading progress block
+    progressSection: { gap: 8 },
+    progressHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'baseline',
+    },
+    progressLabel: {
+      fontFamily: F.serif,
+      fontSize: 11,
+      fontWeight: '700',
+      color: C.inkMuted,
+      letterSpacing: 0.5,
+    },
+    progressPct: {
+      fontFamily: F.serif,
+      fontSize: 22,
+      fontWeight: '800',
+      color: C.sage,
+      letterSpacing: -0.5,
+    },
+    track: {
+      height: 4,
+      backgroundColor: C.cream,
+      borderRadius: 2,
+      overflow: 'hidden',
+    },
+    fill: {
+      height: 4,
+      backgroundColor: C.sage,
+      borderRadius: 2,
+    },
+    // Literal page count beneath the bar — gives a hard number alongside the %
+    progressPages: {
+      fontFamily: F.serif,
+      fontSize: 12,
+      color: C.inkMuted,
+      fontWeight: '500',
+      marginTop: 2,
+    },
+    progressInputRow: {
+      flexDirection: 'row',
+      gap: 8,
+      alignItems: 'flex-end',
+      marginTop: 8,
+    },
+    pageInputLabel: {
+      fontFamily: F.serif,
+      fontSize: 10,
+      fontWeight: '700',
+      color: C.inkFaint,
+      letterSpacing: 0.5,
+      marginBottom: 5,
+    },
+    pageInput: {
+      fontFamily: F.serif,
+      backgroundColor: C.cream,
+      borderWidth: 1,
+      borderColor: C.border,
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      fontSize: 13,
+      color: C.ink,
+    },
+    updateBtn: {
+      backgroundColor: C.ink,
+      paddingHorizontal: 18,
+      paddingVertical: 10,
+      borderRadius: 10,
+    },
+    updateBtnTxt: {
+      fontFamily: F.serif,
+      fontSize: 13,
+      color: C.white,
+      fontWeight: '700',
+    },
+
+    // Notes section
+    notesSection: {
+      paddingHorizontal: 8,
+    },
+    notesHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 12,
+      paddingHorizontal: 12,
+    },
+    // Title cluster — serif "Notes" + small muted count number next to it
+    notesTitleWrap: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      gap: 8,
+    },
+    notesTitle: {
+      fontFamily: F.serif,
+      fontSize: 22,
+      color: C.ink,
+      letterSpacing: -0.3,
+    },
+    notesCount: {
+      fontFamily: F.serif,
+      fontSize: 16,
+      color: C.inkMuted,
+      letterSpacing: -0.2,
+    },
+    // Add Note pill — compact, sits on far right of header line
+    addNotePill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: C.white,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: C.border,
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+    },
+    addNotePillTxt: {
+      fontFamily: F.serif,
+      fontSize: 14,
+      color: C.ink,
+      letterSpacing: -0.2,
+    },
+    emptyNotes: {
+      paddingHorizontal: 30,
+      paddingTop: 30,
+      paddingBottom: 30,
+      alignItems: 'center',
+    },
+    emptyNotesTxt: {
+      fontFamily: F.serif,
+      fontSize: 13,
+      color: C.inkMuted,
+      textAlign: 'center',
+      lineHeight: 20,
+    },
+  }), [themeVersion]);
+
   const { bookId } = route.params;
   const {
     books, updateBook, removeBook,
@@ -359,282 +653,3 @@ export function BookDetailScreen({ route, navigation }) {
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────
-const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.paper },
-
-  // Top nav row
-  topNav: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingTop: 8,
-    paddingBottom: 4,
-  },
-  iconBtn: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 18,
-  },
-
-  // Hero card — unified container holding identity + status + progress
-  heroCard: {
-    marginHorizontal: 8,
-    marginTop: 8,
-    marginBottom: 16,
-    borderRadius: 20,
-    overflow: 'hidden',
-    backgroundColor: C.white,
-    borderLeftWidth: 6,
-    borderLeftColor: C.sage,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 3,
-  },
-  heroInner: {
-    flexDirection: 'row',
-    padding: 18,
-    paddingBottom: 16,
-    gap: 16,
-    alignItems: 'flex-start',
-  },
-  heroCoverCol: { width: 106 },
-  heroInfoCol:  { flex: 1, paddingTop: 2 },
-
-  heroTagPill: {
-    alignSelf: 'flex-start',
-    backgroundColor: C.amberPale,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-    marginBottom: 10,
-  },
-  heroTagPillTxt: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: C.ink,
-    letterSpacing: 0.6,
-  },
-  heroTitle: {
-    fontFamily: F.serif,
-    fontSize: 22,
-    color: C.ink,
-    letterSpacing: -0.3,
-    lineHeight: 28,
-    marginBottom: 4,
-  },
-  heroAuthor: {
-    fontSize: 13,
-    color: C.inkMuted,
-    marginBottom: 8,
-  },
-  stars: {
-    flexDirection: 'row',
-    gap: 3,
-  },
-
-  // Divider between identity and status/progress
-  heroDivider: {
-    height: 0.5,
-    backgroundColor: C.border,
-    marginHorizontal: 18,
-  },
-
-  // Bottom half — status + progress
-  heroBottom: {
-    paddingHorizontal: 18,
-    paddingTop: 16,
-    paddingBottom: 18,
-    gap: 16,
-  },
-
-  // Description — sits outside the card as commentary
-  descWrap: {
-    marginHorizontal: 20,
-    marginBottom: 16,
-  },
-  desc: {
-    fontSize: 13,
-    color: C.inkMuted,
-    lineHeight: 21,
-    fontWeight: '400',
-  },
-
-  // Status row inside the hero card
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  statusTxt: {
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
-  actionBtn: {
-    backgroundColor: C.ink,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 22,
-  },
-  actionBtnTxt: {
-    fontSize: 13,
-    color: C.white,
-    fontWeight: '700',
-  },
-  undoBtn: {
-    backgroundColor: C.cream,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: C.border,
-  },
-  undoBtnTxt: {
-    fontSize: 12,
-    color: C.inkMuted,
-    fontWeight: '600',
-  },
-
-  // Reading progress block
-  progressSection: { gap: 8 },
-  progressHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-  },
-  progressLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: C.inkMuted,
-    letterSpacing: 0.5,
-  },
-  progressPct: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: C.sage,
-    letterSpacing: -0.5,
-  },
-  track: {
-    height: 4,
-    backgroundColor: C.cream,
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  fill: {
-    height: 4,
-    backgroundColor: C.sage,
-    borderRadius: 2,
-  },
-  // Literal page count beneath the bar — gives a hard number alongside the %
-  progressPages: {
-    fontSize: 12,
-    color: C.inkMuted,
-    fontWeight: '500',
-    marginTop: 2,
-  },
-  progressInputRow: {
-    flexDirection: 'row',
-    gap: 8,
-    alignItems: 'flex-end',
-    marginTop: 8,
-  },
-  pageInputLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: C.inkFaint,
-    letterSpacing: 0.5,
-    marginBottom: 5,
-  },
-  pageInput: {
-    backgroundColor: C.cream,
-    borderWidth: 1,
-    borderColor: C.border,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 13,
-    color: C.ink,
-  },
-  updateBtn: {
-    backgroundColor: C.ink,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 10,
-  },
-  updateBtnTxt: {
-    fontSize: 13,
-    color: C.white,
-    fontWeight: '700',
-  },
-
-  // Notes section
-  notesSection: {
-    paddingHorizontal: 8,
-  },
-  notesHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-    paddingHorizontal: 12,
-  },
-  // Title cluster — serif "Notes" + small muted count number next to it
-  notesTitleWrap: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 8,
-  },
-  notesTitle: {
-    fontFamily: F.serif,
-    fontSize: 22,
-    color: C.ink,
-    letterSpacing: -0.3,
-  },
-  notesCount: {
-    fontFamily: F.serif,
-    fontSize: 16,
-    color: C.inkMuted,
-    letterSpacing: -0.2,
-  },
-  // Add Note pill — compact, sits on far right of header line
-  addNotePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: C.white,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: C.border,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-  },
-  addNotePillTxt: {
-    fontFamily: F.serif,
-    fontSize: 14,
-    color: C.ink,
-    letterSpacing: -0.2,
-  },
-  emptyNotes: {
-    paddingHorizontal: 30,
-    paddingTop: 30,
-    paddingBottom: 30,
-    alignItems: 'center',
-  },
-  emptyNotesTxt: {
-    fontSize: 13,
-    color: C.inkMuted,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-});

@@ -17,9 +17,9 @@
  *  - Markdown inside ` ` code spans is not supported (we don't have code spans)
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Text } from 'react-native';
-import { C } from '../theme';
+import { useTheme } from '../theme';
 
 // Regex matches in priority order: bold > italic, underline, highlight.
 // Bold (**...**) is matched before italic (*...*) to avoid `*` ambiguity.
@@ -30,17 +30,11 @@ const PATTERNS = [
   { type: 'italic',    regex: /\*([^*]+?)\*/ },
 ];
 
-const SPAN_STYLES = {
-  bold:      { fontWeight: '700' },
-  italic:    { fontStyle: 'italic' },
-  underline: { textDecorationLine: 'underline' },
-  highlight: { backgroundColor: C.amberPale },
-};
-
 // Parse a piece of text into a list of { text, style? } chunks.
 // Recursive — applies one pattern at a time, calling itself on the parts
-// outside the match. Stops when no patterns match.
-function parseChunks(text) {
+// outside the match. Stops when no patterns match. `spanStyles` is passed
+// in so the parser can stay pure while picking up the active theme.
+function parseChunks(text, spanStyles) {
   if (!text) return [{ text: '' }];
 
   for (const { type, regex } of PATTERNS) {
@@ -50,9 +44,9 @@ function parseChunks(text) {
       const inside = match[1];
       const after  = text.slice(match.index + match[0].length);
       return [
-        ...parseChunks(before),
-        { text: inside, style: SPAN_STYLES[type], type },
-        ...parseChunks(after),
+        ...parseChunks(before, spanStyles),
+        { text: inside, style: spanStyles[type], type },
+        ...parseChunks(after, spanStyles),
       ];
     }
   }
@@ -61,7 +55,15 @@ function parseChunks(text) {
 }
 
 export function MarkdownText({ children, style, ...rest }) {
-  const chunks = parseChunks(typeof children === 'string' ? children : '');
+  const { C, F, themeVersion } = useTheme();
+  const spanStyles = useMemo(() => ({
+    bold:      { fontFamily: F.serif, fontWeight: '700' },
+    italic:    { fontFamily: F.serifItalic, fontStyle: 'italic' },
+    underline: { fontFamily: F.serif, textDecorationLine: 'underline' },
+    highlight: { fontFamily: F.serif, backgroundColor: C.amberPale },
+  }), [themeVersion]);
+
+  const chunks = parseChunks(typeof children === 'string' ? children : '', spanStyles);
   return (
     <Text style={style} {...rest}>
       {chunks.map((c, i) => (

@@ -9,10 +9,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useStore } from '../store';
-import { C, F, covers } from '../theme';
+import { useTheme, covers } from '../theme';
 
 const { width: SW } = Dimensions.get('window');
 const PAGE_SIZE = 20;
+// COVER_KEYS captures the initial covers keys; these are stable across all
+// themes (sage/amber/navy/rose/plum/slate) so it's safe to read at module load.
 const COVER_KEYS = Object.keys(covers);
 
 // ── Format suggestions for the manual-add sheet ────────────────────────
@@ -51,6 +53,7 @@ function getImageUrl(id, size = 'L') {
 
 // ── Book cover thumbnail ────────────────────────────────────────────────
 function CoverThumb({ coverId, title, width = 56, height = 80 }) {
+  const { C, F } = useTheme();
   return coverId ? (
     <Image
       source={{ uri: getImageUrl(coverId, 'M') }}
@@ -62,7 +65,7 @@ function CoverThumb({ coverId, title, width = 56, height = 80 }) {
       colors={[C.heroTop, C.heroBot]}
       style={{ width, height, borderRadius: 6, alignItems: 'center', justifyContent: 'center', padding: 6 }}
     >
-      <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 9, fontWeight: '600', textAlign: 'center', lineHeight: 13 }}
+      <Text style={{ fontFamily: F.serif, color: 'rgba(255,255,255,0.8)', fontSize: 9, fontWeight: '600', textAlign: 'center', lineHeight: 13 }}
         numberOfLines={4}>{title}</Text>
     </LinearGradient>
   );
@@ -70,6 +73,20 @@ function CoverThumb({ coverId, title, width = 56, height = 80 }) {
 
 // ── Result row ──────────────────────────────────────────────────────────
 function ResultRow({ book, added, onPress }) {
+  const { C, F, themeVersion } = useTheme();
+  const s = useMemo(() => StyleSheet.create({
+    row:          { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, borderBottomWidth: 0.5, borderBottomColor: C.border },
+    rowCover:     { position: 'relative' },
+    rowAddedDot:  { position: 'absolute', top: -4, right: -4, width: 18, height: 18, borderRadius: 9, backgroundColor: C.amber, alignItems: 'center', justifyContent: 'center' },
+    rowAddedDotTxt: { fontFamily: F.serif, color: C.white, fontSize: 9, fontWeight: '800' },
+    rowInfo:      { flex: 1 },
+    rowTitle:     { fontFamily: F.serif, fontSize: 14, fontWeight: '600', color: C.ink, lineHeight: 20, marginBottom: 3 },
+    rowAuthor:    { fontFamily: F.serif, fontSize: 12, color: C.inkMuted, marginBottom: 3 },
+    rowGenre:     { fontFamily: F.serif, fontSize: 11, color: C.inkFaint, marginBottom: 2 },
+    rowPages:     { fontFamily: F.serif, fontSize: 11, color: C.inkFaint },
+    rowChevron:   { fontFamily: F.serif, fontSize: 20, color: C.inkFaint },
+  }), [themeVersion]);
+
   return (
     <TouchableOpacity style={s.row} onPress={onPress} activeOpacity={0.8}>
       <View style={s.rowCover}>
@@ -103,6 +120,23 @@ function ResultRow({ book, added, onPress }) {
 
 // ── Genre filter sheet ──────────────────────────────────────────────────
 function GenreSheet({ onSelect, onClose, activeGenres = [] }) {
+  const { C, F, themeVersion } = useTheme();
+  const s = useMemo(() => StyleSheet.create({
+    bookSheetOverlay:   { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
+    bookSheet:          { backgroundColor: C.paper, borderTopLeftRadius: 28, borderTopRightRadius: 28, shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.12, shadowRadius: 20, elevation: 20 },
+    bookSheetHandle:    { alignItems: 'center', paddingVertical: 14 },
+    bookSheetHandleBar: { width: 40, height: 4, borderRadius: 2, backgroundColor: C.creamDark },
+    genreSheet:         { maxHeight: '85%' },
+    genreSheetTitle:    { fontFamily: F.serif, fontSize: 18, fontWeight: '700', color: C.ink, paddingHorizontal: 20, paddingBottom: 16, letterSpacing: -0.3 },
+    genreGroup:         { paddingHorizontal: 20, marginBottom: 20 },
+    genreGroupLabel:    { fontFamily: F.serif, fontSize: 11, fontWeight: '700', color: C.inkFaint, letterSpacing: 0.8, marginBottom: 10 },
+    genreGroupItems:    { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    genreItem:          { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: C.cream, borderWidth: 1, borderColor: C.border },
+    genreItemTxt:       { fontFamily: F.serif, fontSize: 13, fontWeight: '500', color: C.ink },
+    genreItemActive:    { backgroundColor: C.ink },
+    genreItemTxtActive: { fontFamily: F.serif, color: C.white, fontWeight: '600' },
+  }), [themeVersion]);
+
   const translateY = useRef(new Animated.Value(700)).current;
   const dragStart  = useRef(0);
 
@@ -176,6 +210,37 @@ function GenreSheet({ onSelect, onClose, activeGenres = [] }) {
 
 // ── Add reading item sheet (format-agnostic) ───────────────────────────
 function AddReadingItemSheet({ onAdd, onClose }) {
+  const { C, F, themeVersion } = useTheme();
+  const s = useMemo(() => StyleSheet.create({
+    ownOverlay:       { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' },
+    ownSheet:         { backgroundColor: C.paper, borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: '90%', shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.12, shadowRadius: 20, elevation: 20 },
+    ownHandle:        { alignItems: 'center', paddingVertical: 14 },
+    ownHandleBar:     { width: 40, height: 4, borderRadius: 2, backgroundColor: C.creamDark },
+    ownScrollContent: { paddingHorizontal: 20, paddingBottom: 320 },
+    ownBookTitle:     { fontFamily: F.serif, fontSize: 22, fontWeight: '700', color: C.ink, letterSpacing: -0.4, marginBottom: 6 },
+    ownBookSub:       { fontFamily: F.serif, fontSize: 13, color: C.inkMuted, marginBottom: 22, lineHeight: 19 },
+    ownBookForm:      { gap: 16, marginBottom: 16 },
+    ownBookField:     { gap: 6 },
+    ownBookFieldLabel:{ fontFamily: F.serif, fontSize: 11, fontWeight: '700', color: C.inkMuted, letterSpacing: 0.5 },
+    ownBookInput:     { backgroundColor: C.cream, borderRadius: 12, borderWidth: 1, borderColor: C.border, paddingHorizontal: 14, paddingVertical: 12, fontFamily: F.serif, fontSize: 15, color: C.ink },
+
+    // Format chips inside the manual-add sheet
+    formatChipsRow:   { gap: 6, paddingTop: 8, paddingRight: 4 },
+    formatChip:       { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 11, paddingVertical: 6, borderRadius: 16, backgroundColor: C.white, borderWidth: 1, borderColor: C.border },
+    formatChipActive: { backgroundColor: C.amberPale, borderColor: C.amber },
+    formatChipIcon:   { fontSize: 12 },
+    formatChipTxt:    { fontFamily: F.serif, fontSize: 12, fontWeight: '500', color: C.inkSoft },
+    formatChipTxtActive: { fontFamily: F.serif, color: C.amber, fontWeight: '700' },
+
+    addBtn:        { backgroundColor: C.ink, borderRadius: 16, paddingVertical: 15, alignItems: 'center' },
+    addBtnTxt:     { fontFamily: F.serif, fontSize: 16, fontWeight: '700', color: C.white, letterSpacing: -0.2 },
+    wantBtn:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: C.cream, borderRadius: 16, paddingVertical: 13, borderWidth: 1, borderColor: C.border },
+    wantBtnIcon:   { fontSize: 15 },
+    wantBtnTxt:    { fontFamily: F.serif, fontSize: 14, fontWeight: '600', color: C.ink },
+    closeBtn:      { paddingVertical: 12, alignItems: 'center' },
+    closeBtnTxt:   { fontFamily: F.serif, fontSize: 14, color: C.inkMuted, fontWeight: '500' },
+  }), [themeVersion]);
+
   const translateY = useRef(new Animated.Value(700)).current;
   const dragStart  = useRef(0);
 
@@ -480,6 +545,37 @@ function AddReadingItemSheet({ onAdd, onClose }) {
 
 // ── Book detail sheet ───────────────────────────────────────────────────
 function BookSheet({ book, added, onAdd, onAddWantToRead, onClose }) {
+  const { C, F, themeVersion } = useTheme();
+  const s = useMemo(() => StyleSheet.create({
+    bookSheetOverlay:   { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
+    bookSheet:          { backgroundColor: C.paper, borderTopLeftRadius: 28, borderTopRightRadius: 28, shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.12, shadowRadius: 20, elevation: 20 },
+    bookSheetHandle:    { alignItems: 'center', paddingVertical: 14 },
+    bookSheetHandleBar: { width: 40, height: 4, borderRadius: 2, backgroundColor: C.creamDark },
+    sheetTop:      { flexDirection: 'row', gap: 16, paddingHorizontal: 20, marginBottom: 16 },
+    sheetCoverShadow: { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 10, elevation: 6 },
+    sheetTitle:    { fontFamily: F.serif, fontSize: 18, fontWeight: '700', color: C.ink, letterSpacing: -0.3, lineHeight: 24, marginBottom: 6, flex: 1 },
+    sheetTopInfo:  { flex: 1, justifyContent: 'center' },
+    sheetAuthor:   { fontFamily: F.serif, fontSize: 13, color: C.inkMuted, marginBottom: 10 },
+    sheetPills:    { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
+    pill:          { backgroundColor: C.cream, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, borderWidth: 1, borderColor: C.border },
+    pillTxt:       { fontFamily: F.serif, fontSize: 11, color: C.inkMuted, fontWeight: '500' },
+    genrePill:     { backgroundColor: C.creamDark, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, borderWidth: 1, borderColor: C.border },
+    genrePillTxt:  { fontFamily: F.serif, fontSize: 11, color: C.inkSoft, fontWeight: '500' },
+    sheetActions:  { paddingHorizontal: 20, paddingTop: 8, gap: 8 },
+    addBtn:        { backgroundColor: C.ink, borderRadius: 16, paddingVertical: 15, alignItems: 'center' },
+    addBtnTxt:     { fontFamily: F.serif, fontSize: 16, fontWeight: '700', color: C.white, letterSpacing: -0.2 },
+    addBtnSub:     { fontFamily: F.serif, fontSize: 11, color: C.inkFaint, textAlign: 'center' },
+    wantBtn:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: C.cream, borderRadius: 16, paddingVertical: 13, borderWidth: 1, borderColor: C.border },
+    wantBtnIcon:   { fontSize: 15 },
+    wantBtnTxt:    { fontFamily: F.serif, fontSize: 14, fontWeight: '600', color: C.ink },
+    alreadyAdded:  { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: '#E9F7EF', borderRadius: 14, padding: 14 },
+    alreadyAddedIcon: { fontSize: 20, color: '#1E8449' },
+    alreadyAddedTxt:  { fontFamily: F.serif, fontSize: 14, fontWeight: '600', color: '#1E8449' },
+    alreadyAddedSub:  { fontFamily: F.serif, fontSize: 11, color: '#27AE60', marginTop: 2 },
+    closeBtn:      { paddingVertical: 12, alignItems: 'center' },
+    closeBtnTxt:   { fontFamily: F.serif, fontSize: 14, color: C.inkMuted, fontWeight: '500' },
+  }), [themeVersion]);
+
   const translateY = useRef(new Animated.Value(700)).current;
   const dragStart  = useRef(0);
 
@@ -634,6 +730,7 @@ function categoryColor(genre) {
 }
 
 export function DiscoverScreen() {
+  const { C, F, themeVersion } = useTheme();
   const { addBook, books } = useStore();
   const [query, setQuery]             = useState('');
   const [activeGenres, setActiveGenres] = useState([]);
@@ -688,14 +785,15 @@ export function DiscoverScreen() {
     (async () => {
       try {
         const q = queryGenres.map(g => `subject:"${g}"`).join(' OR ');
-        const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&fields=key,title,author_name,first_publish_year,cover_i,subject&limit=12`;
+        const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&fields=key,title,author_name,first_publish_year,number_of_pages_median,cover_i,subject&limit=24`;
         const res = await fetch(url);
         const data = await res.json();
         const docs = (data.docs || [])
           .filter(r => r.key && r.title && r.author_name?.length && r.cover_i);
-        // Dedupe against user's library
+        // Dedupe against user's library. Keep up to 20 so "View All" has a
+        // worthwhile list; the horizontal preview slices to the first 4.
         const libKeys = new Set(books.map(b => b.olKey).filter(Boolean));
-        const filtered = docs.filter(d => !libKeys.has(d.key)).slice(0, 4);
+        const filtered = docs.filter(d => !libKeys.has(d.key)).slice(0, 20);
         if (!cancelled) {
           recoCacheRef.current = { key: cacheKey, books: filtered };
           setRecommended(filtered);
@@ -776,16 +874,29 @@ export function DiscoverScreen() {
       const next = prev.includes(genre)
         ? prev.filter(g => g !== genre)      // deselect if already active
         : [...prev, genre];                  // add to selection
-      // Fire search with combined genres
+      // Fire search with combined genres — keep the search bar untouched
+      // so the category acts as an immediate filter, not a text query.
       const q = next.length > 0 ? next.join(' ') : '';
       if (q) {
-        setQuery(q);
         handleSearch(q);
       } else {
         clear();
       }
       return next;
     });
+  };
+
+  // Show all cached recommended books in the results list. Used by the
+  // "View All" button next to "Recommended for You".
+  const showAllRecommended = () => {
+    setActiveGenres([]);
+    setQuery('');
+    setResults(recommended);
+    setTotalFound(recommended.length);
+    setHasMore(false);
+    setSearched(true);
+    setCurrentQuery('Recommended for you');
+    setPage(0);
   };
 
   const handleAddManualItem = useCallback(({ title, author, pages, genre, format, url }, status = 'want_to_read') => {
@@ -812,6 +923,207 @@ export function DiscoverScreen() {
     setQuery(''); setCurrentQuery(''); setPage(0);
     setActiveGenres([]);
   };
+
+  const s = useMemo(() => StyleSheet.create({
+    safe: { flex: 1, backgroundColor: C.paper },
+
+    // Header
+    header:   { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12 },
+    title:    { fontFamily: F.serif, fontSize: 30, fontWeight: '700', color: C.ink, letterSpacing: -0.6 },
+    subtitle: { fontFamily: F.serif, fontSize: 13, color: C.inkMuted, marginTop: 3, lineHeight: 19 },
+
+    // Search row — matches NotesScreen.ev.searchWrap aesthetic:
+    // cream pill, no border, smaller radius, Ionicons inside instead of emoji.
+    searchRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingHorizontal: 20,
+      marginTop: 8,
+      marginBottom: 14,
+    },
+    searchWrap: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: C.cream,
+      borderRadius: 14,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      gap: 10,
+    },
+    searchInput: { flex: 1, fontFamily: F.serif, fontSize: 15, color: C.ink },
+    searchClearBtn: { padding: 2 },
+
+    // + Add — same pill style with subtle ink accent
+    addOwnPill: {
+      paddingHorizontal: 14,
+      paddingVertical: 7,
+      borderRadius: 16,
+      backgroundColor: C.ink,
+    },
+    addOwnPillTxt: { fontFamily: F.serif, fontSize: 12, fontWeight: '700', color: C.white, letterSpacing: 0.2 },
+
+    promptWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 80, paddingHorizontal: 40 },
+    promptIcon: { fontSize: 40, marginBottom: 14 },
+    promptTxt:  { fontFamily: F.serif, fontSize: 17, fontWeight: '700', color: C.ink, marginBottom: 8, textAlign: 'center' },
+    promptSub:  { fontFamily: F.serif, fontSize: 13, color: C.inkMuted, textAlign: 'center', lineHeight: 19 },
+
+    // Loading
+    loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+    loadingTxt:  { fontFamily: F.serif, fontSize: 13, color: C.inkMuted },
+
+    // Empty search
+    emptyWrap:    { flex: 1, alignItems: 'center', paddingTop: 60, paddingHorizontal: 40 },
+    emptyIcon:    { fontSize: 40, marginBottom: 16 },
+    emptyTxt:     { fontFamily: F.serif, fontSize: 17, fontWeight: '700', color: C.ink, textAlign: 'center', marginBottom: 8 },
+    emptySub:     { fontFamily: F.serif, fontSize: 13, color: C.inkMuted, textAlign: 'center', lineHeight: 20, marginBottom: 24 },
+    tryClearBtn:  { backgroundColor: C.ink, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24 },
+    tryClearTxt:  { fontFamily: F.serif, fontSize: 14, color: C.white, fontWeight: '600' },
+
+    // Results
+    resultsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 4, paddingBottom: 12 },
+    resultsCount:  { fontFamily: F.serif, fontSize: 12, color: C.inkMuted },
+    clearTxt:      { fontFamily: F.serif, fontSize: 12, color: C.amber, fontWeight: '600' },
+    resultsList:   { paddingHorizontal: 16 },
+
+    loadMoreBtn:        { marginHorizontal: 20, marginVertical: 16, backgroundColor: C.ink, borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
+    loadMoreBtnLoading: { opacity: 0.6 },
+    loadMoreTxt:        { fontFamily: F.serif, fontSize: 14, color: C.white, fontWeight: '600' },
+
+    // ── Browse Categories + Recommended sections ──
+    sectionWrap: {
+      marginTop: 20,
+    },
+    sectionHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      justifyContent: 'space-between',
+      paddingHorizontal: 20,
+      marginBottom: 12,
+    },
+    sectionTitle: {
+      fontFamily: F.serif,
+      fontSize: 22,
+      color: C.ink,
+      letterSpacing: -0.3,
+    },
+    viewAllLink: {
+      fontFamily: F.serif,
+      fontSize: 13,
+      color: C.sage,
+      fontWeight: '700',
+    },
+    // Category grid — 2×2 dark tiles
+    categoryGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      paddingHorizontal: 20,
+      gap: 10,
+    },
+    categoryTile: {
+      width: (SW - 50) / 2,  // (screen - 20*2 padding - 10 gap) / 2
+      height: 110,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 16,
+    },
+    categoryTileTxt: {
+      fontFamily: F.serif,
+      fontSize: 20,
+      color: '#fff',
+      textAlign: 'center',
+      letterSpacing: -0.3,
+    },
+    // Recommended horizontal scroll
+    recoLoadingWrap: {
+      height: 200,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    recoEmpty: {
+      fontFamily: F.serif,
+      fontSize: 13,
+      color: C.inkMuted,
+      paddingHorizontal: 20,
+      paddingVertical: 24,
+    },
+    recoCard: {
+      width: 140,
+    },
+    recoCover: {
+      width: 140,
+      height: 200,
+      borderRadius: 10,
+      backgroundColor: C.cream,
+      marginBottom: 8,
+    },
+    recoCoverFallback: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 12,
+    },
+    recoCoverFallbackTxt: {
+      fontFamily: F.serif,
+      fontSize: 13,
+      color: C.ink,
+      textAlign: 'center',
+    },
+    recoTitle: {
+      fontFamily: F.serif,
+      fontSize: 15,
+      color: C.ink,
+      letterSpacing: -0.2,
+      lineHeight: 19,
+      marginBottom: 2,
+    },
+    recoAuthor: {
+      fontFamily: F.serif,
+      fontSize: 12,
+      color: C.inkMuted,
+      marginBottom: 6,
+    },
+    recoGenrePill: {
+      alignSelf: 'flex-start',
+      backgroundColor: C.sagePale,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 8,
+    },
+    recoGenrePillTxt: {
+      fontFamily: F.serif,
+      fontSize: 9,
+      fontWeight: '700',
+      color: C.sage,
+      letterSpacing: 0.5,
+    },
+
+    // ── Results overlay (full-screen modal) ──
+    overlayHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 12,
+      paddingTop: 8,
+      paddingBottom: 12,
+      gap: 8,
+    },
+    overlayBackBtn: {
+      width: 36,
+      height: 36,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 18,
+    },
+    overlayTitle: {
+      flex: 1,
+      fontFamily: F.serif,
+      fontSize: 18,
+      fontWeight: '700',
+      color: C.ink,
+      letterSpacing: -0.3,
+    },
+  }), [themeVersion]);
 
   return (
     <SafeAreaView style={s.safe} edges={['top']}>
@@ -852,43 +1164,6 @@ export function DiscoverScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* ── Genre pill + active genre chips below search ── */}
-      <View style={s.genreBar}>
-        <TouchableOpacity
-          style={[s.filterChip, activeGenres.length > 0 && s.filterChipActive]}
-          onPress={() => setShowGenreSheet(true)}
-          activeOpacity={0.8}
-        >
-          <Ionicons
-            name="funnel-outline"
-            size={13}
-            color={activeGenres.length > 0 ? C.white : C.ink}
-          />
-          <Text style={[s.filterChipTxt, activeGenres.length > 0 && s.filterChipTxtActive]}>
-            Genre
-          </Text>
-        </TouchableOpacity>
-
-        {activeGenres.length > 0 && (
-          <View style={s.activeGenreWrap}>
-            {activeGenres.map(g => (
-              <View key={g} style={s.activeGenrePill}>
-                <Text style={s.activeGenrePillTxt}>{g}</Text>
-                <TouchableOpacity
-                  onPress={() => handleGenreSelect(g)}
-                  hitSlop={{ top: 6, bottom: 6, left: 4, right: 6 }}
-                >
-                  <Ionicons name="close" size={11} color={C.ink} />
-                </TouchableOpacity>
-              </View>
-            ))}
-            <TouchableOpacity style={s.clearAllPill} onPress={clear} activeOpacity={0.8}>
-              <Text style={s.clearAllPillTxt}>Clear all</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
-
       {/* ── Content (single scroll) ──
           Browse Categories + Recommended for You always show at the top
           (when the library has at least 1 book). Below them comes search
@@ -904,6 +1179,13 @@ export function DiscoverScreen() {
           <View style={s.sectionWrap}>
             <View style={s.sectionHeaderRow}>
               <Text style={s.sectionTitle}>Browse Categories</Text>
+              <TouchableOpacity
+                onPress={() => setShowGenreSheet(true)}
+                activeOpacity={0.7}
+                hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }}
+              >
+                <Text style={s.viewAllLink}>View All</Text>
+              </TouchableOpacity>
             </View>
             <View style={s.categoryGrid}>
               {topGenres.map(g => (
@@ -930,10 +1212,7 @@ export function DiscoverScreen() {
               <Text style={s.sectionTitle}>Recommended for You</Text>
               {recommended.length > 0 && (
                 <TouchableOpacity
-                  onPress={() => {
-                    // Tap "View All" — run a search for the top genre
-                    handleGenreSelect(topGenres[0]);
-                  }}
+                  onPress={showAllRecommended}
                   activeOpacity={0.7}
                   hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }}
                 >
@@ -953,7 +1232,7 @@ export function DiscoverScreen() {
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={{ paddingHorizontal: 20, gap: 16 }}
               >
-                {recommended.map((book, i) => (
+                {recommended.slice(0, 4).map((book, i) => (
                   <TouchableOpacity
                     key={book.key || i}
                     style={s.recoCard}
@@ -990,72 +1269,147 @@ export function DiscoverScreen() {
           </View>
         )}
 
-        {/* ── Search state — results, empty, or initial prompt ── */}
-        {loading ? (
-          <View style={s.loadingWrap}>
-            <ActivityIndicator size="large" color={C.amber} />
-            <Text style={s.loadingTxt}>Searching...</Text>
-          </View>
-        ) : searched && results.length === 0 ? (
-          <View style={s.emptyWrap}>
-            <Text style={s.emptyIcon}>📭</Text>
-            <Text style={s.emptyTxt}>No results for "{currentQuery}"</Text>
-            <Text style={s.emptySub}>Try the full title or a keyword — or add it manually</Text>
-            <TouchableOpacity
-              style={s.tryClearBtn}
-              onPress={() => setShowAddOwn(true)}
-            >
-              <Text style={s.tryClearTxt}>+ Add it manually</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={clear} style={{ marginTop: 14 }}>
-              <Text style={{ fontSize: 13, color: C.inkMuted, fontWeight: '500' }}>Clear and try again</Text>
-            </TouchableOpacity>
-          </View>
-        ) : !searched && topGenres.length === 0 ? (
-          // Initial prompt only when library is empty (otherwise sections fill the page)
+        {/* Initial prompt — only when library is empty (otherwise sections fill the page) */}
+        {topGenres.length === 0 && (
           <View style={s.promptWrap}>
             <Text style={s.promptIcon}>🔍</Text>
             <Text style={s.promptTxt}>Find what you're reading</Text>
             <Text style={s.promptSub}>Search above, browse by genre, or tap + Add to enter anything manually</Text>
           </View>
-        ) : searched ? (
-          // Results list
-          <View>
-            <View style={s.resultsHeader}>
-              <Text style={s.resultsCount}>
-                {totalFound.toLocaleString()} results · showing {results.length}
-              </Text>
-              <TouchableOpacity onPress={clear}>
-                <Text style={s.clearTxt}>Clear</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={s.resultsList}>
-              {results.map((book, i) => (
-                <ResultRow
-                  key={book.key || i}
-                  book={book}
-                  added={book.key ? addedKeys.has(book.key) : false}
-                  onPress={() => setSelectedBook(book)}
-                />
-              ))}
-            </View>
-
-            {hasMore && (
-              <TouchableOpacity
-                style={[s.loadMoreBtn, loadingMore && s.loadMoreBtnLoading]}
-                onPress={handleLoadMore}
-                disabled={loadingMore}
-              >
-                {loadingMore
-                  ? <ActivityIndicator color={C.white} />
-                  : <Text style={s.loadMoreTxt}>Load more results</Text>
-                }
-              </TouchableOpacity>
-            )}
-          </View>
-        ) : null}
+        )}
       </ScrollView>
+
+      {/* ── Results overlay — full-screen modal for search / category / recommended ── */}
+      <Modal
+        visible={searched}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={clear}
+      >
+        <SafeAreaView style={s.safe} edges={['top']}>
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+            <View style={{ flex: 1 }}>
+              {/* Overlay header — back button + title */}
+              <View style={s.overlayHeader}>
+                <TouchableOpacity
+                  onPress={clear}
+                  style={s.overlayBackBtn}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="chevron-back" size={24} color={C.ink} />
+                </TouchableOpacity>
+                <Text style={s.overlayTitle} numberOfLines={1}>
+                  {currentQuery}
+                </Text>
+              </View>
+
+              {/* Search bar — refine query without leaving the overlay */}
+              <View style={s.searchRow}>
+                <View style={s.searchWrap}>
+                  <Ionicons name="search" size={16} color={C.inkMuted} />
+                  <TextInput
+                    style={s.searchInput}
+                    value={query}
+                    onChangeText={setQuery}
+                    placeholder="Title, author or ISBN..."
+                    placeholderTextColor={C.inkFaint}
+                    returnKeyType="search"
+                    onSubmitEditing={() => handleSearch()}
+                  />
+                  {query.length > 0 && (
+                    <TouchableOpacity
+                      onPress={() => setQuery('')}
+                      style={s.searchClearBtn}
+                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                    >
+                      <Ionicons name="close-circle" size={16} color={C.inkMuted} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+
+              <ScrollView
+                style={{ flex: 1 }}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: 100 }}
+                keyboardShouldPersistTaps="handled"
+              >
+                {loading ? (
+                  <View style={s.loadingWrap}>
+                    <ActivityIndicator size="large" color={C.amber} />
+                    <Text style={s.loadingTxt}>Searching...</Text>
+                  </View>
+                ) : results.length === 0 ? (
+                  <View style={s.emptyWrap}>
+                    <Text style={s.emptyIcon}>📭</Text>
+                    <Text style={s.emptyTxt}>No results for "{currentQuery}"</Text>
+                    <Text style={s.emptySub}>Try the full title or a keyword — or add it manually</Text>
+                    <TouchableOpacity
+                      style={s.tryClearBtn}
+                      onPress={() => setShowAddOwn(true)}
+                    >
+                      <Text style={s.tryClearTxt}>+ Add it manually</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={clear} style={{ marginTop: 14 }}>
+                      <Text style={{ fontFamily: F.serif, fontSize: 13, color: C.inkMuted, fontWeight: '500' }}>Clear and try again</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View>
+                    <View style={s.resultsHeader}>
+                      <Text style={s.resultsCount}>
+                        {totalFound.toLocaleString()} results · showing {results.length}
+                      </Text>
+                    </View>
+
+                    <View style={s.resultsList}>
+                      {results.map((book, i) => (
+                        <ResultRow
+                          key={book.key || i}
+                          book={book}
+                          added={book.key ? addedKeys.has(book.key) : false}
+                          onPress={() => setSelectedBook(book)}
+                        />
+                      ))}
+                    </View>
+
+                    {hasMore && (
+                      <TouchableOpacity
+                        style={[s.loadMoreBtn, loadingMore && s.loadMoreBtnLoading]}
+                        onPress={handleLoadMore}
+                        disabled={loadingMore}
+                      >
+                        {loadingMore
+                          ? <ActivityIndicator color={C.white} />
+                          : <Text style={s.loadMoreTxt}>Load more results</Text>
+                        }
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
+              </ScrollView>
+            </View>
+          </TouchableWithoutFeedback>
+
+          {/* Sheets must live inside the fullScreen Modal so they can stack on top of it */}
+          {showAddOwn && (
+            <AddReadingItemSheet
+              onAdd={handleAddManualItem}
+              onClose={() => setShowAddOwn(false)}
+            />
+          )}
+          {selectedBook && (
+            <BookSheet
+              book={selectedBook}
+              added={selectedBook.key ? addedKeys.has(selectedBook.key) : false}
+              onAdd={handleAdd}
+              onAddWantToRead={handleAddWantToRead}
+              onClose={() => setSelectedBook(null)}
+            />
+          )}
+        </SafeAreaView>
+      </Modal>
 
       {/* ── Genre sheet ── */}
       {showGenreSheet && (
@@ -1066,7 +1420,9 @@ export function DiscoverScreen() {
         />
       )}
 
-      {showAddOwn && (
+      {/* These sheets are also rendered inside the results overlay Modal above —
+          render here only when the overlay isn't open, to avoid double-mounting. */}
+      {!searched && showAddOwn && (
         <AddReadingItemSheet
           onAdd={handleAddManualItem}
           onClose={() => setShowAddOwn(false)}
@@ -1074,7 +1430,7 @@ export function DiscoverScreen() {
       )}
 
       {/* ── Book detail sheet ── */}
-      {selectedBook && (
+      {!searched && selectedBook && (
         <BookSheet
           book={selectedBook}
           added={selectedBook.key ? addedKeys.has(selectedBook.key) : false}
@@ -1089,314 +1445,3 @@ export function DiscoverScreen() {
   );
 }
 
-// ── Styles ──────────────────────────────────────────────────────────────
-const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.paper },
-
-  // Header
-  header:   { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12 },
-  title:    { fontSize: 30, fontWeight: '700', color: C.ink, letterSpacing: -0.6 },
-  subtitle: { fontSize: 13, color: C.inkMuted, marginTop: 3, lineHeight: 19 },
-
-  // Search row — matches NotesScreen.ev.searchWrap aesthetic:
-  // cream pill, no border, smaller radius, Ionicons inside instead of emoji.
-  searchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 20,
-    marginTop: 8,
-    marginBottom: 14,
-  },
-  searchWrap: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: C.cream,
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    gap: 10,
-  },
-  searchInput: { flex: 1, fontSize: 15, color: C.ink },
-  searchClearBtn: { padding: 2 },
-
-  // Genre filter bar
-  genreBar: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    flexWrap: 'wrap',
-    gap: 8,
-    paddingHorizontal: 20,
-    paddingBottom: 12,
-    borderBottomWidth: 0.5,
-    borderBottomColor: C.border,
-  },
-  activeGenreWrap: { flexDirection: 'row', flexWrap: 'wrap', flex: 1, gap: 6 },
-  filterBar: { borderBottomWidth: 0.5, borderBottomColor: C.border, backgroundColor: C.paper },
-  filterBarContent: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10, gap: 8 },
-
-  // Pills — matches NotesScreen.ev.genreChip (amberPale bg, ink text, smaller padding)
-  activeGenrePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 16,
-    backgroundColor: C.amberPale,
-  },
-  activeGenrePillTxt: { fontSize: 12, fontWeight: '600', color: C.ink },
-  clearAllPill: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 16,
-    backgroundColor: C.cream,
-  },
-  clearAllPillTxt: { fontSize: 12, fontWeight: '500', color: C.inkMuted },
-  // Genre filter chip — same pill style; goes ink-filled when active
-  filterChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 16,
-    backgroundColor: C.amberPale,
-  },
-  filterChipActive: { backgroundColor: C.ink },
-  filterChipTxt: { fontSize: 12, fontWeight: '600', color: C.ink },
-  filterChipTxtActive: { color: C.white },
-  genreItemActive: { backgroundColor: C.ink },
-  genreItemTxtActive: { color: C.white, fontWeight: '600' },
-  filterSep: { width: 0.5, height: 20, backgroundColor: C.border },
-  // + Add — same pill style with subtle ink accent
-  addOwnPill: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 16,
-    backgroundColor: C.ink,
-  },
-  addOwnPillTxt: { fontSize: 12, fontWeight: '700', color: C.white, letterSpacing: 0.2 },
-  filtersContent: { paddingHorizontal: 20, paddingVertical: 10, gap: 6 },
-
-  // Genre sheet
-  genreSheet:       { maxHeight: '85%' },
-  genreSheetTitle:  { fontSize: 18, fontWeight: '700', color: C.ink, paddingHorizontal: 20, paddingBottom: 16, letterSpacing: -0.3 },
-  genreGroup:       { paddingHorizontal: 20, marginBottom: 20 },
-  genreGroupLabel:  { fontSize: 11, fontWeight: '700', color: C.inkFaint, letterSpacing: 0.8, marginBottom: 10 },
-  genreGroupItems:  { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  genreItem:        { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: C.cream, borderWidth: 1, borderColor: C.border },
-  genreItemTxt:     { fontSize: 13, fontWeight: '500', color: C.ink },
-
-  // Add reading item sheet
-  ownOverlay:       { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' },
-  ownSheet:         { backgroundColor: C.paper, borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: '90%', shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.12, shadowRadius: 20, elevation: 20 },
-  ownHandle:        { alignItems: 'center', paddingVertical: 14 },
-  ownHandleBar:     { width: 40, height: 4, borderRadius: 2, backgroundColor: C.creamDark },
-  ownScrollContent: { paddingHorizontal: 20, paddingBottom: 320 },
-  ownBookHeader:    { paddingHorizontal: 20, paddingBottom: 20 },
-  ownBookTitle:     { fontSize: 22, fontWeight: '700', color: C.ink, letterSpacing: -0.4, marginBottom: 6 },
-  ownBookSub:       { fontSize: 13, color: C.inkMuted, marginBottom: 22, lineHeight: 19 },
-  ownBookForm:      { gap: 16, marginBottom: 16 },
-  ownBookField:     { gap: 6 },
-  ownBookFieldLabel:{ fontSize: 11, fontWeight: '700', color: C.inkMuted, letterSpacing: 0.5 },
-  ownBookInput:     { backgroundColor: C.cream, borderRadius: 12, borderWidth: 1, borderColor: C.border, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: C.ink },
-
-  // Format chips inside the manual-add sheet
-  formatChipsRow:   { gap: 6, paddingTop: 8, paddingRight: 4 },
-  formatChip:       { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 11, paddingVertical: 6, borderRadius: 16, backgroundColor: C.white, borderWidth: 1, borderColor: C.border },
-  formatChipActive: { backgroundColor: C.amberPale, borderColor: C.amber },
-  formatChipIcon:   { fontSize: 12 },
-  formatChipTxt:    { fontSize: 12, fontWeight: '500', color: C.inkSoft },
-  formatChipTxtActive: { color: C.amber, fontWeight: '700' },
-
-  promptWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 80, paddingHorizontal: 40 },
-  promptIcon: { fontSize: 40, marginBottom: 14 },
-  promptTxt:  { fontSize: 17, fontWeight: '700', color: C.ink, marginBottom: 8, textAlign: 'center' },
-  promptSub:  { fontSize: 13, color: C.inkMuted, textAlign: 'center', lineHeight: 19 },
-
-  // Loading
-  loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  loadingTxt:  { fontSize: 13, color: C.inkMuted },
-
-  // Empty search
-  emptyWrap:    { flex: 1, alignItems: 'center', paddingTop: 60, paddingHorizontal: 40 },
-  emptyIcon:    { fontSize: 40, marginBottom: 16 },
-  emptyTxt:     { fontSize: 17, fontWeight: '700', color: C.ink, textAlign: 'center', marginBottom: 8 },
-  emptySub:     { fontSize: 13, color: C.inkMuted, textAlign: 'center', lineHeight: 20, marginBottom: 24 },
-  tryClearBtn:  { backgroundColor: C.ink, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24 },
-  tryClearTxt:  { fontSize: 14, color: C.white, fontWeight: '600' },
-
-  // Empty state (not yet searched)
-  emptyState:        { padding: 20 },
-  emptyStateCard:    { backgroundColor: C.cream, borderRadius: 20, padding: 20, borderWidth: 1, borderColor: C.border, marginBottom: 28 },
-  emptyStateIcon:    { fontSize: 32, marginBottom: 12 },
-  emptyStateHeading: { fontSize: 18, fontWeight: '700', color: C.ink, marginBottom: 16 },
-  steps:     { gap: 16 },
-  step:      { flexDirection: 'row', gap: 14, alignItems: 'flex-start' },
-  stepNum:   { width: 28, height: 28, borderRadius: 14, backgroundColor: C.ink, alignItems: 'center', justifyContent: 'center' },
-  stepNumTxt:{ fontSize: 13, fontWeight: '700', color: C.white },
-  stepTitle: { fontSize: 14, fontWeight: '600', color: C.ink, marginBottom: 2 },
-  stepSub:   { fontSize: 12, color: C.inkMuted, lineHeight: 18 },
-  orBrowse:  { fontSize: 15, fontWeight: '700', color: C.ink, marginBottom: 14 },
-  genreGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  genreCard: { backgroundColor: C.white, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, borderWidth: 1, borderColor: C.border },
-  genreCardTxt: { fontSize: 13, fontWeight: '500', color: C.ink },
-
-  // Results
-  resultsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 4, paddingBottom: 12 },
-  resultsCount:  { fontSize: 12, color: C.inkMuted },
-  clearTxt:      { fontSize: 12, color: C.amber, fontWeight: '600' },
-  resultsList:   { paddingHorizontal: 16 },
-
-  row:          { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, borderBottomWidth: 0.5, borderBottomColor: C.border },
-  rowCover:     { position: 'relative' },
-  rowAddedDot:  { position: 'absolute', top: -4, right: -4, width: 18, height: 18, borderRadius: 9, backgroundColor: C.amber, alignItems: 'center', justifyContent: 'center' },
-  rowAddedDotTxt: { color: C.white, fontSize: 9, fontWeight: '800' },
-  rowInfo:      { flex: 1 },
-  rowTitle:     { fontSize: 14, fontWeight: '600', color: C.ink, lineHeight: 20, marginBottom: 3 },
-  rowAuthor:    { fontSize: 12, color: C.inkMuted, marginBottom: 3 },
-  rowGenre:     { fontSize: 11, color: C.inkFaint, marginBottom: 2 },
-  rowPages:     { fontSize: 11, color: C.inkFaint },
-  rowChevron:   { fontSize: 20, color: C.inkFaint },
-
-  loadMoreBtn:        { marginHorizontal: 20, marginVertical: 16, backgroundColor: C.ink, borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
-  loadMoreBtnLoading: { opacity: 0.6 },
-  loadMoreTxt:        { fontSize: 14, color: C.white, fontWeight: '600' },
-
-  bookSheetOverlay:   { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
-  bookSheet:          { backgroundColor: C.paper, borderTopLeftRadius: 28, borderTopRightRadius: 28, shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.12, shadowRadius: 20, elevation: 20 },
-  bookSheetHandle:    { alignItems: 'center', paddingVertical: 14 },
-  bookSheetHandleBar: { width: 40, height: 4, borderRadius: 2, backgroundColor: C.creamDark },
-  sheetOverlay:  { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'flex-end', zIndex: 100, backgroundColor: 'rgba(0,0,0,0.5)' },
-  sheet:         { backgroundColor: C.paper, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingBottom: 44, shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.12, shadowRadius: 20, elevation: 20 },
-  sheetHandle:   { width: 40, height: 4, borderRadius: 2, backgroundColor: C.creamDark, alignSelf: 'center', marginTop: 12, marginBottom: 20 },
-  sheetTop:      { flexDirection: 'row', gap: 16, paddingHorizontal: 20, marginBottom: 16 },
-  sheetCoverShadow: { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 10, elevation: 6 },
-  sheetTitle:    { fontSize: 18, fontWeight: '700', color: C.ink, letterSpacing: -0.3, lineHeight: 24, marginBottom: 6, flex: 1 },
-  sheetTopInfo:  { flex: 1, justifyContent: 'center' },
-  sheetAuthor:   { fontSize: 13, color: C.inkMuted, marginBottom: 10 },
-  sheetPills:    { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
-  pill:          { backgroundColor: C.cream, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, borderWidth: 1, borderColor: C.border },
-  pillTxt:       { fontSize: 11, color: C.inkMuted, fontWeight: '500' },
-  genrePill:     { backgroundColor: C.creamDark, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, borderWidth: 1, borderColor: C.border },
-  genrePillTxt:  { fontSize: 11, color: C.inkSoft, fontWeight: '500' },
-  sheetActions:  { paddingHorizontal: 20, paddingTop: 8, gap: 8 },
-  addBtn:        { backgroundColor: C.ink, borderRadius: 16, paddingVertical: 15, alignItems: 'center' },
-  addBtnTxt:     { fontSize: 16, fontWeight: '700', color: C.white, letterSpacing: -0.2 },
-  addBtnSub:     { fontSize: 11, color: C.inkFaint, textAlign: 'center' },
-  wantBtn:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: C.cream, borderRadius: 16, paddingVertical: 13, borderWidth: 1, borderColor: C.border },
-  wantBtnIcon:   { fontSize: 15 },
-  wantBtnTxt:    { fontSize: 14, fontWeight: '600', color: C.ink },
-  alreadyAdded:  { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: '#E9F7EF', borderRadius: 14, padding: 14 },
-  alreadyAddedIcon: { fontSize: 20, color: '#1E8449' },
-  alreadyAddedTxt:  { fontSize: 14, fontWeight: '600', color: '#1E8449' },
-  alreadyAddedSub:  { fontSize: 11, color: '#27AE60', marginTop: 2 },
-  closeBtn:      { paddingVertical: 12, alignItems: 'center' },
-  closeBtnTxt:   { fontSize: 14, color: C.inkMuted, fontWeight: '500' },
-
-  // ── Browse Categories + Recommended sections ──
-  sectionWrap: {
-    marginTop: 20,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontFamily: F.serif,
-    fontSize: 22,
-    color: C.ink,
-    letterSpacing: -0.3,
-  },
-  viewAllLink: {
-    fontSize: 13,
-    color: C.sage,
-    fontWeight: '700',
-  },
-  // Category grid — 2×2 dark tiles
-  categoryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 20,
-    gap: 10,
-  },
-  categoryTile: {
-    width: (SW - 50) / 2,  // (screen - 20*2 padding - 10 gap) / 2
-    height: 110,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
-  },
-  categoryTileTxt: {
-    fontFamily: F.serif,
-    fontSize: 20,
-    color: '#fff',
-    textAlign: 'center',
-    letterSpacing: -0.3,
-  },
-  // Recommended horizontal scroll
-  recoLoadingWrap: {
-    height: 200,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  recoEmpty: {
-    fontSize: 13,
-    color: C.inkMuted,
-    paddingHorizontal: 20,
-    paddingVertical: 24,
-  },
-  recoCard: {
-    width: 140,
-  },
-  recoCover: {
-    width: 140,
-    height: 200,
-    borderRadius: 10,
-    backgroundColor: C.cream,
-    marginBottom: 8,
-  },
-  recoCoverFallback: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 12,
-  },
-  recoCoverFallbackTxt: {
-    fontFamily: F.serif,
-    fontSize: 13,
-    color: C.ink,
-    textAlign: 'center',
-  },
-  recoTitle: {
-    fontFamily: F.serif,
-    fontSize: 15,
-    color: C.ink,
-    letterSpacing: -0.2,
-    lineHeight: 19,
-    marginBottom: 2,
-  },
-  recoAuthor: {
-    fontSize: 12,
-    color: C.inkMuted,
-    marginBottom: 6,
-  },
-  recoGenrePill: {
-    alignSelf: 'flex-start',
-    backgroundColor: C.sagePale,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  recoGenrePillTxt: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: C.sage,
-    letterSpacing: 0.5,
-  },
-});

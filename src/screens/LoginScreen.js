@@ -10,14 +10,14 @@
  * the name and can be edited later via the profile editor.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, Platform, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useStore } from '../store';
-import { C, F } from '../theme';
+import { useTheme } from '../theme';
 
 // Build the same avatar URL used by ProfileScreen so the user has an
 // avatar from the moment they log in (replaceable later via edit).
@@ -34,8 +34,90 @@ function makeSeed(name) {
 }
 
 export function LoginScreen() {
+  const { C, F, themeVersion } = useTheme();
   const { updateUser } = useStore();
   const [name, setName] = useState('');
+
+  const s = useMemo(() => StyleSheet.create({
+    safe: { flex: 1, backgroundColor: C.paper },
+    container: {
+      flex: 1,
+      paddingHorizontal: 32,
+      paddingTop: 80,
+    },
+
+    // Brand
+    brand: {
+      marginBottom: 60,
+    },
+    brandKicker: {
+      fontFamily: F.serif,
+      fontSize: 11,
+      fontWeight: '700',
+      color: C.amber,
+      letterSpacing: 2,
+      marginBottom: 16,
+    },
+    brandTitle: {
+      fontFamily: F.serif,
+      fontSize: 44,
+      color: C.ink,
+      letterSpacing: -0.6,
+      lineHeight: 50,
+      marginBottom: 12,
+    },
+    brandSubtitle: {
+      fontFamily: F.serif,
+      fontSize: 15,
+      color: C.inkMuted,
+      lineHeight: 22,
+    },
+
+    // Form
+    formWrap: {
+      gap: 8,
+    },
+    label: {
+      fontFamily: F.serif,
+      fontSize: 11,
+      fontWeight: '700',
+      color: C.inkMuted,
+      letterSpacing: 1,
+      marginBottom: 4,
+    },
+    input: {
+      backgroundColor: C.white,
+      borderWidth: 1,
+      borderColor: C.border,
+      borderRadius: 12,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      fontFamily: F.serif,
+      fontSize: 16,
+      color: C.ink,
+      marginBottom: 16,
+    },
+    cta: {
+      backgroundColor: C.ink,
+      borderRadius: 14,
+      paddingVertical: 16,
+      alignItems: 'center',
+    },
+    ctaTxt: {
+      fontFamily: F.serif,
+      fontSize: 15,
+      color: C.white,
+      fontWeight: '700',
+      letterSpacing: 0.3,
+    },
+    hint: {
+      fontFamily: F.serif,
+      fontSize: 12,
+      color: C.inkFaint,
+      marginTop: 14,
+      lineHeight: 18,
+    },
+  }), [themeVersion]);
 
   const canContinue = name.trim().length > 0;
 
@@ -98,78 +180,3 @@ export function LoginScreen() {
     </SafeAreaView>
   );
 }
-
-const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.paper },
-  container: {
-    flex: 1,
-    paddingHorizontal: 32,
-    paddingTop: 80,
-  },
-
-  // Brand
-  brand: {
-    marginBottom: 60,
-  },
-  brandKicker: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: C.amber,
-    letterSpacing: 2,
-    marginBottom: 16,
-  },
-  brandTitle: {
-    fontFamily: F.serif,
-    fontSize: 44,
-    color: C.ink,
-    letterSpacing: -0.6,
-    lineHeight: 50,
-    marginBottom: 12,
-  },
-  brandSubtitle: {
-    fontSize: 15,
-    color: C.inkMuted,
-    lineHeight: 22,
-  },
-
-  // Form
-  formWrap: {
-    gap: 8,
-  },
-  label: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: C.inkMuted,
-    letterSpacing: 1,
-    marginBottom: 4,
-  },
-  input: {
-    backgroundColor: C.white,
-    borderWidth: 1,
-    borderColor: C.border,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    color: C.ink,
-    marginBottom: 16,
-  },
-  cta: {
-    backgroundColor: C.ink,
-    borderRadius: 14,
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  ctaTxt: {
-    fontSize: 15,
-    color: C.white,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
-  hint: {
-    fontSize: 12,
-    color: C.inkFaint,
-    marginTop: 14,
-    lineHeight: 18,
-  },
-});

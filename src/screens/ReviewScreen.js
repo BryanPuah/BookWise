@@ -6,18 +6,158 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useStore } from '../store';
-import { C } from '../theme';
+import { useTheme } from '../theme';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 const APP_VERSION = '1.0.0';
 
+// ── Style builder shared across sub-components in this file ───────────
+function useReviewStyles() {
+  const { C, F, themeVersion } = useTheme();
+  return useMemo(() => StyleSheet.create({
+    safe: { flex: 1, backgroundColor: C.paper },
+
+    hero: {
+      paddingHorizontal: 24,
+      paddingTop: 32,
+      paddingBottom: 32,
+      alignItems: 'center',
+      position: 'relative',
+    },
+
+    backBtn: {
+      position: 'absolute',
+      top: 18,
+      left: 16,
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      backgroundColor: 'rgba(255,255,255,0.12)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+
+    avatar: {
+      width: 84,
+      height: 84,
+      borderRadius: 42,
+      backgroundColor: 'rgba(255,255,255,0.15)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 14,
+    },
+
+    avatarTxt: {
+      fontFamily: F.serif,
+      fontSize: 32,
+      fontWeight: '700',
+      color: C.white,
+    },
+
+    heroName: {
+      fontFamily: F.serif,
+      fontSize: 22,
+      fontWeight: '700',
+      color: C.white,
+    },
+
+    heroEmail: {
+      fontFamily: F.serif,
+      fontSize: 13,
+      color: 'rgba(255,255,255,0.6)',
+      marginBottom: 16,
+    },
+
+    editBtn: {
+      backgroundColor: 'rgba(255,255,255,0.12)',
+      paddingHorizontal: 18,
+      paddingVertical: 9,
+      borderRadius: 20,
+    },
+
+    editBtnTxt: {
+      fontFamily: F.serif,
+      color: C.white,
+      fontWeight: '600',
+    },
+
+    editWrap: { width: '100%', alignItems: 'center' },
+
+    editInput: {
+      fontFamily: F.serif,
+      width: '80%',
+      fontSize: 16,
+      color: C.white,
+      textAlign: 'center',
+      backgroundColor: 'rgba(255,255,255,0.08)',
+      borderRadius: 10,
+      padding: 8,
+    },
+
+    editDone: {
+      backgroundColor: C.amber,
+      paddingHorizontal: 22,
+      paddingVertical: 9,
+      borderRadius: 20,
+      marginTop: 12,
+    },
+
+    editDoneTxt: {
+      fontFamily: F.serif,
+      color: C.white,
+      fontWeight: '700',
+    },
+
+    body: { padding: 20 },
+
+    sectionHeader: {
+      fontFamily: F.serif,
+      fontSize: 11,
+      fontWeight: '700',
+      color: C.inkFaint,
+      marginTop: 18,
+      marginBottom: 10,
+    },
+
+    group: {
+      backgroundColor: C.white,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: C.border,
+      overflow: 'hidden',
+    },
+
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: 14,
+      borderBottomWidth: 0.5,
+      borderBottomColor: C.border,
+    },
+
+    rowLast: { borderBottomWidth: 0 },
+
+    rowIcon: { fontSize: 18, width: 24 },
+
+    rowBody: { flex: 1 },
+
+    rowLabel: { fontFamily: F.serif, fontSize: 15, color: C.ink },
+
+    rowSub: { fontFamily: F.serif, fontSize: 12, color: C.inkMuted },
+
+    rowChevron: { fontFamily: F.serif, fontSize: 20, color: C.inkFaint },
+  }), [themeVersion]);
+}
+
 // ── Section header ─────────────────────────────────────────────────────
 function SectionHeader({ title }) {
+  const s = useReviewStyles();
   return <Text style={s.sectionHeader}>{title.toUpperCase()}</Text>;
 }
 
 // ── Settings row ───────────────────────────────────────────────────────
 function SettingsRow({ icon, label, sub, onPress, right, danger, isLast }) {
+  const s = useReviewStyles();
   return (
     <TouchableOpacity
       style={[s.row, isLast && s.rowLast]}
@@ -37,6 +177,7 @@ function SettingsRow({ icon, label, sub, onPress, right, danger, isLast }) {
 
 // ── Settings group ─────────────────────────────────────────────────────
 function SettingsGroup({ children }) {
+  const s = useReviewStyles();
   const items = React.Children.toArray(children).filter(Boolean);
   return (
     <View style={s.group}>
@@ -49,6 +190,8 @@ function SettingsGroup({ children }) {
 
 // ── Main screen ────────────────────────────────────────────────────────
 export function ReviewScreen({ navigation }) {
+  const { C, F } = useTheme();
+  const s = useReviewStyles();
   const { notes, books } = useStore();
 
   const [name, setName] = useState('');
@@ -163,131 +306,3 @@ export function ReviewScreen({ navigation }) {
     </SafeAreaView>
   );
 }
-
-// ── STYLES ─────────────────────────────────────────────────────────────
-const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.paper },
-
-  hero: {
-    paddingHorizontal: 24,
-    paddingTop: 32,
-    paddingBottom: 32,
-    alignItems: 'center',
-    position: 'relative',
-  },
-
-  backBtn: {
-    position: 'absolute',
-    top: 18,
-    left: 16,
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  avatar: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 14,
-  },
-
-  avatarTxt: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: C.white,
-  },
-
-  heroName: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: C.white,
-  },
-
-  heroEmail: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.6)',
-    marginBottom: 16,
-  },
-
-  editBtn: {
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    paddingHorizontal: 18,
-    paddingVertical: 9,
-    borderRadius: 20,
-  },
-
-  editBtnTxt: {
-    color: C.white,
-    fontWeight: '600',
-  },
-
-  editWrap: { width: '100%', alignItems: 'center' },
-
-  editInput: {
-    width: '80%',
-    fontSize: 16,
-    color: C.white,
-    textAlign: 'center',
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 10,
-    padding: 8,
-  },
-
-  editDone: {
-    backgroundColor: C.amber,
-    paddingHorizontal: 22,
-    paddingVertical: 9,
-    borderRadius: 20,
-    marginTop: 12,
-  },
-
-  editDoneTxt: {
-    color: C.white,
-    fontWeight: '700',
-  },
-
-  body: { padding: 20 },
-
-  sectionHeader: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: C.inkFaint,
-    marginTop: 18,
-    marginBottom: 10,
-  },
-
-  group: {
-    backgroundColor: C.white,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: C.border,
-    overflow: 'hidden',
-  },
-
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 14,
-    borderBottomWidth: 0.5,
-    borderBottomColor: C.border,
-  },
-
-  rowLast: { borderBottomWidth: 0 },
-
-  rowIcon: { fontSize: 18, width: 24 },
-
-  rowBody: { flex: 1 },
-
-  rowLabel: { fontSize: 15, color: C.ink },
-
-  rowSub: { fontSize: 12, color: C.inkMuted },
-
-  rowChevron: { fontSize: 20, color: C.inkFaint },
-});

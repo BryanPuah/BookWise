@@ -16,7 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useStore } from '../store';
-import { C, F } from '../theme';
+import { useTheme } from '../theme';
 
 const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const WEEKDAY_LABELS = ['Mon', 'Wed', 'Fri'];  // GitHub only labels these three
@@ -72,6 +72,115 @@ function getMonthLabels(weeks) {
 }
 
 export function StreakActivityModal({ visible, onClose }) {
+  const { C, F, themeVersion } = useTheme();
+  const s = useMemo(() => StyleSheet.create({
+  safe: { flex: 1, backgroundColor: C.paper },
+
+  // Top bar
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 0.5,
+    borderBottomColor: C.border,
+  },
+  title: { fontFamily: F.serif, fontSize: 18, color: C.ink, letterSpacing: -0.2 },
+  closeBtn: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center' },
+
+  // Summary row
+  summary: {
+    flexDirection: 'row',
+    marginHorizontal: 16,
+    marginTop: 20,
+    backgroundColor: C.white,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: C.border,
+    paddingVertical: 18,
+  },
+  summaryItem: { flex: 1, alignItems: 'center' },
+  summaryDivider: { width: 0.5, backgroundColor: C.border },
+  summaryNum: {
+    fontFamily: F.serif,
+    fontSize: 32,
+    color: C.ink,
+    letterSpacing: -0.6,
+    marginBottom: 2,
+  },
+  summaryLabel: { fontSize: 11, color: C.inkMuted, fontWeight: '600', letterSpacing: 0.4 },
+
+  // Grid
+  gridKicker: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: C.inkMuted,
+    letterSpacing: 1.4,
+    marginHorizontal: 20,
+    marginTop: 24,
+    marginBottom: 14,
+  },
+  gridScroll: { paddingHorizontal: 20, paddingBottom: 8 },
+  monthRow: {
+    height: 18,
+    position: 'relative',
+    marginBottom: 6,
+  },
+  monthLabel: {
+    position: 'absolute',
+    fontSize: 11,
+    color: C.inkMuted,
+    fontWeight: '600',
+  },
+  weekdayCol: {
+    width: 28,
+    paddingRight: 4,
+  },
+  weekdayLabel: { fontSize: 10, color: C.inkMuted, fontWeight: '500' },
+  weekCol: { width: COL_WIDTH, gap: 0 },
+  cell: {
+    width: CELL,
+    height: CELL,
+    borderRadius: 2,
+    marginBottom: CELL_GAP,
+  },
+  cellEmpty: { backgroundColor: C.cream },
+  cellActive: { backgroundColor: C.sage },
+  cellFuture: { backgroundColor: 'transparent' },
+  cellToday: {
+    // subtle outline on today's cell so it's findable
+    borderWidth: 1,
+    borderColor: C.ink,
+  },
+
+  // Legend
+  legendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    marginTop: 12,
+    paddingLeft: 28,
+    gap: 4,
+  },
+  legendCell: {
+    width: CELL,
+    height: CELL,
+    borderRadius: 2,
+  },
+  legendTxt: { fontSize: 11, color: C.inkMuted, marginHorizontal: 6 },
+
+  // Caption
+  caption: {
+    paddingHorizontal: 24,
+    paddingTop: 18,
+  },
+  captionTxt: {
+    fontSize: 12,
+    color: C.inkMuted,
+    lineHeight: 18,
+  },
+  }), [themeVersion]);
   const { activeDays, currentStreak } = useStore();
   const activeSet = useMemo(() => new Set(activeDays || []), [activeDays]);
 
@@ -212,111 +321,3 @@ export function StreakActivityModal({ visible, onClose }) {
   );
 }
 
-const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.paper },
-
-  // Top bar
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 0.5,
-    borderBottomColor: C.border,
-  },
-  title: { fontFamily: F.serif, fontSize: 18, color: C.ink, letterSpacing: -0.2 },
-  closeBtn: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center' },
-
-  // Summary row
-  summary: {
-    flexDirection: 'row',
-    marginHorizontal: 16,
-    marginTop: 20,
-    backgroundColor: C.white,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: C.border,
-    paddingVertical: 18,
-  },
-  summaryItem: { flex: 1, alignItems: 'center' },
-  summaryDivider: { width: 0.5, backgroundColor: C.border },
-  summaryNum: {
-    fontFamily: F.serif,
-    fontSize: 32,
-    color: C.ink,
-    letterSpacing: -0.6,
-    marginBottom: 2,
-  },
-  summaryLabel: { fontSize: 11, color: C.inkMuted, fontWeight: '600', letterSpacing: 0.4 },
-
-  // Grid
-  gridKicker: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: C.inkMuted,
-    letterSpacing: 1.4,
-    marginHorizontal: 20,
-    marginTop: 24,
-    marginBottom: 14,
-  },
-  gridScroll: { paddingHorizontal: 20, paddingBottom: 8 },
-  monthRow: {
-    height: 18,
-    position: 'relative',
-    marginBottom: 6,
-  },
-  monthLabel: {
-    position: 'absolute',
-    fontSize: 11,
-    color: C.inkMuted,
-    fontWeight: '600',
-  },
-  weekdayCol: {
-    width: 28,
-    paddingRight: 4,
-  },
-  weekdayLabel: { fontSize: 10, color: C.inkMuted, fontWeight: '500' },
-  weekCol: { width: COL_WIDTH, gap: 0 },
-  cell: {
-    width: CELL,
-    height: CELL,
-    borderRadius: 2,
-    marginBottom: CELL_GAP,
-  },
-  cellEmpty: { backgroundColor: C.cream },
-  cellActive: { backgroundColor: C.sage },
-  cellFuture: { backgroundColor: 'transparent' },
-  cellToday: {
-    // subtle outline on today's cell so it's findable
-    borderWidth: 1,
-    borderColor: C.ink,
-  },
-
-  // Legend
-  legendRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    marginTop: 12,
-    paddingLeft: 28,
-    gap: 4,
-  },
-  legendCell: {
-    width: CELL,
-    height: CELL,
-    borderRadius: 2,
-  },
-  legendTxt: { fontSize: 11, color: C.inkMuted, marginHorizontal: 6 },
-
-  // Caption
-  caption: {
-    paddingHorizontal: 24,
-    paddingTop: 18,
-  },
-  captionTxt: {
-    fontSize: 12,
-    color: C.inkMuted,
-    lineHeight: 18,
-  },
-});

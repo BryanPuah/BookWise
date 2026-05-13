@@ -10,7 +10,7 @@
  * draft state.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView, Image,
   StyleSheet, Modal, KeyboardAvoidingView, Platform,
@@ -18,7 +18,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useStore } from '../store';
-import { C, F } from '../theme';
+import { useTheme } from '../theme';
 
 // Preset avatar seeds — 8 stylised characters. Each maps to a deterministic
 // DiceBear avatar. To swap to bundled images later, replace the URL build
@@ -33,6 +33,93 @@ export function buildAvatarUrl(seed, size = 200) {
 }
 
 export function EditProfileModal({ visible, onClose }) {
+  const { C, F, themeVersion } = useTheme();
+  const p = useMemo(() => StyleSheet.create({
+  safe: { flex: 1, backgroundColor: C.paper },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 0.5,
+    borderBottomColor: C.border,
+  },
+  title: { fontFamily: F.serif, fontSize: 17, color: C.ink, letterSpacing: -0.2 },
+  cancelTxt: { fontFamily: F.serif, fontSize: 14, color: C.inkMuted, fontWeight: '500' },
+  saveBtn: {
+    backgroundColor: C.ink,
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderRadius: 18,
+  },
+  saveBtnTxt: { fontFamily: F.serif, fontSize: 13, color: C.white, fontWeight: '700' },
+
+  sectionLabel: {
+    fontFamily: F.serif,
+    fontSize: 10,
+    fontWeight: '700',
+    color: C.inkMuted,
+    letterSpacing: 1,
+    marginHorizontal: 20,
+    marginTop: 24,
+    marginBottom: 10,
+  },
+
+  // Avatar grid
+  avatarGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 20,
+    gap: 10,
+  },
+  avatarOption: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: C.white,
+    borderWidth: 2,
+    borderColor: 'transparent',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  avatarOptionSelected: {
+    borderColor: C.ink,
+  },
+  avatarImg: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 30,
+    backgroundColor: C.cream,
+  },
+  checkBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: C.ink,
+    borderWidth: 2,
+    borderColor: C.paper,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Inputs
+  input: {
+    fontFamily: F.serif,
+    marginHorizontal: 20,
+    backgroundColor: C.white,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    fontSize: 15,
+    color: C.ink,
+  },
+  }), [themeVersion]);
   const { user, updateUser } = useStore();
   const [name, setName]   = useState(user.name);
   const [email, setEmail] = useState(user.email);
@@ -139,87 +226,3 @@ export function EditProfileModal({ visible, onClose }) {
   );
 }
 
-const p = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.paper },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 0.5,
-    borderBottomColor: C.border,
-  },
-  title: { fontFamily: F.serif, fontSize: 17, color: C.ink, letterSpacing: -0.2 },
-  cancelTxt: { fontSize: 14, color: C.inkMuted, fontWeight: '500' },
-  saveBtn: {
-    backgroundColor: C.ink,
-    paddingHorizontal: 16,
-    paddingVertical: 7,
-    borderRadius: 18,
-  },
-  saveBtnTxt: { fontSize: 13, color: C.white, fontWeight: '700' },
-
-  sectionLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: C.inkMuted,
-    letterSpacing: 1,
-    marginHorizontal: 20,
-    marginTop: 24,
-    marginBottom: 10,
-  },
-
-  // Avatar grid
-  avatarGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 20,
-    gap: 10,
-  },
-  avatarOption: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: C.white,
-    borderWidth: 2,
-    borderColor: 'transparent',
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  avatarOptionSelected: {
-    borderColor: C.ink,
-  },
-  avatarImg: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 30,
-    backgroundColor: C.cream,
-  },
-  checkBadge: {
-    position: 'absolute',
-    bottom: -2,
-    right: -2,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: C.ink,
-    borderWidth: 2,
-    borderColor: C.paper,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  // Inputs
-  input: {
-    marginHorizontal: 20,
-    backgroundColor: C.white,
-    borderWidth: 1,
-    borderColor: C.border,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    fontSize: 15,
-    color: C.ink,
-  },
-});

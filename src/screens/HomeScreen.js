@@ -11,7 +11,7 @@ import { ReadingTimeline } from '../components/ReadingTimeline';
 import { AppHeader } from '../components/AppHeader';
 import { ReflectionPage } from '../components/ReflectionPage';
 import { StreakActivityModal } from '../components/StreakActivityModal';
-import { C, F } from '../theme';
+import { useTheme } from '../theme';
 
 const { width: SW } = Dimensions.get('window');
 const HERO_W = SW - 16;
@@ -52,6 +52,52 @@ function startOfRange(range) {
 
 // ── Range picker modal ────────────────────────────────────────────────
 function RangePickerModal({ visible, currentRange, onSelect, onClose }) {
+  const { C, F, themeVersion } = useTheme();
+  const rp = useMemo(() => StyleSheet.create({
+    backdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.4)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingHorizontal: 40,
+    },
+    card: {
+      width: '100%',
+      maxWidth: 280,
+      backgroundColor: C.paper,
+      borderRadius: 16,
+      paddingVertical: 8,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.18,
+      shadowRadius: 24,
+      elevation: 16,
+    },
+    title: {
+      fontFamily: F.serif,
+      fontSize: 11, fontWeight: '700',
+      color: C.inkMuted, letterSpacing: 1,
+      paddingHorizontal: 16, paddingVertical: 10,
+    },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16, paddingVertical: 13,
+    },
+    rowActive: {
+      backgroundColor: C.amberPale,
+    },
+    rowTxt: {
+      fontFamily: F.serif,
+      fontSize: 15, fontWeight: '500', color: C.ink, letterSpacing: -0.2,
+    },
+    rowTxtActive: {
+      fontFamily: F.serif,
+      color: C.ink, fontWeight: '700',
+    },
+  }), [themeVersion]);
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <TouchableOpacity style={rp.backdrop} activeOpacity={1} onPress={onClose}>
@@ -81,8 +127,34 @@ function RangePickerModal({ visible, currentRange, onSelect, onClose }) {
 
 // ── Goal card ──────────────────────────────────────────────────────────
 function GoalCard({ baseLabel, current, range, onChangeRange }) {
+  const { C, F, themeVersion } = useTheme();
   const meta = RANGE_META[range];
   const [pickerOpen, setPickerOpen] = useState(false);
+
+  const s = useMemo(() => StyleSheet.create({
+    goalStat: {
+      flex: 1,
+      alignItems: 'flex-start',
+    },
+    goalMedal: {
+      marginBottom: 10,
+    },
+    goalCountNum: {
+      fontFamily: F.serif,
+      fontSize: 44,
+      color: C.amber,
+      letterSpacing: -1.5,
+      lineHeight: 48,
+      marginBottom: 6,
+    },
+    goalLabel: {
+      fontFamily: F.serif,
+      fontSize: 14,
+      color: C.inkSoft,
+      fontWeight: '400',
+      letterSpacing: -0.1,
+    },
+  }), [themeVersion]);
 
   return (
     <>
@@ -114,6 +186,32 @@ function GoalCard({ baseLabel, current, range, onChangeRange }) {
 // Zero state ("—") shown when streak is 0, so the visual layout doesn't
 // jump around.
 function StreakCard({ streak, onPress }) {
+  const { C, F, themeVersion } = useTheme();
+  const s = useMemo(() => StyleSheet.create({
+    goalStat: {
+      flex: 1,
+      alignItems: 'flex-start',
+    },
+    goalMedal: {
+      marginBottom: 10,
+    },
+    goalCountNum: {
+      fontFamily: F.serif,
+      fontSize: 44,
+      color: C.amber,
+      letterSpacing: -1.5,
+      lineHeight: 48,
+      marginBottom: 6,
+    },
+    goalLabel: {
+      fontFamily: F.serif,
+      fontSize: 14,
+      color: C.inkSoft,
+      fontWeight: '400',
+      letterSpacing: -0.1,
+    },
+  }), [themeVersion]);
+
   return (
     <TouchableOpacity
       style={s.goalStat}
@@ -133,6 +231,7 @@ function StreakCard({ streak, onPress }) {
 
 // ── Main screen ────────────────────────────────────────────────────────
 export function HomeScreen({ navigation }) {
+  const { C, F, themeVersion } = useTheme();
   const { books, notes, cards, dueCards, readingBooks, currentStreak, reflections, user } = useStore();
 
   // First name for the greeting — split on whitespace to handle "Julian Barnes" → "Julian".
@@ -193,6 +292,364 @@ export function HomeScreen({ navigation }) {
       onChangeRange: setNotesRange,
     },
   ];
+
+  const s = useMemo(() => StyleSheet.create({
+    safe: { flex: 1, backgroundColor: C.paper },
+
+    // Library sub-header (Figma)
+    libraryHeader: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      justifyContent: 'space-between',
+      paddingHorizontal: 20,
+      marginTop: 8,
+      marginBottom: 14,
+    },
+    libraryHeaderTitle: {
+      fontFamily: F.serif,
+      fontSize: 22,
+      color: C.ink,
+      letterSpacing: -0.3,
+    },
+    viewCollectionBtn: {
+      paddingVertical: 4,
+    },
+    viewCollectionTxt: {
+      fontFamily: F.serif,
+      fontSize: 12,
+      color: C.inkMuted,
+      fontWeight: '500',
+    },
+
+    // Hero card — light Figma style with book cover on the left
+    heroCard: {
+      marginHorizontal: 8,
+      marginBottom: 20,
+      borderRadius: 20,
+      overflow: 'hidden',
+      backgroundColor: C.white,
+      height: 260,
+      borderLeftWidth: 6,
+      borderLeftColor: C.sage,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.06,
+      shadowRadius: 10,
+      elevation: 3,
+    },
+    heroInner: {
+      flexDirection: 'row',
+      padding: 18,
+      gap: 16,
+      alignItems: 'flex-start',
+      height: 260,
+      paddingBottom: 30,
+    },
+    heroCoverCol: {
+      shadowColor: '#000',
+      shadowOffset: { width: 2, height: 4 },
+      shadowOpacity: 0.18,
+      shadowRadius: 10,
+      elevation: 6,
+    },
+    heroInfoCol: { flex: 1, paddingTop: 2 },
+
+    heroTagPill: {
+      alignSelf: 'flex-start',
+      backgroundColor: C.amberPale,
+      paddingHorizontal: 12,
+      paddingVertical: 5,
+      borderRadius: 14,
+      marginBottom: 8,
+    },
+    heroTagPillTxt: {
+      fontFamily: F.serif,
+      fontSize: 10,
+      fontWeight: '700',
+      color: C.ink,
+      letterSpacing: 0.8,
+    },
+
+    heroTitle: {
+      fontFamily: F.serif,
+      fontSize: 22,
+      color: C.ink,
+      lineHeight: 26,
+      letterSpacing: -0.4,
+      marginBottom: 2,
+    },
+    heroAuthor: {
+      fontFamily: F.serif,
+      fontSize: 12,
+      color: C.inkMuted,
+      marginBottom: 12,
+    },
+
+    heroProgressRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'baseline',
+      marginBottom: 6,
+    },
+    heroProgressLbl:   { fontFamily: F.serif, fontSize: 11, color: C.ink, fontWeight: '600' },
+    heroProgressPages: { fontFamily: F.serif, fontSize: 11, color: C.inkMuted },
+    heroTrack: {
+      height: 4,
+      backgroundColor: C.creamDark,
+      borderRadius: 2,
+      overflow: 'hidden',
+      marginBottom: 12,
+    },
+    heroFill: {
+      height: 4,
+      backgroundColor: C.ink,
+      borderRadius: 2,
+    },
+
+    heroActions: {
+      flexDirection: 'row',
+      gap: 8,
+      marginBottom: 6,
+    },
+    heroPrimaryBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 5,
+      backgroundColor: C.ink,
+      paddingHorizontal: 12,
+      paddingVertical: 9,
+      borderRadius: 8,
+    },
+    heroPrimaryTxt: {
+      fontFamily: F.serif,
+      fontSize: 11,
+      color: C.white,
+      fontWeight: '600',
+    },
+    heroSecondaryBtn: {
+      flex: 1,
+      backgroundColor: C.white,
+      borderWidth: 1,
+      borderColor: C.border,
+      paddingHorizontal: 10,
+      paddingVertical: 9,
+      borderRadius: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    heroSecondaryTxt: {
+      fontFamily: F.serif,
+      fontSize: 11,
+      color: C.ink,
+      fontWeight: '500',
+    },
+
+    heroNoteCount: {
+      fontFamily: F.serif,
+      fontSize: 10,
+      color: C.inkMuted,
+      marginTop: 6,
+    },
+
+    // Carousel dots — sit below the card on light background
+    dotsRow: {
+      flexDirection: 'row', justifyContent: 'center', alignItems: 'center',
+      gap: 6, position: 'absolute', bottom: 10, left: 0, right: 0,
+    },
+    dot:       { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(26,30,58,0.15)' },
+    dotActive: { backgroundColor: C.ink },
+    dotEdge:   { width: 4, height: 4, borderRadius: 2, opacity: 0.4 },
+
+    emptyHero: {
+      marginHorizontal: 20, backgroundColor: C.white, borderRadius: 20,
+      padding: 32, alignItems: 'center', marginBottom: 16,
+      borderWidth: 1, borderStyle: 'dashed', borderColor: C.border,
+    },
+    emptyHeroIcon:   { fontSize: 36, marginBottom: 12 },
+    emptyHeroTitle:  { fontFamily: F.serif, fontSize: 20, color: C.ink, textAlign: 'center', marginBottom: 6 },
+    emptyHeroSub:    { fontFamily: F.serif, fontSize: 13, color: C.inkMuted, textAlign: 'center', lineHeight: 20, marginBottom: 20 },
+    emptyHeroBtn:    { backgroundColor: C.ink, paddingHorizontal: 20, paddingVertical: 11, borderRadius: 22 },
+    emptyHeroBtnTxt: { fontFamily: F.serif, color: C.white, fontSize: 13, fontWeight: '600' },
+
+    // Goals
+    // Stats row — three big numerals evenly spaced across the row
+    goalsWrap: {
+      flexDirection: 'row',
+      paddingHorizontal: 24,
+      paddingVertical: 28,
+      justifyContent: 'space-between',
+    },
+    goalStat: {
+      flex: 1,
+      alignItems: 'flex-start',
+    },
+    goalMedal: {
+      marginBottom: 10,
+    },
+    goalCountNum: {
+      fontFamily: F.serif,
+      fontSize: 44,
+      color: C.amber,
+      letterSpacing: -1.5,
+      lineHeight: 48,
+      marginBottom: 6,
+    },
+    goalLabel: {
+      fontFamily: F.serif,
+      fontSize: 14,
+      color: C.inkSoft,
+      fontWeight: '400',
+      letterSpacing: -0.1,
+    },
+
+    // Review banner
+    reviewBanner: {
+      marginHorizontal: 20, backgroundColor: C.amberPale, borderRadius: 14,
+      padding: 14, flexDirection: 'row', alignItems: 'center', gap: 14,
+      borderWidth: 1, borderColor: 'rgba(212,181,122,0.3)',
+      marginTop: 24, marginBottom: 8,
+    },
+    reviewLeft: {
+      width: 40, height: 40, borderRadius: 12,
+      backgroundColor: C.ink, alignItems: 'center', justifyContent: 'center',
+    },
+    reviewNum: { fontFamily: F.serif, fontSize: 18, fontWeight: '800', color: C.white },
+    reviewTitle: { fontFamily: F.serif, fontSize: 14, fontWeight: '700', color: C.ink },
+    reviewSub: { fontFamily: F.serif, fontSize: 11, color: C.inkMuted, marginTop: 2 },
+
+    // ── Collection tabs (Finished / Want to Read / Collections) ─────
+    collectionTabs: {
+      flexDirection: 'row',
+      gap: 28,
+      paddingHorizontal: 20,
+      marginTop: 28,
+      borderBottomWidth: 0.5,
+      borderBottomColor: C.border,
+    },
+    collectionTab: {
+      paddingBottom: 12,
+      paddingTop: 4,
+    },
+    collectionTabTxt: {
+      fontFamily: F.serif,
+      fontSize: 14,
+      color: C.inkMuted,
+      fontWeight: '500',
+    },
+    collectionTabTxtActive: {
+      fontFamily: F.serif,
+      color: C.ink,
+      fontWeight: '700',
+    },
+    collectionTabUnderline: {
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      height: 2,
+      backgroundColor: C.ink,
+      borderRadius: 1,
+    },
+
+    // ── Grid ─────────────────────────────────────────────────────────
+    collectionGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      paddingHorizontal: 20,
+      paddingTop: 20,
+      gap: TILE_GUTTER,
+    },
+    tile: {
+      width: TILE_W,
+    },
+    tileCover: {
+      width: TILE_W,
+      height: TILE_H,
+      borderRadius: 12,
+      overflow: 'hidden',
+      backgroundColor: C.cream,
+      position: 'relative',
+    },
+    tileCheck: {
+      position: 'absolute',
+      top: 8, right: 8,
+      width: 22, height: 22, borderRadius: 11,
+      backgroundColor: C.ink,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    tileTitle: {
+      fontFamily: F.serif,
+      fontSize: 13,
+      color: C.ink,
+      fontWeight: '600',
+      marginTop: 10,
+      lineHeight: 17,
+    },
+    tileAuthor: {
+      fontFamily: F.serif,
+      fontSize: 11,
+      color: C.inkMuted,
+      marginTop: 2,
+    },
+    collectionEmpty: {
+      width: '100%',
+      alignItems: 'center',
+      paddingVertical: 40,
+      gap: 10,
+    },
+    collectionEmptyTxt: {
+      fontFamily: F.serif,
+      fontSize: 13,
+      color: C.inkFaint,
+      textAlign: 'center',
+    },
+    collectionEmptyLink: {
+      fontFamily: F.serif,
+      fontSize: 13,
+      color: C.ink,
+      fontWeight: '600',
+    },
+
+    // ── Reflections list (when "Reflections" collection tab is active) ──
+    reflectionsList: {
+      paddingHorizontal: 16,
+      paddingTop: 4,
+      gap: 8,
+    },
+    reflectionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      backgroundColor: C.white,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: C.border,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+    },
+    reflectionRowIcon: {
+      width: 30,
+      height: 30,
+      borderRadius: 15,
+      backgroundColor: C.amberPale,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    reflectionRowDate: {
+      fontFamily: F.serif,
+      fontSize: 14,
+      color: C.ink,
+      letterSpacing: -0.2,
+      marginBottom: 2,
+    },
+    reflectionRowBody: {
+      fontFamily: F.serif,
+      fontSize: 12,
+      color: C.inkMuted,
+      lineHeight: 17,
+    },
+  }), [themeVersion]);
 
   return (
     <SafeAreaView style={s.safe} edges={['top']}>
@@ -393,7 +850,7 @@ export function HomeScreen({ navigation }) {
               <Text style={s.reviewTitle}>Flashcards ready</Text>
               <Text style={s.reviewSub}>Review now to retain what you've read</Text>
             </View>
-            <Text style={{ color: C.amber, fontSize: 20, fontWeight: '600' }}>→</Text>
+            <Text style={{ fontFamily: F.serif, color: C.amber, fontSize: 20, fontWeight: '600' }}>→</Text>
           </TouchableOpacity>
         )}
 
@@ -530,391 +987,3 @@ export function HomeScreen({ navigation }) {
     </SafeAreaView>
   );
 }
-
-// ── Styles ─────────────────────────────────────────────────────────────
-const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.paper },
-
-  // Library sub-header (Figma)
-  libraryHeader: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    marginTop: 8,
-    marginBottom: 14,
-  },
-  libraryHeaderTitle: {
-    fontFamily: F.serif,
-    fontSize: 22,
-    color: C.ink,
-    letterSpacing: -0.3,
-  },
-  viewCollectionBtn: {
-    paddingVertical: 4,
-  },
-  viewCollectionTxt: {
-    fontSize: 12,
-    color: C.inkMuted,
-    fontWeight: '500',
-  },
-
-  // Hero card — light Figma style with book cover on the left
-  heroCard: {
-    marginHorizontal: 8,
-    marginBottom: 20,
-    borderRadius: 20,
-    overflow: 'hidden',
-    backgroundColor: C.white,
-    height: 260,
-    borderLeftWidth: 6,
-    borderLeftColor: C.sage,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 3,
-  },
-  heroInner: {
-    flexDirection: 'row',
-    padding: 18,
-    gap: 16,
-    alignItems: 'flex-start',
-    height: 260,
-    paddingBottom: 30,
-  },
-  heroCoverCol: {
-    shadowColor: '#000',
-    shadowOffset: { width: 2, height: 4 },
-    shadowOpacity: 0.18,
-    shadowRadius: 10,
-    elevation: 6,
-  },
-  heroInfoCol: { flex: 1, paddingTop: 2 },
-
-  heroTagPill: {
-    alignSelf: 'flex-start',
-    backgroundColor: C.amberPale,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 14,
-    marginBottom: 8,
-  },
-  heroTagPillTxt: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: C.ink,
-    letterSpacing: 0.8,
-  },
-
-  heroTitle: {
-    fontFamily: F.serif,
-    fontSize: 22,
-    color: C.ink,
-    lineHeight: 26,
-    letterSpacing: -0.4,
-    marginBottom: 2,
-  },
-  heroAuthor: {
-    fontSize: 12,
-    color: C.inkMuted,
-    marginBottom: 12,
-  },
-
-  heroProgressRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-    marginBottom: 6,
-  },
-  heroProgressLbl:   { fontSize: 11, color: C.ink, fontWeight: '600' },
-  heroProgressPages: { fontSize: 11, color: C.inkMuted },
-  heroTrack: {
-    height: 4,
-    backgroundColor: C.creamDark,
-    borderRadius: 2,
-    overflow: 'hidden',
-    marginBottom: 12,
-  },
-  heroFill: {
-    height: 4,
-    backgroundColor: C.ink,
-    borderRadius: 2,
-  },
-
-  heroActions: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 6,
-  },
-  heroPrimaryBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-    backgroundColor: C.ink,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    borderRadius: 8,
-  },
-  heroPrimaryTxt: {
-    fontSize: 11,
-    color: C.white,
-    fontWeight: '600',
-  },
-  heroSecondaryBtn: {
-    flex: 1,
-    backgroundColor: C.white,
-    borderWidth: 1,
-    borderColor: C.border,
-    paddingHorizontal: 10,
-    paddingVertical: 9,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  heroSecondaryTxt: {
-    fontSize: 11,
-    color: C.ink,
-    fontWeight: '500',
-  },
-
-  heroNoteCount: {
-    fontSize: 10,
-    color: C.inkMuted,
-    marginTop: 6,
-  },
-
-  // Carousel dots — sit below the card on light background
-  dotsRow: {
-    flexDirection: 'row', justifyContent: 'center', alignItems: 'center',
-    gap: 6, position: 'absolute', bottom: 10, left: 0, right: 0,
-  },
-  dot:       { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(26,30,58,0.15)' },
-  dotActive: { backgroundColor: C.ink },
-  dotEdge:   { width: 4, height: 4, borderRadius: 2, opacity: 0.4 },
-
-  emptyHero: {
-    marginHorizontal: 20, backgroundColor: C.white, borderRadius: 20,
-    padding: 32, alignItems: 'center', marginBottom: 16,
-    borderWidth: 1, borderStyle: 'dashed', borderColor: C.border,
-  },
-  emptyHeroIcon:   { fontSize: 36, marginBottom: 12 },
-  emptyHeroTitle:  { fontFamily: F.serif, fontSize: 20, color: C.ink, textAlign: 'center', marginBottom: 6 },
-  emptyHeroSub:    { fontSize: 13, color: C.inkMuted, textAlign: 'center', lineHeight: 20, marginBottom: 20 },
-  emptyHeroBtn:    { backgroundColor: C.ink, paddingHorizontal: 20, paddingVertical: 11, borderRadius: 22 },
-  emptyHeroBtnTxt: { color: C.white, fontSize: 13, fontWeight: '600' },
-
-  // Goals
-  // Stats row — three big numerals evenly spaced across the row
-  goalsWrap: {
-    flexDirection: 'row',
-    paddingHorizontal: 24,
-    paddingVertical: 28,
-    justifyContent: 'space-between',
-  },
-  goalStat: {
-    flex: 1,
-    alignItems: 'flex-start',
-  },
-  goalMedal: {
-    marginBottom: 10,
-  },
-  goalCountNum: {
-    fontFamily: F.serif,
-    fontSize: 44,
-    color: C.amber,
-    letterSpacing: -1.5,
-    lineHeight: 48,
-    marginBottom: 6,
-  },
-  goalLabel: {
-    fontSize: 14,
-    color: C.inkSoft,
-    fontWeight: '400',
-    letterSpacing: -0.1,
-  },
-
-  // Review banner
-  reviewBanner: {
-    marginHorizontal: 20, backgroundColor: C.amberPale, borderRadius: 14,
-    padding: 14, flexDirection: 'row', alignItems: 'center', gap: 14,
-    borderWidth: 1, borderColor: 'rgba(212,181,122,0.3)',
-    marginTop: 24, marginBottom: 8,
-  },
-  reviewLeft: {
-    width: 40, height: 40, borderRadius: 12,
-    backgroundColor: C.ink, alignItems: 'center', justifyContent: 'center',
-  },
-  reviewNum: { fontSize: 18, fontWeight: '800', color: C.white },
-  reviewTitle: { fontSize: 14, fontWeight: '700', color: C.ink },
-  reviewSub: { fontSize: 11, color: C.inkMuted, marginTop: 2 },
-
-  // ── Collection tabs (Finished / Want to Read / Collections) ─────
-  collectionTabs: {
-    flexDirection: 'row',
-    gap: 28,
-    paddingHorizontal: 20,
-    marginTop: 28,
-    borderBottomWidth: 0.5,
-    borderBottomColor: C.border,
-  },
-  collectionTab: {
-    paddingBottom: 12,
-    paddingTop: 4,
-  },
-  collectionTabTxt: {
-    fontSize: 14,
-    color: C.inkMuted,
-    fontWeight: '500',
-  },
-  collectionTabTxtActive: {
-    color: C.ink,
-    fontWeight: '700',
-  },
-  collectionTabUnderline: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 2,
-    backgroundColor: C.ink,
-    borderRadius: 1,
-  },
-
-  // ── Grid ─────────────────────────────────────────────────────────
-  collectionGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    gap: TILE_GUTTER,
-  },
-  tile: {
-    width: TILE_W,
-  },
-  tileCover: {
-    width: TILE_W,
-    height: TILE_H,
-    borderRadius: 12,
-    overflow: 'hidden',
-    backgroundColor: C.cream,
-    position: 'relative',
-  },
-  tileCheck: {
-    position: 'absolute',
-    top: 8, right: 8,
-    width: 22, height: 22, borderRadius: 11,
-    backgroundColor: C.ink,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  tileTitle: {
-    fontSize: 13,
-    color: C.ink,
-    fontWeight: '600',
-    marginTop: 10,
-    lineHeight: 17,
-  },
-  tileAuthor: {
-    fontSize: 11,
-    color: C.inkMuted,
-    marginTop: 2,
-  },
-  collectionEmpty: {
-    width: '100%',
-    alignItems: 'center',
-    paddingVertical: 40,
-    gap: 10,
-  },
-  collectionEmptyTxt: {
-    fontSize: 13,
-    color: C.inkFaint,
-    textAlign: 'center',
-  },
-  collectionEmptyLink: {
-    fontSize: 13,
-    color: C.ink,
-    fontWeight: '600',
-  },
-
-  // ── Reflections list (when "Reflections" collection tab is active) ──
-  reflectionsList: {
-    paddingHorizontal: 16,
-    paddingTop: 4,
-    gap: 8,
-  },
-  reflectionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: C.white,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: C.border,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  reflectionRowIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: C.amberPale,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  reflectionRowDate: {
-    fontFamily: F.serif,
-    fontSize: 14,
-    color: C.ink,
-    letterSpacing: -0.2,
-    marginBottom: 2,
-  },
-  reflectionRowBody: {
-    fontSize: 12,
-    color: C.inkMuted,
-    lineHeight: 17,
-  },
-});
-
-// ── Range picker styles ───────────────────────────────────────────────
-const rp = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 40,
-  },
-  card: {
-    width: '100%',
-    maxWidth: 280,
-    backgroundColor: C.paper,
-    borderRadius: 16,
-    paddingVertical: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18,
-    shadowRadius: 24,
-    elevation: 16,
-  },
-  title: {
-    fontSize: 11, fontWeight: '700',
-    color: C.inkMuted, letterSpacing: 1,
-    paddingHorizontal: 16, paddingVertical: 10,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 13,
-  },
-  rowActive: {
-    backgroundColor: C.amberPale,
-  },
-  rowTxt: {
-    fontSize: 15, fontWeight: '500', color: C.ink, letterSpacing: -0.2,
-  },
-  rowTxtActive: {
-    color: C.ink, fontWeight: '700',
-  },
-});

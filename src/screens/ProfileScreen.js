@@ -1,24 +1,20 @@
 /**
  * ProfileScreen — sectioned settings page (Figma-faithful).
  *
- * Layout (matches the screenshot):
+ * Layout:
  *   1. Avatar with edit pencil badge + serif name + role subtitle
  *   2. ACCOUNT SETTINGS — Email row + Change Password row
- *   3. JOURNALING PREFERENCES — Typography, Theme, Reading Reminders
- *   4. SUPPORT & LEGAL — Help Center, Privacy Policy
- *   5. Logout button (outlined red)
+ *   3. APPEARANCE — 10-theme color picker (Todoist-style)
+ *   4. JOURNALING PREFERENCES — Typography, Reading Reminders
+ *   5. SUPPORT & LEGAL — Help Center, Privacy Policy
+ *   6. Logout button (outlined red)
  *
- * What works:
- *   - Tap avatar / header → opens EditProfileModal (real edit flow)
- *   - Logout button → clears user from store, app routes to LoginScreen
- *   - Reading Reminders toggle has working visual state (in-memory only)
- *   - Theme toggle has visual light/dark icons (no actual theming)
- *
- * What's a placeholder (alert on tap):
- *   - Email row, Change Password, Typography, Help Center, Privacy Policy
+ * Theme picker — tapping a swatch calls setTheme() from useTheme(),
+ * which mutates the live palette and re-renders every subscribed
+ * component across the app.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   Image, Switch, Alert,
@@ -27,7 +23,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useStore } from '../store';
 import { EditProfileModal, buildAvatarUrl } from '../components/EditProfileModal';
-import { C, F } from '../theme';
+import { useTheme } from '../theme';
 
 // Initials fallback when no avatar seed (legacy users)
 function getInitials(name) {
@@ -38,7 +34,33 @@ function getInitials(name) {
 }
 
 // Reusable row — left icon + label + right value/chevron/toggle
-function SettingRow({ icon, label, value, rightChevron, switchValue, onSwitchChange, onPress, isCustomRight }) {
+function SettingRow({ icon, label, value, rightChevron, switchValue, onSwitchChange, onPress }) {
+  const { C, F, themeVersion } = useTheme();
+  const s = useMemo(() => StyleSheet.create({
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 14,
+      paddingVertical: 14,
+    },
+    rowIconWrap: { width: 30, alignItems: 'center' },
+    rowLabel: {
+      flex: 1,
+      fontFamily: F.serif,
+      fontSize: 14,
+      color: C.ink,
+      fontWeight: '500',
+      marginLeft: 6,
+    },
+    rowRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    rowValue: {
+      fontFamily: F.serif,
+      fontSize: 13,
+      color: C.inkMuted,
+      fontWeight: '500',
+    },
+  }), [themeVersion]);
+
   return (
     <TouchableOpacity
       style={s.row}
@@ -60,18 +82,242 @@ function SettingRow({ icon, label, value, rightChevron, switchValue, onSwitchCha
             ios_backgroundColor={C.cream}
           />
         )}
-        {isCustomRight ? null : value ? <Text style={s.rowValue}>{value}</Text> : null}
+        {value ? <Text style={s.rowValue}>{value}</Text> : null}
         {rightChevron && <Ionicons name="chevron-forward" size={16} color={C.inkFaint} />}
       </View>
     </TouchableOpacity>
   );
 }
 
+// Theme picker — collapsible row. Tap header to expand swatch grid.
+function ThemePicker() {
+  const { C, F, themes, themeName, setTheme, themeVersion } = useTheme();
+  const [expanded, setExpanded] = useState(false);
+  const s = useMemo(() => StyleSheet.create({
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 14,
+      paddingVertical: 14,
+    },
+    rowIconWrap: { width: 30, alignItems: 'center' },
+    rowLabel: {
+      flex: 1,
+      fontFamily: F.serif,
+      fontSize: 14,
+      color: C.ink,
+      fontWeight: '500',
+      marginLeft: 6,
+    },
+    rowRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    rowValue: {
+      fontFamily: F.serif,
+      fontSize: 13,
+      color: C.inkMuted,
+      fontWeight: '500',
+    },
+    divider: {
+      height: 0.5,
+      backgroundColor: C.border,
+      marginLeft: 50,
+    },
+    gridWrap: {
+      paddingHorizontal: 18,
+      paddingTop: 14,
+      paddingBottom: 16,
+    },
+    grid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 12,
+    },
+    swatchWrap: {
+      width: 52,
+      height: 52,
+      borderRadius: 26,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    swatchWrapActive: {
+      borderWidth: 2,
+      borderColor: C.ink,
+    },
+    swatch: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.08,
+      shadowRadius: 3,
+      elevation: 2,
+    },
+  }), [themeVersion]);
+
+  const entries = Object.entries(themes);
+  const activeLabel = themes[themeName]?.label || 'Default';
+
+  return (
+    <View>
+      <TouchableOpacity
+        style={s.row}
+        onPress={() => setExpanded(v => !v)}
+        activeOpacity={0.7}
+      >
+        <View style={s.rowIconWrap}>
+          <Ionicons name="color-palette-outline" size={18} color={C.inkMuted} />
+        </View>
+        <Text style={s.rowLabel}>Color Theme</Text>
+        <View style={s.rowRight}>
+          <Ionicons name="chevron-forward" size={16} color={C.inkFaint} />
+        </View>
+      </TouchableOpacity>
+      {expanded && (
+        <>
+          <View style={s.divider} />
+          <View style={s.gridWrap}>
+            <View style={s.grid}>
+              {entries.map(([key, theme]) => {
+                const active = key === themeName;
+                return (
+                  <TouchableOpacity
+                    key={key}
+                    style={[s.swatchWrap, active && s.swatchWrapActive]}
+                    onPress={() => setTheme(key)}
+                    activeOpacity={0.7}
+                    accessibilityLabel={`${theme.label} theme`}
+                  >
+                    <View style={[s.swatch, { backgroundColor: theme.swatch }]}>
+                      {active && (
+                        <Ionicons name="checkmark" size={22} color={C.white} />
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        </>
+      )}
+    </View>
+  );
+}
+
 export function ProfileScreen() {
   const { user, logout } = useStore();
+  const { C, F, themeVersion } = useTheme();
   const [editOpen, setEditOpen] = useState(false);
   const [reminders, setReminders] = useState(true);
-  const [theme, setTheme] = useState('light'); // 'light' | 'dark' (visual only)
+
+  const ROSE = '#C0392B';
+
+  const s = useMemo(() => StyleSheet.create({
+    safe: { flex: 1, backgroundColor: C.paper },
+
+    // Header — avatar + name + role
+    header: {
+      alignItems: 'center',
+      paddingTop: 24,
+      paddingBottom: 28,
+      paddingHorizontal: 20,
+    },
+    avatarWrap: {
+      width: 88,
+      height: 88,
+      position: 'relative',
+      marginBottom: 14,
+    },
+    avatar: {
+      width: 88,
+      height: 88,
+      borderRadius: 44,
+      backgroundColor: C.cream,
+    },
+    avatarFallback: {
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    avatarFallbackTxt: {
+      fontFamily: F.serif,
+      fontSize: 28,
+      color: C.ink,
+    },
+    editBadge: {
+      position: 'absolute',
+      bottom: 0,
+      right: 0,
+      width: 26,
+      height: 26,
+      borderRadius: 13,
+      backgroundColor: C.ink,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 2,
+      borderColor: C.paper,
+    },
+    name: {
+      fontFamily: F.serif,
+      fontSize: 26,
+      color: C.ink,
+      letterSpacing: -0.4,
+      marginBottom: 2,
+    },
+    role: {
+      fontFamily: F.serif,
+      fontSize: 13,
+      color: C.inkMuted,
+      fontWeight: '500',
+    },
+
+    // Section
+    sectionLabel: {
+      fontFamily: F.serif,
+      fontSize: 10,
+      fontWeight: '700',
+      color: C.inkMuted,
+      letterSpacing: 1.4,
+      marginHorizontal: 24,
+      marginTop: 18,
+      marginBottom: 10,
+    },
+    card: {
+      marginHorizontal: 16,
+      backgroundColor: C.white,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: C.border,
+      overflow: 'hidden',
+    },
+    divider: {
+      height: 0.5,
+      backgroundColor: C.border,
+      marginLeft: 50,
+    },
+
+    // Logout
+    logoutBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      marginHorizontal: 16,
+      marginTop: 28,
+      paddingVertical: 14,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: ROSE,
+      backgroundColor: C.white,
+    },
+    logoutTxt: {
+      fontFamily: F.serif,
+      fontSize: 14,
+      color: ROSE,
+      fontWeight: '700',
+      letterSpacing: 0.2,
+    },
+  }), [themeVersion]);
 
   const showComingSoon = (label) =>
     Alert.alert(label, 'Coming soon.');
@@ -121,6 +367,12 @@ export function ProfileScreen() {
           />
         </View>
 
+        {/* APPEARANCE — color theme picker */}
+        <Text style={s.sectionLabel}>APPEARANCE</Text>
+        <View style={s.card}>
+          <ThemePicker />
+        </View>
+
         {/* JOURNALING PREFERENCES */}
         <Text style={s.sectionLabel}>JOURNALING PREFERENCES</Text>
         <View style={s.card}>
@@ -131,40 +383,6 @@ export function ProfileScreen() {
             rightChevron
             onPress={() => showComingSoon('Typography')}
           />
-          <View style={s.divider} />
-          {/* Theme — light/dark toggle (visual only) */}
-          <View style={s.row}>
-            <View style={s.rowIconWrap}>
-              <Ionicons name="moon-outline" size={18} color={C.inkMuted} />
-            </View>
-            <Text style={s.rowLabel}>Theme</Text>
-            <View style={s.themeToggleWrap}>
-              <TouchableOpacity
-                style={[s.themeBtn, theme === 'light' && s.themeBtnActive]}
-                onPress={() => {
-                  if (theme !== 'light') {
-                    showComingSoon('Theme switching');
-                    setTheme('light');
-                  }
-                }}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="sunny" size={14} color={theme === 'light' ? C.ink : C.inkMuted} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[s.themeBtn, theme === 'dark' && s.themeBtnActive]}
-                onPress={() => {
-                  if (theme !== 'dark') {
-                    showComingSoon('Theme switching');
-                    setTheme('dark');
-                  }
-                }}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="moon" size={14} color={theme === 'dark' ? C.ink : C.inkMuted} />
-              </TouchableOpacity>
-            </View>
-          </View>
           <View style={s.divider} />
           <SettingRow
             icon="notifications-outline"
@@ -198,7 +416,7 @@ export function ProfileScreen() {
           onPress={logout}
           activeOpacity={0.85}
         >
-          <Ionicons name="log-out-outline" size={18} color={C.rose || '#C0392B'} />
+          <Ionicons name="log-out-outline" size={18} color={ROSE} />
           <Text style={s.logoutTxt}>Logout</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -207,161 +425,3 @@ export function ProfileScreen() {
     </SafeAreaView>
   );
 }
-
-const ROSE = '#C0392B';
-
-const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.paper },
-
-  // Header — avatar + name + role
-  header: {
-    alignItems: 'center',
-    paddingTop: 24,
-    paddingBottom: 28,
-    paddingHorizontal: 20,
-  },
-  avatarWrap: {
-    width: 88,
-    height: 88,
-    position: 'relative',
-    marginBottom: 14,
-  },
-  avatar: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    backgroundColor: C.cream,
-  },
-  avatarFallback: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarFallbackTxt: {
-    fontFamily: F.serif,
-    fontSize: 28,
-    color: C.ink,
-  },
-  editBadge: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: C.ink,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: C.paper,
-  },
-  name: {
-    fontFamily: F.serif,
-    fontSize: 26,
-    color: C.ink,
-    letterSpacing: -0.4,
-    marginBottom: 2,
-  },
-  role: {
-    fontSize: 13,
-    color: C.inkMuted,
-    fontWeight: '500',
-  },
-
-  // Section
-  sectionLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: C.inkMuted,
-    letterSpacing: 1.4,
-    marginHorizontal: 24,
-    marginTop: 18,
-    marginBottom: 10,
-  },
-  card: {
-    marginHorizontal: 16,
-    backgroundColor: C.white,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: C.border,
-    overflow: 'hidden',
-  },
-  divider: {
-    height: 0.5,
-    backgroundColor: C.border,
-    marginLeft: 50,
-  },
-
-  // Row
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-  },
-  rowIconWrap: {
-    width: 30,
-    alignItems: 'center',
-  },
-  rowLabel: {
-    flex: 1,
-    fontSize: 14,
-    color: C.ink,
-    fontWeight: '500',
-    marginLeft: 6,
-  },
-  rowRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  rowValue: {
-    fontSize: 13,
-    color: C.inkMuted,
-    fontWeight: '500',
-  },
-
-  // Theme toggle
-  themeToggleWrap: {
-    flexDirection: 'row',
-    backgroundColor: C.cream,
-    borderRadius: 18,
-    padding: 3,
-    gap: 2,
-  },
-  themeBtn: {
-    width: 30,
-    height: 28,
-    borderRadius: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  themeBtnActive: {
-    backgroundColor: C.white,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-
-  // Logout
-  logoutBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginHorizontal: 16,
-    marginTop: 28,
-    paddingVertical: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: ROSE,
-    backgroundColor: C.white,
-  },
-  logoutTxt: {
-    fontSize: 14,
-    color: ROSE,
-    fontWeight: '700',
-    letterSpacing: 0.2,
-  },
-});

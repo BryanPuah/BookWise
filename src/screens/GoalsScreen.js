@@ -10,7 +10,7 @@
  * Accessible from the "Manage" link in the DayPanel's Goals section.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
   StyleSheet, Modal,
@@ -19,11 +19,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Swipeable } from 'react-native-gesture-handler';
 import { useStore } from '../store';
-import { C, F } from '../theme';
+import { C, useTheme } from '../theme';
 
 // Suggested tags
 const TAG_SUGGESTIONS = ['READING', 'WRITING', 'ADMIN', 'STUDY', 'HEALTH', 'CREATIVE'];
 
+// NOTE: TAG_TINT captures C values at module load and is intentionally
+// frozen to the default theme. Tag tints will not re-theme at runtime
+// — acceptable trade-off per the theme refactor design.
 const TAG_TINT = {
   READING:  { bg: C.sagePale,  fg: C.ink },
   WRITING:  { bg: C.amberPale, fg: C.ink },
@@ -57,12 +60,92 @@ const todayKey = () => new Date().toISOString().slice(0, 10);
 
 // ── Goal editor modal — used for Add and Edit ─────────────────────────
 export function GoalEditor({ visible, goal, onSave, onClose, defaultRecurrence = 'daily', defaultDueDate = null }) {
+  const { C, F, themeVersion } = useTheme();
   const [label, setLabel]           = useState('');
   const [tag, setTag]               = useState('');
   const [recurrence, setRecurrence] = useState('daily');
   const [weekday, setWeekday]       = useState(0);
   const [monthDay, setMonthDay]     = useState('1');
   const [dueDate, setDueDate]       = useState(todayKey());
+
+  const ge = useMemo(() => StyleSheet.create({
+    safe: { flex: 1, backgroundColor: C.paper },
+    header: {
+      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+      padding: 20, borderBottomWidth: 1, borderBottomColor: C.border,
+    },
+    cancel: { fontFamily: F.serif, fontSize: 14, color: C.inkMuted },
+    title:  { fontFamily: F.serif, fontSize: 18, color: C.ink, letterSpacing: -0.2 },
+    save:   { fontFamily: F.serif, fontSize: 14, color: C.ink, fontWeight: '700' },
+    label:  { fontFamily: F.serif, fontSize: 10, fontWeight: '700', color: C.inkMuted, letterSpacing: 1, marginHorizontal: 20, marginTop: 20, marginBottom: 8 },
+    hint:   { fontFamily: F.serif, fontSize: 12, color: C.inkMuted, marginHorizontal: 20, marginTop: 6, fontStyle: 'italic' },
+    mainInput: {
+      fontFamily: F.serif,
+      marginHorizontal: 20,
+      backgroundColor: C.white,
+      borderRadius: 12, borderWidth: 1, borderColor: C.border,
+      padding: 14, fontSize: 16, color: C.ink,
+    },
+    numInput: {
+      fontFamily: F.serif,
+      marginHorizontal: 20,
+      backgroundColor: C.white,
+      borderRadius: 12, borderWidth: 1, borderColor: C.border,
+      padding: 14, fontSize: 15, color: C.ink,
+    },
+    tagInput: {
+      fontFamily: F.serif,
+      marginHorizontal: 20,
+      backgroundColor: C.white,
+      borderRadius: 12, borderWidth: 1, borderColor: C.border,
+      padding: 14, fontSize: 13, color: C.ink, letterSpacing: 1,
+    },
+    recurrenceRow: {
+      flexDirection: 'row',
+      paddingHorizontal: 20,
+      gap: 6,
+    },
+    recurrenceBtn: {
+      flex: 1,
+      paddingVertical: 9,
+      borderRadius: 10,
+      backgroundColor: C.cream,
+      borderWidth: 1, borderColor: C.border,
+      alignItems: 'center',
+    },
+    recurrenceBtnActive: { backgroundColor: C.ink, borderColor: C.ink },
+    recurrenceBtnTxt: { fontFamily: F.serif, fontSize: 12, fontWeight: '600', color: C.inkSoft },
+    recurrenceBtnTxtActive: { fontFamily: F.serif, color: C.white, fontWeight: '700' },
+    weekdayRow: {
+      flexDirection: 'row',
+      paddingHorizontal: 20,
+      gap: 6,
+    },
+    weekdayBtn: {
+      flex: 1,
+      aspectRatio: 1,
+      borderRadius: 18,
+      backgroundColor: C.cream,
+      borderWidth: 1, borderColor: C.border,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    weekdayBtnActive: { backgroundColor: C.ink, borderColor: C.ink },
+    weekdayBtnTxt: { fontFamily: F.serif, fontSize: 13, fontWeight: '600', color: C.inkSoft },
+    weekdayBtnTxtActive: { fontFamily: F.serif, color: C.white, fontWeight: '800' },
+    suggestionsRow: {
+      flexDirection: 'row', flexWrap: 'wrap', gap: 8,
+      paddingHorizontal: 20, marginTop: 10,
+    },
+    suggestion: {
+      paddingHorizontal: 12, paddingVertical: 6,
+      borderRadius: 14,
+      backgroundColor: C.cream,
+      borderWidth: 1, borderColor: C.border,
+    },
+    suggestionActive: { backgroundColor: C.ink, borderColor: C.ink },
+    suggestionTxt: { fontFamily: F.serif, fontSize: 10, fontWeight: '700', color: C.inkSoft, letterSpacing: 0.6 },
+    suggestionTxtActive: { fontFamily: F.serif, color: C.white },
+  }), [themeVersion]);
 
   useEffect(() => {
     if (visible) {
@@ -233,87 +316,61 @@ export function GoalEditor({ visible, goal, onSave, onClose, defaultRecurrence =
   );
 }
 
-const ge = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.paper },
-  header: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    padding: 20, borderBottomWidth: 1, borderBottomColor: C.border,
-  },
-  cancel: { fontSize: 14, color: C.inkMuted },
-  title:  { fontFamily: F.serif, fontSize: 18, color: C.ink, letterSpacing: -0.2 },
-  save:   { fontSize: 14, color: C.ink, fontWeight: '700' },
-  label:  { fontSize: 10, fontWeight: '700', color: C.inkMuted, letterSpacing: 1, marginHorizontal: 20, marginTop: 20, marginBottom: 8 },
-  hint:   { fontSize: 12, color: C.inkMuted, marginHorizontal: 20, marginTop: 6, fontStyle: 'italic' },
-  mainInput: {
-    marginHorizontal: 20,
-    backgroundColor: C.white,
-    borderRadius: 12, borderWidth: 1, borderColor: C.border,
-    padding: 14, fontSize: 16, color: C.ink,
-  },
-  numInput: {
-    marginHorizontal: 20,
-    backgroundColor: C.white,
-    borderRadius: 12, borderWidth: 1, borderColor: C.border,
-    padding: 14, fontSize: 15, color: C.ink,
-  },
-  tagInput: {
-    marginHorizontal: 20,
-    backgroundColor: C.white,
-    borderRadius: 12, borderWidth: 1, borderColor: C.border,
-    padding: 14, fontSize: 13, color: C.ink, letterSpacing: 1,
-  },
-  recurrenceRow: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    gap: 6,
-  },
-  recurrenceBtn: {
-    flex: 1,
-    paddingVertical: 9,
-    borderRadius: 10,
-    backgroundColor: C.cream,
-    borderWidth: 1, borderColor: C.border,
-    alignItems: 'center',
-  },
-  recurrenceBtnActive: { backgroundColor: C.ink, borderColor: C.ink },
-  recurrenceBtnTxt: { fontSize: 12, fontWeight: '600', color: C.inkSoft },
-  recurrenceBtnTxtActive: { color: C.white, fontWeight: '700' },
-  weekdayRow: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    gap: 6,
-  },
-  weekdayBtn: {
-    flex: 1,
-    aspectRatio: 1,
-    borderRadius: 18,
-    backgroundColor: C.cream,
-    borderWidth: 1, borderColor: C.border,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  weekdayBtnActive: { backgroundColor: C.ink, borderColor: C.ink },
-  weekdayBtnTxt: { fontSize: 13, fontWeight: '600', color: C.inkSoft },
-  weekdayBtnTxtActive: { color: C.white, fontWeight: '800' },
-  suggestionsRow: {
-    flexDirection: 'row', flexWrap: 'wrap', gap: 8,
-    paddingHorizontal: 20, marginTop: 10,
-  },
-  suggestion: {
-    paddingHorizontal: 12, paddingVertical: 6,
-    borderRadius: 14,
-    backgroundColor: C.cream,
-    borderWidth: 1, borderColor: C.border,
-  },
-  suggestionActive: { backgroundColor: C.ink, borderColor: C.ink },
-  suggestionTxt: { fontSize: 10, fontWeight: '700', color: C.inkSoft, letterSpacing: 0.6 },
-  suggestionTxtActive: { color: C.white },
-});
-
 // ── Main GoalsScreen ──────────────────────────────────────────────────
 export function GoalsScreen({ navigation }) {
+  const { C, F, themeVersion } = useTheme();
   const { goals, addGoal, updateGoal, removeGoal } = useStore();
   const [editorOpen, setEditorOpen]     = useState(false);
   const [editingGoal, setEditingGoal]   = useState(null);
+
+  const s = useMemo(() => StyleSheet.create({
+    safe: { flex: 1, backgroundColor: C.paper },
+    topBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 20,
+      paddingTop: 8,
+      paddingBottom: 14,
+      borderBottomWidth: 0.5,
+      borderBottomColor: C.border,
+    },
+    topBarTitle: { fontFamily: F.serif, fontSize: 18, color: C.ink, letterSpacing: -0.2 },
+
+    intro: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 16 },
+    introTitle: { fontFamily: F.serif, fontSize: 22, color: C.ink, letterSpacing: -0.3, marginBottom: 4 },
+    introSub:   { fontFamily: F.serif, fontSize: 13, color: C.inkMuted, lineHeight: 19 },
+
+    goalRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: C.white,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: C.border,
+      paddingHorizontal: 16, paddingVertical: 14,
+      marginBottom: 10,
+      gap: 12,
+    },
+    goalLabel: { fontFamily: F.serif, fontSize: 15, color: C.ink, fontWeight: '500', marginBottom: 3 },
+    goalMeta:  { fontFamily: F.serif, fontSize: 11, color: C.inkMuted },
+    tagPill:   { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 6 },
+    tagTxt:    { fontFamily: F.serif, fontSize: 9, fontWeight: '700', letterSpacing: 0.6 },
+
+    deleteAction: { justifyContent: 'center', alignItems: 'flex-end', marginBottom: 10 },
+    deleteBtn: {
+      backgroundColor: C.rose, borderRadius: 12,
+      width: 90, height: '100%',
+      alignItems: 'center', justifyContent: 'center', gap: 4,
+    },
+    deleteTxt: { fontFamily: F.serif, color: C.white, fontSize: 12, fontWeight: '700', letterSpacing: 0.4 },
+    hint: { fontFamily: F.serif, fontSize: 11, color: C.inkFaint, textAlign: 'center', marginTop: 8 },
+    empty: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 30 },
+    emptyIcon: { fontSize: 40, marginBottom: 12 },
+    emptyTitle: { fontFamily: F.serif, fontSize: 18, color: C.ink, marginBottom: 6 },
+    emptySub:   { fontFamily: F.serif, fontSize: 13, color: C.inkMuted, textAlign: 'center' },
+  }), [themeVersion]);
 
   const openNew = () => {
     setEditingGoal(null);
@@ -425,52 +482,3 @@ export function GoalsScreen({ navigation }) {
     </SafeAreaView>
   );
 }
-
-const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.paper },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 14,
-    borderBottomWidth: 0.5,
-    borderBottomColor: C.border,
-  },
-  topBarTitle: { fontFamily: F.serif, fontSize: 18, color: C.ink, letterSpacing: -0.2 },
-
-  intro: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 16 },
-  introTitle: { fontFamily: F.serif, fontSize: 22, color: C.ink, letterSpacing: -0.3, marginBottom: 4 },
-  introSub:   { fontSize: 13, color: C.inkMuted, lineHeight: 19 },
-
-  goalRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: C.white,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: C.border,
-    paddingHorizontal: 16, paddingVertical: 14,
-    marginBottom: 10,
-    gap: 12,
-  },
-  goalLabel: { fontSize: 15, color: C.ink, fontWeight: '500', marginBottom: 3 },
-  goalMeta:  { fontSize: 11, color: C.inkMuted },
-  tagPill:   { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 6 },
-  tagTxt:    { fontSize: 9, fontWeight: '700', letterSpacing: 0.6 },
-
-  deleteAction: { justifyContent: 'center', alignItems: 'flex-end', marginBottom: 10 },
-  deleteBtn: {
-    backgroundColor: C.rose, borderRadius: 12,
-    width: 90, height: '100%',
-    alignItems: 'center', justifyContent: 'center', gap: 4,
-  },
-  deleteTxt: { color: C.white, fontSize: 12, fontWeight: '700', letterSpacing: 0.4 },
-  hint: { fontSize: 11, color: C.inkFaint, textAlign: 'center', marginTop: 8 },
-  empty: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 30 },
-  emptyIcon: { fontSize: 40, marginBottom: 12 },
-  emptyTitle: { fontFamily: F.serif, fontSize: 18, color: C.ink, marginBottom: 6 },
-  emptySub:   { fontSize: 13, color: C.inkMuted, textAlign: 'center' },
-});

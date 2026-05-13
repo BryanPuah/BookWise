@@ -8,7 +8,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useStore } from '../store';
 import { GoalEditor } from '../screens/GoalsScreen';
-import { C, F } from '../theme';
+import { useTheme } from '../theme';
 
 const { width: SW, height: SH } = Dimensions.get('window');
 const DAY_WIDTH  = 50;
@@ -162,6 +162,49 @@ function useDragToDismiss({ onClose }) {
 // in the parent (and the picker stays open so they can pick a month).
 // Tapping a month commits the change and dismisses the picker.
 function YearMonthPicker({ selectedYear, selectedMonth, onPickYear, onPickMonth, onCenterChange, height }) {
+  const { C, F, themeVersion } = useTheme();
+  const ymp = useMemo(() => StyleSheet.create({
+    wrap: {
+      paddingHorizontal: 20,
+      paddingTop: 12,
+      position: 'relative',
+    },
+    columns: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 0,
+    },
+    column: {
+      flex: 1,
+    },
+    row: {
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    rowTxt: {
+      fontFamily: F.serif,
+      fontSize: 16,
+      color: C.inkFaint,
+      fontWeight: '500',
+    },
+    rowTxtActive: {
+      fontFamily: F.serif,
+      color: C.ink,
+      fontWeight: '700',
+      fontSize: 18,
+    },
+    divider: {
+      width: 0.5,
+      height: '100%',
+      backgroundColor: C.border,
+    },
+    centreLine: {
+      position: 'absolute',
+      left: 20, right: 20,
+      height: 0.5,
+      backgroundColor: C.borderMid,
+    },
+  }), [themeVersion]);
   const yearScrollRef = useRef(null);
   const monthScrollRef = useRef(null);
   const ROW_HEIGHT = 44;
@@ -293,49 +336,140 @@ function YearMonthPicker({ selectedYear, selectedMonth, onPickYear, onPickMonth,
   );
 }
 
-const ymp = StyleSheet.create({
-  wrap: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    position: 'relative',
-  },
-  columns: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 0,
-  },
-  column: {
-    flex: 1,
-  },
-  row: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  rowTxt: {
-    fontSize: 16,
-    color: C.inkFaint,
-    fontWeight: '500',
-  },
-  rowTxtActive: {
-    color: C.ink,
-    fontWeight: '700',
-    fontSize: 18,
-  },
-  divider: {
-    width: 0.5,
-    height: '100%',
-    backgroundColor: C.border,
-  },
-  centreLine: {
-    position: 'absolute',
-    left: 20, right: 20,
-    height: 0.5,
-    backgroundColor: C.borderMid,
-  },
-});
 
 
 function CalendarModal({ visible, notesByKey, onClose, onSelectDay }) {
+  const { C, F, themeVersion } = useTheme();
+  const cal = useMemo(() => StyleSheet.create({
+    // Sheet container
+    overlay:  { flex: 1, justifyContent: 'flex-end' },
+    backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.45)' },
+    // Outer wrapper — owns shadow + native-driven translateY (open/dismiss anim).
+    // Height is NOT set here; it lives on the inner wrapper which is JS-animated.
+    sheetOuter: {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: -6 },
+      shadowOpacity: 0.1,
+      shadowRadius: 20,
+      elevation: 20,
+    },
+    // Inner wrapper — owns visual chrome + animated height.
+    sheet: {
+      backgroundColor: C.paper,
+      borderTopLeftRadius: 26,
+      borderTopRightRadius: 26,
+      paddingBottom: 8,
+      overflow: 'hidden',
+    },
+
+    // Drag
+    dragOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10 },
+    handleWrap:  { paddingTop: 10, paddingBottom: 8, alignItems: 'center' },
+    handle:      { width: 40, height: 4, borderRadius: 2, backgroundColor: C.creamDark },
+    headerArea:  { position: 'relative' },
+
+    // Top bar — Cancel · Select a Date · Today
+    topBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 20,
+      paddingVertical: 12,
+    },
+    cancel: { fontFamily: F.serif, fontSize: 15, color: C.inkMuted, fontWeight: '500' },
+    title:  { fontFamily: F.serif, fontSize: 16, fontWeight: '700', color: C.ink, letterSpacing: -0.2 },
+    titleBtn: { flexDirection: 'row', alignItems: 'center' },
+    titleChev: { fontFamily: F.serif, fontSize: 11, color: C.inkMuted, marginLeft: 1, marginTop: -2 },
+    today:  { fontFamily: F.serif, fontSize: 15, color: C.ink, fontWeight: '600' },
+    done:   { fontFamily: F.serif, fontSize: 15, color: C.ink, fontWeight: '700' },
+
+    // Separator
+    sep: { height: 0.5, backgroundColor: C.border, marginHorizontal: 0 },
+
+    // Month bar — "Apr 2020" on left, chevrons on right
+    monthBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 20,
+      paddingTop: 14,
+      paddingBottom: 8,
+    },
+    monthLbl: {
+      fontFamily: F.serif,
+      fontSize: 16,
+      fontWeight: '700',
+      color: C.ink,
+      letterSpacing: -0.2,
+    },
+    chevronRow: { flexDirection: 'row', gap: 4 },
+    chevron: {
+      width: 32, height: 32,
+      alignItems: 'center', justifyContent: 'center',
+      borderRadius: 16,
+    },
+    chevronTxt: { fontFamily: F.serif, fontSize: 22, color: C.ink, lineHeight: 26 },
+
+    // Weekday headers
+    dowRow: {
+      flexDirection: 'row',
+      paddingHorizontal: 16,
+      paddingTop: 4,
+      paddingBottom: 4,
+    },
+    dowTxt: {
+      flex: 1,
+      textAlign: 'center',
+      fontFamily: F.serif,
+      fontSize: 11,
+      fontWeight: '600',
+      color: C.inkMuted,
+      letterSpacing: 0.4,
+    },
+
+    // Grid + cells
+    grid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      paddingHorizontal: 16,
+      paddingBottom: 12,
+    },
+    cell: {
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    selectedCircle: {
+      position: 'absolute',
+      backgroundColor: C.ink,
+    },
+    // Light shade marker for today's cell when not selected. Uses amberPale
+    // so today reads as "current" without competing with the ink selection.
+    todayCircle: {
+      position: 'absolute',
+      backgroundColor: C.amberPale,
+    },
+    dayNum: {
+      fontFamily: F.serif,
+      fontSize: 15,
+      color: C.ink,
+      fontWeight: '500',
+      zIndex: 1,
+    },
+    dayNumSelected: {
+      fontFamily: F.serif,
+      color: C.white,
+      fontWeight: '700',
+    },
+    dayNumToday: {
+      fontFamily: F.serif,
+      color: C.ink,
+      fontWeight: '800',
+    },
+    dayNumFuture: {
+      fontFamily: F.serif,
+      color: C.inkFaint,
+    },
+  }), [themeVersion]);
   const today = new Date();
   const [viewYear, setViewYear]   = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
@@ -679,6 +813,445 @@ function CalendarModal({ visible, notesByKey, onClose, onSelectDay }) {
 }
 
 
+// ── DayPanel shared styles ───────────────────────────────────────────
+// The DayPanel and all its inner sections (DaySection, DailyReflectionSection,
+// ExpandableBookCard, NestedNoteRow) consume the same `dpnl` style set.
+// Each component calls useDpnlStyles independently so theme changes
+// propagate everywhere via the shared useTheme subscription.
+function useDpnlStyles() {
+  const { C, F, themeVersion } = useTheme();
+  return useMemo(() => StyleSheet.create({
+    overlay:  { flex: 1, justifyContent: 'flex-end' },
+    backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.45)' },
+    sheet: {
+      backgroundColor: C.paper,
+      borderTopLeftRadius: 26,
+      borderTopRightRadius: 26,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: -6 },
+      shadowOpacity: 0.1,
+      shadowRadius: 20,
+      elevation: 20,
+    },
+    dragOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10 },
+    handleWrap:  { paddingTop: 10, paddingBottom: 4, alignItems: 'center' },
+    handle:      { width: 40, height: 4, borderRadius: 2, backgroundColor: C.creamDark },
+
+    // Top bar — month/year on left, Today on right
+    topBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 20,
+      paddingTop: 8,
+      paddingBottom: 12,
+    },
+    monthBtn: { flexDirection: 'row', alignItems: 'baseline' },
+    monthTxt: { fontFamily: F.serif, fontSize: 17, fontWeight: '700', color: C.ink, letterSpacing: -0.2 },
+    monthChev:{ fontFamily: F.serif, fontSize: 14, color: C.inkMuted, marginLeft: 2 },
+    todayTxt: { fontFamily: F.serif, fontSize: 15, color: C.ink, fontWeight: '600' },
+
+    // Week strip
+    weekStrip: {
+      flexDirection: 'row',
+      paddingHorizontal: 12,
+      paddingBottom: 14,
+      borderBottomWidth: 0.5,
+      borderBottomColor: C.border,
+    },
+    weekCell: {
+      flex: 1,
+      alignItems: 'center',
+      paddingTop: 4,
+      paddingBottom: 6,
+      position: 'relative',
+    },
+    weekDayLabel: {
+      fontFamily: F.serif,
+      fontSize: 10,
+      color: C.inkMuted,
+      fontWeight: '600',
+      letterSpacing: 0.4,
+      marginBottom: 6,
+    },
+    weekDayNum: {
+      fontFamily: F.serif,
+      fontSize: 15,
+      color: C.ink,
+      fontWeight: '500',
+    },
+    weekDayNumSelected: {
+      fontFamily: F.serif,
+      color: C.ink,
+      fontWeight: '700',
+    },
+    weekDayNumToday: {
+      fontFamily: F.serif,
+      color: C.ink,
+      fontWeight: '800',
+    },
+    weekUnderline: {
+      position: 'absolute',
+      bottom: 2,
+      height: 2,
+      width: 18,
+      borderRadius: 1,
+      backgroundColor: C.ink,
+    },
+    weekDot: {
+      position: 'absolute',
+      bottom: 3,
+      width: 3, height: 3,
+      borderRadius: 1.5,
+      backgroundColor: C.inkMuted,
+    },
+
+    // Section
+    section: { paddingHorizontal: 20, paddingTop: 18 },
+    sectionHeader: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      gap: 8,
+      marginBottom: 10,
+    },
+    sectionLabel: {
+      fontFamily: F.serif,
+      fontSize: 16,
+      fontWeight: '700',
+      color: C.ink,
+      letterSpacing: -0.2,
+    },
+    sectionDate: {
+      fontFamily: F.serif,
+      fontSize: 12,
+      color: C.inkMuted,
+      fontWeight: '500',
+    },
+    emptyDay: {
+      paddingVertical: 18,
+    },
+    emptyDayTxt: {
+      fontFamily: F.serif,
+      fontSize: 13,
+      color: C.inkFaint,
+      fontStyle: 'italic',
+    },
+
+    // Icon tile — used in book cards and reflection rows
+    activityIconWrap: {
+      width: 36,
+      height: 36,
+      borderRadius: 8,
+      backgroundColor: C.cream,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    activityTag: {
+      paddingHorizontal: 9, paddingVertical: 4,
+      borderRadius: 6,
+    },
+    activityTagTxt: {
+      fontFamily: F.serif,
+      fontSize: 9,
+      fontWeight: '700',
+      color: C.ink,
+      letterSpacing: 0.6,
+    },
+
+    // ── Daily Reflection section ──
+    // Empty-state prompt — single-line CTA to start writing
+    reflectionPrompt: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      backgroundColor: C.white,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: C.border,
+      borderStyle: 'dashed',
+      paddingHorizontal: 14,
+      paddingVertical: 14,
+    },
+    reflectionPromptTxt: {
+      flex: 1,
+      fontFamily: F.serif,
+      fontSize: 14,
+      color: C.inkSoft,
+      fontWeight: '500',
+      letterSpacing: -0.1,
+    },
+    // Read-mode card — shows saved reflection text + "tap to edit" hint
+    reflectionCard: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 12,
+      backgroundColor: C.white,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: C.border,
+      paddingHorizontal: 14,
+      paddingVertical: 14,
+    },
+    reflectionBody: {
+      fontFamily: F.serif,
+      fontSize: 14,
+      color: C.ink,
+      lineHeight: 21,
+      letterSpacing: -0.1,
+    },
+    reflectionMeta: {
+      fontFamily: F.serif,
+      fontSize: 11,
+      color: C.inkFaint,
+      marginTop: 6,
+    },
+    // Edit-mode container
+    reflectionEditor: {
+      backgroundColor: C.white,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: C.amberPale,
+      padding: 14,
+    },
+    reflectionInput: {
+      fontFamily: F.serif,
+      fontSize: 14,
+      color: C.ink,
+      lineHeight: 21,
+      minHeight: 80,
+      padding: 0,
+    },
+    reflectionActions: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      alignItems: 'center',
+      gap: 14,
+      marginTop: 10,
+      paddingTop: 10,
+      borderTopWidth: 0.5,
+      borderTopColor: C.border,
+    },
+    reflectionCancel: {
+      fontFamily: F.serif,
+      fontSize: 13,
+      color: C.inkMuted,
+      fontWeight: '500',
+    },
+    reflectionSaveBtn: {
+      backgroundColor: C.ink,
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 10,
+    },
+    reflectionSaveTxt: {
+      fontFamily: F.serif,
+      fontSize: 13,
+      color: C.white,
+      fontWeight: '700',
+      letterSpacing: 0.2,
+    },
+
+    // ── Book card (expandable) ──
+    bookCard: {
+      backgroundColor: C.white,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: C.border,
+      marginBottom: 10,
+      overflow: 'hidden',
+    },
+    bookCardHeader: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 14,
+    },
+    bookCardTitle: {
+      fontFamily: F.serif,
+      fontSize: 18,
+      color: C.ink,
+      letterSpacing: -0.3,
+      lineHeight: 24,
+    },
+    bookCardSub: {
+      fontFamily: F.serif,
+      fontSize: 13,
+      color: C.inkMuted,
+      marginTop: 2,
+    },
+    bookCardRight: {
+      alignItems: 'flex-end',
+      gap: 8,
+    },
+    bookCardMeta: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    bookCardCount: {
+      fontFamily: F.serif,
+      fontSize: 11,
+      color: C.inkMuted,
+      fontWeight: '600',
+    },
+
+    // ── Progress bar ──
+    progressRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginTop: 10,
+    },
+    progressTrack: {
+      flex: 1,
+      height: 3,
+      backgroundColor: C.cream,
+      borderRadius: 2,
+      overflow: 'hidden',
+    },
+    progressFill: {
+      height: '100%',
+      backgroundColor: C.sage,
+      borderRadius: 2,
+    },
+    progressPct: {
+      fontFamily: F.serif,
+      fontSize: 10,
+      color: C.inkMuted,
+      fontWeight: '600',
+      minWidth: 28,
+      textAlign: 'right',
+    },
+
+    // ── Nested notes inside expanded book card ──
+    notesNested: {
+      backgroundColor: C.paper,
+      paddingHorizontal: 14,
+      paddingTop: 6,
+      paddingBottom: 6,
+      borderTopWidth: 0.5,
+      borderTopColor: C.border,
+    },
+    nestedNoteRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      paddingVertical: 10,
+      borderBottomWidth: 0.5,
+      borderBottomColor: C.border,
+    },
+    nestedNoteDot: {
+      width: 5,
+      height: 5,
+      borderRadius: 3,
+      backgroundColor: C.sage,
+    },
+    nestedNoteTitle: {
+      fontFamily: F.serif,
+      fontSize: 14,
+      color: C.ink,
+      fontWeight: '600',
+      letterSpacing: -0.1,
+    },
+    nestedNoteBody: {
+      fontFamily: F.serif,
+      fontSize: 12,
+      color: C.inkMuted,
+      marginTop: 2,
+    },
+
+    // Subsection header — Goals / Books read today / Daily Reflection
+    subsectionHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'baseline',
+      marginBottom: 10,
+    },
+    subsectionTitle: {
+      fontFamily: F.serif,
+      fontSize: 13,
+      fontWeight: '700',
+      color: C.inkMuted,
+      letterSpacing: 0.6,
+      textTransform: 'uppercase',
+    },
+
+    // Goals section (legacy alias kept for safety)
+    goalsHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'baseline',
+      marginBottom: 8,
+    },
+    goalsTitle: {
+      fontFamily: F.serif,
+      fontSize: 14,
+      fontWeight: '700',
+      color: C.ink,
+      letterSpacing: -0.2,
+    },
+    manageLink: {
+      fontFamily: F.serif,
+      fontSize: 12,
+      color: C.inkSoft,
+      fontWeight: '600',
+    },
+    goalRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: C.white,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: C.border,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      marginBottom: 8,
+      gap: 12,
+    },
+    goalLabel: {
+      flex: 1,
+      fontFamily: F.serif,
+      fontSize: 14,
+      color: C.ink,
+      fontWeight: '500',
+    },
+    goalLabelDone: {
+      fontFamily: F.serif,
+      color: C.inkFaint,
+      textDecorationLine: 'line-through',
+    },
+    goalTag: {
+      backgroundColor: C.sagePale,
+      paddingHorizontal: 8, paddingVertical: 3,
+      borderRadius: 6,
+    },
+    goalTagTxt: {
+      fontFamily: F.serif,
+      fontSize: 9,
+      fontWeight: '700',
+      color: C.ink,
+      letterSpacing: 0.5,
+    },
+
+    // FAB
+    fab: {
+      position: 'absolute',
+      right: 24, bottom: 32,
+      width: 54, height: 54,
+      borderRadius: 27,
+      backgroundColor: C.ink,
+      alignItems: 'center',
+      justifyContent: 'center',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.22,
+      shadowRadius: 10,
+      elevation: 10,
+    },
+  }), [themeVersion]);
+}
+
 // ── Day Panel — bottom-sheet agenda for selected day ─────────────────
 //
 // Replaces the old SessionModal with a richer two-day agenda showing:
@@ -691,6 +1264,8 @@ function CalendarModal({ visible, notesByKey, onClose, onSelectDay }) {
 // Props match the old SessionModal interface: { visible, day, data, onClose }
 // Plus optional: onManageGoals — fired when user taps the Manage link
 function DayPanel({ visible, day, data, onClose, onManageGoals }) {
+  const { C } = useTheme();
+  const dpnl = useDpnlStyles();
   const drag = useDragToDismiss({ onClose });
   const {
     notes, books,
@@ -883,6 +1458,8 @@ function DaySection({
   onManageGoals,
   reflection, onSaveReflection,
 }) {
+  const { C } = useTheme();
+  const dpnl = useDpnlStyles();
   const bookNotes = notes; // all notes are book notes now; reflections live in their own store slice
 
   const hasGoals       = goals.length > 0;
@@ -981,6 +1558,8 @@ function DaySection({
 // text area + Save button. Editing an existing reflection works the same
 // way: tap the text → edit mode.
 function DailyReflectionSection({ reflection, onSave }) {
+  const { C } = useTheme();
+  const dpnl = useDpnlStyles();
   const hasReflection = !!reflection?.text;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(reflection?.text || '');
@@ -1070,6 +1649,8 @@ function DailyReflectionSection({ reflection, onSave }) {
 
 // ── Expandable book card — collapsed shows summary; tap to reveal notes
 function ExpandableBookCard({ book, bookNotes }) {
+  const { C } = useTheme();
+  const dpnl = useDpnlStyles();
   const [expanded, setExpanded] = useState(false);
   const count    = bookNotes.length;
   const progress = book.pageCount
@@ -1139,6 +1720,8 @@ function ExpandableBookCard({ book, bookNotes }) {
 
 // ── Nested note row — compact note display inside an expanded book card
 function NestedNoteRow({ note, isLast }) {
+  const { C } = useTheme();
+  const dpnl = useDpnlStyles();
   const title = note.title?.trim()
     ? note.title.trim()
     : (note.text || '').split('\n')[0].split('. ')[0].slice(0, 70);
@@ -1167,6 +1750,21 @@ function NestedNoteRow({ note, isLast }) {
 
 // ── Day Pill ───────────────────────────────────────────────────────────
 function DayPill({ day, isToday, isFuture, data, onPress }) {
+  const { C, F, themeVersion } = useTheme();
+  const dpil = useMemo(() => StyleSheet.create({
+    pill:         { width: DAY_WIDTH, paddingVertical: 5, borderRadius: 12, alignItems: 'center', gap: 1, overflow: 'hidden', backgroundColor: C.cream, borderWidth: 1, borderColor: C.border },
+    pillToday:    { borderWidth: 0, shadowColor: C.amber, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.45, shadowRadius: 8, elevation: 6 },
+    dayNameToday: { fontFamily: F.serif, fontSize: 8, fontWeight: '700', color: 'rgba(255,255,255,0.8)', letterSpacing: 0.3 },
+    dateNumToday: { fontFamily: F.serif, fontSize: 15, fontWeight: '800', color: C.white },
+    todayDot:     { width: 4, height: 4, borderRadius: 2, backgroundColor: C.white, opacity: 0.8 },
+    monthLblToday:{ fontFamily: F.serif, fontSize: 7, color: 'rgba(255,255,255,0.75)', fontWeight: '700', letterSpacing: 0.3, height: 11, textAlign: 'center' },
+    dayName:      { fontFamily: F.serif, fontSize: 8, fontWeight: '600', color: C.inkSoft, letterSpacing: 0.3 },
+    dayNameWknd:  { fontFamily: F.serif, color: C.inkMuted },
+    dateNum:      { fontFamily: F.serif, fontSize: 15, fontWeight: '700', color: C.ink },
+    dotsRow:      { height: 5, alignItems: 'center', justifyContent: 'center' },
+    dotNote:      { width: 4, height: 4, borderRadius: 2, backgroundColor: C.amber },
+    monthLbl:     { fontFamily: F.serif, fontSize: 7, color: C.amber, fontWeight: '700', letterSpacing: 0.3, height: 11, textAlign: 'center' },
+  }), [themeVersion]);
   const hasData   = data.noteCount > 0;
   const isWeekend = day.getDay() === 0 || day.getDay() === 6;
 
@@ -1207,6 +1805,31 @@ function DayPill({ day, isToday, isFuture, data, onPress }) {
 
 // ── Main ───────────────────────────────────────────────────────────────
 export function ReadingTimeline({ notes, cards, books, onManageGoals, openDateKey, onDatePanelClosed }) {
+  const { C, F, themeVersion } = useTheme();
+  const t = useMemo(() => StyleSheet.create({
+    wrap:      { marginBottom: 16 },
+    header:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, marginBottom: 10 },
+    monthTxt:  { fontFamily: F.serif, fontSize: 18, fontWeight: '700', color: C.ink, letterSpacing: -0.2 },
+    // "+ Goals" pill — tap navigates to GoalsScreen
+    goalsPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 14,
+      backgroundColor: C.cream,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    goalsPillTxt: {
+      fontFamily: F.serif,
+      fontSize: 12,
+      fontWeight: '700',
+      color: C.ink,
+      letterSpacing: -0.1,
+    },
+  }), [themeVersion]);
   const scrollRef       = useRef(null);
   const [showCalendar, setShowCalendar] = useState(false);
   const [sessionDay, setSessionDay]     = useState(null);
@@ -1380,574 +2003,5 @@ export function ReadingTimeline({ notes, cards, books, onManageGoals, openDateKe
   );
 }
 
-// ── Styles ─────────────────────────────────────────────────────────────
-const t = StyleSheet.create({
-  wrap:      { marginBottom: 16 },
-  header:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, marginBottom: 10 },
-  monthTxt:  { fontSize: 18, fontWeight: '700', color: C.ink, letterSpacing: -0.2 },
-  // "+ Goals" pill — tap navigates to GoalsScreen
-  goalsPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 14,
-    backgroundColor: C.cream,
-    borderWidth: 1,
-    borderColor: C.border,
-  },
-  goalsPillTxt: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: C.ink,
-    letterSpacing: -0.1,
-  },
-});
 
-const dpil = StyleSheet.create({
-  pill:         { width: DAY_WIDTH, paddingVertical: 5, borderRadius: 12, alignItems: 'center', gap: 1, overflow: 'hidden', backgroundColor: C.cream, borderWidth: 1, borderColor: C.border },
-  pillToday:    { borderWidth: 0, shadowColor: C.amber, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.45, shadowRadius: 8, elevation: 6 },
-  dayNameToday: { fontSize: 8, fontWeight: '700', color: 'rgba(255,255,255,0.8)', letterSpacing: 0.3 },
-  dateNumToday: { fontSize: 15, fontWeight: '800', color: C.white },
-  todayDot:     { width: 4, height: 4, borderRadius: 2, backgroundColor: C.white, opacity: 0.8 },
-  monthLblToday:{ fontSize: 7, color: 'rgba(255,255,255,0.75)', fontWeight: '700', letterSpacing: 0.3, height: 11, textAlign: 'center' },
-  dayName:      { fontSize: 8, fontWeight: '600', color: C.inkSoft, letterSpacing: 0.3 },
-  dayNameWknd:  { color: C.inkMuted },
-  dateNum:      { fontSize: 15, fontWeight: '700', color: C.ink },
-  dotsRow:      { height: 5, alignItems: 'center', justifyContent: 'center' },
-  dotNote:      { width: 4, height: 4, borderRadius: 2, backgroundColor: C.amber },
-  monthLbl:     { fontSize: 7, color: C.amber, fontWeight: '700', letterSpacing: 0.3, height: 11, textAlign: 'center' },
-});
 
-const cal = StyleSheet.create({
-  // Sheet container
-  overlay:  { flex: 1, justifyContent: 'flex-end' },
-  backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.45)' },
-  // Outer wrapper — owns shadow + native-driven translateY (open/dismiss anim).
-  // Height is NOT set here; it lives on the inner wrapper which is JS-animated.
-  sheetOuter: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -6 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
-    elevation: 20,
-  },
-  // Inner wrapper — owns visual chrome + animated height.
-  sheet: {
-    backgroundColor: C.paper,
-    borderTopLeftRadius: 26,
-    borderTopRightRadius: 26,
-    paddingBottom: 8,
-    overflow: 'hidden',
-  },
-
-  // Drag
-  dragOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10 },
-  handleWrap:  { paddingTop: 10, paddingBottom: 8, alignItems: 'center' },
-  handle:      { width: 40, height: 4, borderRadius: 2, backgroundColor: C.creamDark },
-  headerArea:  { position: 'relative' },
-
-  // Top bar — Cancel · Select a Date · Today
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-  },
-  cancel: { fontSize: 15, color: C.inkMuted, fontWeight: '500' },
-  title:  { fontSize: 16, fontWeight: '700', color: C.ink, letterSpacing: -0.2 },
-  titleBtn: { flexDirection: 'row', alignItems: 'center' },
-  titleChev: { fontSize: 11, color: C.inkMuted, marginLeft: 1, marginTop: -2 },
-  today:  { fontSize: 15, color: C.ink, fontWeight: '600' },
-  done:   { fontSize: 15, color: C.ink, fontWeight: '700' },
-
-  // Separator
-  sep: { height: 0.5, backgroundColor: C.border, marginHorizontal: 0 },
-
-  // Month bar — "Apr 2020" on left, chevrons on right
-  monthBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 14,
-    paddingBottom: 8,
-  },
-  monthLbl: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: C.ink,
-    letterSpacing: -0.2,
-  },
-  chevronRow: { flexDirection: 'row', gap: 4 },
-  chevron: {
-    width: 32, height: 32,
-    alignItems: 'center', justifyContent: 'center',
-    borderRadius: 16,
-  },
-  chevronTxt: { fontSize: 22, color: C.ink, lineHeight: 26 },
-
-  // Weekday headers
-  dowRow: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingTop: 4,
-    paddingBottom: 4,
-  },
-  dowTxt: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: 11,
-    fontWeight: '600',
-    color: C.inkMuted,
-    letterSpacing: 0.4,
-  },
-
-  // Grid + cells
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-  },
-  cell: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  selectedCircle: {
-    position: 'absolute',
-    backgroundColor: C.ink,
-  },
-  // Light shade marker for today's cell when not selected. Uses amberPale
-  // so today reads as "current" without competing with the ink selection.
-  todayCircle: {
-    position: 'absolute',
-    backgroundColor: C.amberPale,
-  },
-  dayNum: {
-    fontSize: 15,
-    color: C.ink,
-    fontWeight: '500',
-    zIndex: 1,
-  },
-  dayNumSelected: {
-    color: C.white,
-    fontWeight: '700',
-  },
-  dayNumToday: {
-    color: C.ink,
-    fontWeight: '800',
-  },
-  dayNumFuture: {
-    color: C.inkFaint,
-  },
-});
-
-// ── DayPanel styles (dpnl) ──────────────────────────────────────────────────
-const dpnl = StyleSheet.create({
-  overlay:  { flex: 1, justifyContent: 'flex-end' },
-  backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.45)' },
-  sheet: {
-    backgroundColor: C.paper,
-    borderTopLeftRadius: 26,
-    borderTopRightRadius: 26,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -6 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
-    elevation: 20,
-  },
-  dragOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10 },
-  handleWrap:  { paddingTop: 10, paddingBottom: 4, alignItems: 'center' },
-  handle:      { width: 40, height: 4, borderRadius: 2, backgroundColor: C.creamDark },
-
-  // Top bar — month/year on left, Today on right
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 12,
-  },
-  monthBtn: { flexDirection: 'row', alignItems: 'baseline' },
-  monthTxt: { fontSize: 17, fontWeight: '700', color: C.ink, letterSpacing: -0.2 },
-  monthChev:{ fontSize: 14, color: C.inkMuted, marginLeft: 2 },
-  todayTxt: { fontSize: 15, color: C.ink, fontWeight: '600' },
-
-  // Week strip
-  weekStrip: {
-    flexDirection: 'row',
-    paddingHorizontal: 12,
-    paddingBottom: 14,
-    borderBottomWidth: 0.5,
-    borderBottomColor: C.border,
-  },
-  weekCell: {
-    flex: 1,
-    alignItems: 'center',
-    paddingTop: 4,
-    paddingBottom: 6,
-    position: 'relative',
-  },
-  weekDayLabel: {
-    fontSize: 10,
-    color: C.inkMuted,
-    fontWeight: '600',
-    letterSpacing: 0.4,
-    marginBottom: 6,
-  },
-  weekDayNum: {
-    fontSize: 15,
-    color: C.ink,
-    fontWeight: '500',
-  },
-  weekDayNumSelected: {
-    color: C.ink,
-    fontWeight: '700',
-  },
-  weekDayNumToday: {
-    color: C.ink,
-    fontWeight: '800',
-  },
-  weekUnderline: {
-    position: 'absolute',
-    bottom: 2,
-    height: 2,
-    width: 18,
-    borderRadius: 1,
-    backgroundColor: C.ink,
-  },
-  weekDot: {
-    position: 'absolute',
-    bottom: 3,
-    width: 3, height: 3,
-    borderRadius: 1.5,
-    backgroundColor: C.inkMuted,
-  },
-
-  // Section
-  section: { paddingHorizontal: 20, paddingTop: 18 },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 8,
-    marginBottom: 10,
-  },
-  sectionLabel: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: C.ink,
-    letterSpacing: -0.2,
-  },
-  sectionDate: {
-    fontSize: 12,
-    color: C.inkMuted,
-    fontWeight: '500',
-  },
-  emptyDay: {
-    paddingVertical: 18,
-  },
-  emptyDayTxt: {
-    fontSize: 13,
-    color: C.inkFaint,
-    fontStyle: 'italic',
-  },
-
-  // Icon tile — used in book cards and reflection rows
-  activityIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    backgroundColor: C.cream,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  activityTag: {
-    paddingHorizontal: 9, paddingVertical: 4,
-    borderRadius: 6,
-  },
-  activityTagTxt: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: C.ink,
-    letterSpacing: 0.6,
-  },
-
-  // ── Daily Reflection section ──
-  // Empty-state prompt — single-line CTA to start writing
-  reflectionPrompt: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: C.white,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: C.border,
-    borderStyle: 'dashed',
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-  },
-  reflectionPromptTxt: {
-    flex: 1,
-    fontSize: 14,
-    color: C.inkSoft,
-    fontWeight: '500',
-    letterSpacing: -0.1,
-  },
-  // Read-mode card — shows saved reflection text + "tap to edit" hint
-  reflectionCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    backgroundColor: C.white,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: C.border,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-  },
-  reflectionBody: {
-    fontSize: 14,
-    color: C.ink,
-    lineHeight: 21,
-    letterSpacing: -0.1,
-  },
-  reflectionMeta: {
-    fontSize: 11,
-    color: C.inkFaint,
-    marginTop: 6,
-  },
-  // Edit-mode container
-  reflectionEditor: {
-    backgroundColor: C.white,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: C.amberPale,
-    padding: 14,
-  },
-  reflectionInput: {
-    fontSize: 14,
-    color: C.ink,
-    lineHeight: 21,
-    minHeight: 80,
-    padding: 0,
-  },
-  reflectionActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    gap: 14,
-    marginTop: 10,
-    paddingTop: 10,
-    borderTopWidth: 0.5,
-    borderTopColor: C.border,
-  },
-  reflectionCancel: {
-    fontSize: 13,
-    color: C.inkMuted,
-    fontWeight: '500',
-  },
-  reflectionSaveBtn: {
-    backgroundColor: C.ink,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
-  reflectionSaveTxt: {
-    fontSize: 13,
-    color: C.white,
-    fontWeight: '700',
-    letterSpacing: 0.2,
-  },
-
-  // ── Book card (expandable) ──
-  bookCard: {
-    backgroundColor: C.white,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: C.border,
-    marginBottom: 10,
-    overflow: 'hidden',
-  },
-  bookCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-  },
-  bookCardTitle: {
-    fontFamily: F.serif,
-    fontSize: 18,
-    color: C.ink,
-    letterSpacing: -0.3,
-    lineHeight: 24,
-  },
-  bookCardSub: {
-    fontSize: 13,
-    color: C.inkMuted,
-    marginTop: 2,
-  },
-  bookCardRight: {
-    alignItems: 'flex-end',
-    gap: 8,
-  },
-  bookCardMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  bookCardCount: {
-    fontSize: 11,
-    color: C.inkMuted,
-    fontWeight: '600',
-  },
-
-  // ── Progress bar ──
-  progressRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 10,
-  },
-  progressTrack: {
-    flex: 1,
-    height: 3,
-    backgroundColor: C.cream,
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: C.sage,
-    borderRadius: 2,
-  },
-  progressPct: {
-    fontSize: 10,
-    color: C.inkMuted,
-    fontWeight: '600',
-    minWidth: 28,
-    textAlign: 'right',
-  },
-
-  // ── Nested notes inside expanded book card ──
-  notesNested: {
-    backgroundColor: C.paper,
-    paddingHorizontal: 14,
-    paddingTop: 6,
-    paddingBottom: 6,
-    borderTopWidth: 0.5,
-    borderTopColor: C.border,
-  },
-  nestedNoteRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 10,
-    borderBottomWidth: 0.5,
-    borderBottomColor: C.border,
-  },
-  nestedNoteDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: C.sage,
-  },
-  nestedNoteTitle: {
-    fontSize: 14,
-    color: C.ink,
-    fontWeight: '600',
-    letterSpacing: -0.1,
-  },
-  nestedNoteBody: {
-    fontSize: 12,
-    color: C.inkMuted,
-    marginTop: 2,
-  },
-
-  // Subsection header — Goals / Books read today / Daily Reflection
-  subsectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-    marginBottom: 10,
-  },
-  subsectionTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: C.inkMuted,
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-  },
-
-  // Goals section (legacy alias kept for safety)
-  goalsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-    marginBottom: 8,
-  },
-  goalsTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: C.ink,
-    letterSpacing: -0.2,
-  },
-  manageLink: {
-    fontSize: 12,
-    color: C.inkSoft,
-    fontWeight: '600',
-  },
-  goalRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: C.white,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: C.border,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 8,
-    gap: 12,
-  },
-  goalLabel: {
-    flex: 1,
-    fontSize: 14,
-    color: C.ink,
-    fontWeight: '500',
-  },
-  goalLabelDone: {
-    color: C.inkFaint,
-    textDecorationLine: 'line-through',
-  },
-  goalTag: {
-    backgroundColor: C.sagePale,
-    paddingHorizontal: 8, paddingVertical: 3,
-    borderRadius: 6,
-  },
-  goalTagTxt: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: C.ink,
-    letterSpacing: 0.5,
-  },
-
-  // FAB
-  fab: {
-    position: 'absolute',
-    right: 24, bottom: 32,
-    width: 54, height: 54,
-    borderRadius: 27,
-    backgroundColor: C.ink,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.22,
-    shadowRadius: 10,
-    elevation: 10,
-  },
-});

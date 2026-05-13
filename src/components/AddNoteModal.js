@@ -11,14 +11,14 @@
  *   onClose  — () => void
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   TextInput, StyleSheet, Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BookCover } from './BookCover';
-import { C } from '../theme';
+import { useTheme } from '../theme';
 
 // ── Note type definitions (local copy — kept in sync with NotesScreen) ──
 const NT = {
@@ -31,6 +31,45 @@ const NT = {
 };
 
 export function AddNoteModal({ visible, books, onSave, onClose }) {
+  const { C, F, themeVersion } = useTheme();
+  const mo = useMemo(() => StyleSheet.create({
+    safe:        { flex: 1, backgroundColor: C.paper },
+    header:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: C.border },
+    title:       { fontFamily: F.serif, fontSize: 16, fontWeight: '700', color: C.ink },
+    cancel:      { fontFamily: F.serif, fontSize: 15, color: C.inkMuted },
+    save:        { fontFamily: F.serif, fontSize: 15, color: C.amber, fontWeight: '700' },
+    saveOff:     { opacity: 0.3 },
+    scroll:      { flex: 1 },
+    label:       { fontFamily: F.serif, fontSize: 10, fontWeight: '700', color: C.inkMuted, letterSpacing: 1, marginHorizontal: 20, marginTop: 20, marginBottom: 8 },
+    optional:    { fontFamily: F.serif, fontWeight: '400', color: C.inkFaint },
+    typePill:    { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, backgroundColor: C.creamDark, borderWidth: 1, borderColor: C.border },
+    typePillIcon:{ fontSize: 13, color: C.inkMuted },
+    typePillTxt: { fontFamily: F.serif, fontSize: 12, fontWeight: '600', color: C.inkMuted },
+    typeHint:    { fontFamily: F.serif, fontSize: 12, marginHorizontal: 20, marginTop: 6, marginBottom: 2, fontStyle: 'italic' },
+    mainInput:   { fontFamily: F.serif, marginHorizontal: 20, backgroundColor: C.white, borderRadius: 12, borderWidth: 1.5, padding: 14, fontSize: 14, color: C.ink, minHeight: 100, textAlignVertical: 'top', lineHeight: 22 },
+    thinkInput:  { fontFamily: F.serif, marginHorizontal: 20, backgroundColor: '#FFFEF5', borderRadius: 12, borderWidth: 1, borderColor: '#D4C870', padding: 14, fontSize: 14, color: C.ink, minHeight: 80, textAlignVertical: 'top', lineHeight: 22 },
+    step1Strip:  { backgroundColor: C.cream, borderBottomWidth: 1, borderBottomColor: C.border, paddingHorizontal: 20, paddingVertical: 14 },
+    step1StripTxt: { fontFamily: F.serif, fontSize: 15, fontWeight: '600', color: C.inkSoft, letterSpacing: -0.2 },
+    emptyBooks:  { alignItems: 'center', paddingTop: 60, paddingHorizontal: 40 },
+    emptyBooksIcon: { fontSize: 40, marginBottom: 12 },
+    emptyBooksTxt:  { fontFamily: F.serif, fontSize: 17, fontWeight: '700', color: C.ink, marginBottom: 6 },
+    emptyBooksSub:  { fontFamily: F.serif, fontSize: 13, color: C.inkMuted, textAlign: 'center', lineHeight: 20 },
+    bookRow:         { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: C.white, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: C.border },
+    bookRowActive:   { borderColor: C.amber, backgroundColor: C.amberPale },
+    bookRowInfo:     { flex: 1 },
+    bookRowTitle:    { fontFamily: F.serif, fontSize: 14, fontWeight: '700', color: C.ink, lineHeight: 20, marginBottom: 3 },
+    bookRowAuthor:   { fontFamily: F.serif, fontSize: 12, color: C.inkMuted, marginBottom: 8 },
+    bookRowStatus:   { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
+    bookRowStatusTxt:{ fontFamily: F.serif, fontSize: 11, fontWeight: '600' },
+    bookRowArrow:    { fontFamily: F.serif, fontSize: 20, color: C.inkFaint },
+    selectedBookBanner: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: C.cream, paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
+    selectedBookTitle:  { fontFamily: F.serif, fontSize: 13, fontWeight: '700', color: C.ink },
+    selectedBookAuthor: { fontFamily: F.serif, fontSize: 11, color: C.inkMuted, marginTop: 2 },
+    selectedBookChange: { fontFamily: F.serif, fontSize: 12, color: C.amber, fontWeight: '600' },
+    locRow:      { flexDirection: 'row', marginHorizontal: 20, gap: 10 },
+    locLabel:    { fontFamily: F.serif, fontSize: 10, color: C.inkMuted, fontWeight: '600', marginBottom: 5 },
+    locInput:    { fontFamily: F.serif, backgroundColor: C.white, borderRadius: 10, borderWidth: 1, borderColor: C.border, padding: 10, fontSize: 13, color: C.ink },
+  }), [themeVersion]);
   const [step, setStep]         = useState(1);
   const [bookId, setBookId]     = useState('');
   const [type, setType]         = useState('insight');
@@ -220,42 +259,3 @@ export function AddNoteModal({ visible, books, onSave, onClose }) {
   );
 }
 
-// ── Styles (lifted verbatim from NotesScreen's `mo` block) ───────────
-const mo = StyleSheet.create({
-  safe:        { flex: 1, backgroundColor: C.paper },
-  header:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: C.border },
-  title:       { fontSize: 16, fontWeight: '700', color: C.ink },
-  cancel:      { fontSize: 15, color: C.inkMuted },
-  save:        { fontSize: 15, color: C.amber, fontWeight: '700' },
-  saveOff:     { opacity: 0.3 },
-  scroll:      { flex: 1 },
-  label:       { fontSize: 10, fontWeight: '700', color: C.inkMuted, letterSpacing: 1, marginHorizontal: 20, marginTop: 20, marginBottom: 8 },
-  optional:    { fontWeight: '400', color: C.inkFaint },
-  typePill:    { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, backgroundColor: C.creamDark, borderWidth: 1, borderColor: C.border },
-  typePillIcon:{ fontSize: 13, color: C.inkMuted },
-  typePillTxt: { fontSize: 12, fontWeight: '600', color: C.inkMuted },
-  typeHint:    { fontSize: 12, marginHorizontal: 20, marginTop: 6, marginBottom: 2, fontStyle: 'italic' },
-  mainInput:   { marginHorizontal: 20, backgroundColor: C.white, borderRadius: 12, borderWidth: 1.5, padding: 14, fontSize: 14, color: C.ink, minHeight: 100, textAlignVertical: 'top', lineHeight: 22 },
-  thinkInput:  { marginHorizontal: 20, backgroundColor: '#FFFEF5', borderRadius: 12, borderWidth: 1, borderColor: '#D4C870', padding: 14, fontSize: 14, color: C.ink, minHeight: 80, textAlignVertical: 'top', lineHeight: 22 },
-  step1Strip:  { backgroundColor: C.cream, borderBottomWidth: 1, borderBottomColor: C.border, paddingHorizontal: 20, paddingVertical: 14 },
-  step1StripTxt: { fontSize: 15, fontWeight: '600', color: C.inkSoft, letterSpacing: -0.2 },
-  emptyBooks:  { alignItems: 'center', paddingTop: 60, paddingHorizontal: 40 },
-  emptyBooksIcon: { fontSize: 40, marginBottom: 12 },
-  emptyBooksTxt:  { fontSize: 17, fontWeight: '700', color: C.ink, marginBottom: 6 },
-  emptyBooksSub:  { fontSize: 13, color: C.inkMuted, textAlign: 'center', lineHeight: 20 },
-  bookRow:         { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: C.white, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: C.border },
-  bookRowActive:   { borderColor: C.amber, backgroundColor: C.amberPale },
-  bookRowInfo:     { flex: 1 },
-  bookRowTitle:    { fontSize: 14, fontWeight: '700', color: C.ink, lineHeight: 20, marginBottom: 3 },
-  bookRowAuthor:   { fontSize: 12, color: C.inkMuted, marginBottom: 8 },
-  bookRowStatus:   { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
-  bookRowStatusTxt:{ fontSize: 11, fontWeight: '600' },
-  bookRowArrow:    { fontSize: 20, color: C.inkFaint },
-  selectedBookBanner: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: C.cream, paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
-  selectedBookTitle:  { fontSize: 13, fontWeight: '700', color: C.ink },
-  selectedBookAuthor: { fontSize: 11, color: C.inkMuted, marginTop: 2 },
-  selectedBookChange: { fontSize: 12, color: C.amber, fontWeight: '600' },
-  locRow:      { flexDirection: 'row', marginHorizontal: 20, gap: 10 },
-  locLabel:    { fontSize: 10, color: C.inkMuted, fontWeight: '600', marginBottom: 5 },
-  locInput:    { backgroundColor: C.white, borderRadius: 10, borderWidth: 1, borderColor: C.border, padding: 10, fontSize: 13, color: C.ink },
-});

@@ -4,12 +4,38 @@
  * avatar circle right.
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { C, F } from '../theme';
+import { useTheme } from '../theme';
 
 export function AppHeader({ onMenuPress, onAvatarPress, brand = 'Modern Library', avatarUri }) {
+  const { C, F, themeVersion } = useTheme();
+  const s = useMemo(() => StyleSheet.create({
+    bar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 20,
+      paddingTop: 10,
+      paddingBottom: 14,
+    },
+    left: { flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1, marginRight: 12 },
+    brand: {
+      fontFamily: F.serif,
+      fontSize: 22,
+      color: C.ink,
+      letterSpacing: -0.2,
+    },
+    avatar: {
+      width: 34, height: 34, borderRadius: 17,
+      backgroundColor: C.ink,
+      alignItems: 'center', justifyContent: 'center',
+      overflow: 'hidden',
+    },
+    avatarImg: { width: '100%', height: '100%' },
+  }), [themeVersion]);
+
   return (
     <View style={s.bar}>
       <View style={s.left}>
@@ -38,28 +64,3 @@ export function AppHeader({ onMenuPress, onAvatarPress, brand = 'Modern Library'
     </View>
   );
 }
-
-const s = StyleSheet.create({
-  bar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 14,
-  },
-  left: { flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1, marginRight: 12 },
-  brand: {
-    fontFamily: F.serif,
-    fontSize: 22,
-    color: C.ink,
-    letterSpacing: -0.2,
-  },
-  avatar: {
-    width: 34, height: 34, borderRadius: 17,
-    backgroundColor: C.ink,
-    alignItems: 'center', justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  avatarImg: { width: '100%', height: '100%' },
-});

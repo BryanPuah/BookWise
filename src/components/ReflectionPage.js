@@ -15,7 +15,7 @@
  * DayPanel behaviour) and the page closes.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
   StyleSheet, Modal, KeyboardAvoidingView, Platform,
@@ -23,7 +23,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useStore } from '../store';
-import { C, F } from '../theme';
+import { useTheme } from '../theme';
 
 // Format the date as "Tuesday, May 12, 2026"
 function formatLongDate(dateKey) {
@@ -44,6 +44,132 @@ function formatShortDate(dateKey) {
 }
 
 export function ReflectionPage({ visible, dateKey, onClose }) {
+  const { C, F, themeVersion } = useTheme();
+  const p = useMemo(() => StyleSheet.create({
+  safe: { flex: 1, backgroundColor: C.paper },
+
+  // Top bar
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  iconBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 18,
+  },
+  editActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingRight: 4,
+  },
+  cancelTxt: {
+    fontFamily: F.serif,
+    fontSize: 14,
+    color: C.inkMuted,
+    fontWeight: '500',
+  },
+  saveBtn: {
+    backgroundColor: C.ink,
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  saveBtnTxt: {
+    fontFamily: F.serif,
+    fontSize: 13,
+    color: C.white,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+
+  // Date header
+  header: {
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 20,
+  },
+  kicker: {
+    fontFamily: F.serif,
+    fontSize: 10,
+    fontWeight: '700',
+    color: C.amber,
+    letterSpacing: 1.5,
+    marginBottom: 10,
+  },
+  dateHeader: {
+    fontFamily: F.serif,
+    fontSize: 30,
+    color: C.ink,
+    letterSpacing: -0.5,
+    lineHeight: 36,
+    marginBottom: 8,
+  },
+  metaTxt: {
+    fontFamily: F.serif,
+    fontSize: 12,
+    color: C.inkMuted,
+    fontWeight: '500',
+  },
+
+  // Body — read mode
+  bodyWrap: {
+    paddingHorizontal: 24,
+    paddingTop: 4,
+  },
+  bodyTxt: {
+    fontFamily: F.serif,
+    fontSize: 16,
+    color: C.ink,
+    lineHeight: 26,
+    letterSpacing: -0.1,
+  },
+  editHint: {
+    fontFamily: F.serif,
+    fontSize: 12,
+    color: C.inkFaint,
+    marginTop: 18,
+    fontStyle: 'italic',
+  },
+
+  // Body — edit mode
+  editor: {
+    fontFamily: F.serif,
+    fontSize: 16,
+    color: C.ink,
+    lineHeight: 26,
+    letterSpacing: -0.1,
+    paddingHorizontal: 24,
+    paddingTop: 4,
+    minHeight: 200,
+  },
+
+  // Empty fallback (defensive)
+  emptyWrap: {
+    alignItems: 'center',
+    paddingTop: 60,
+    paddingHorizontal: 24,
+    gap: 12,
+  },
+  emptyTxt: {
+    fontFamily: F.serif,
+    fontSize: 14,
+    color: C.inkMuted,
+    textAlign: 'center',
+  },
+  emptyLink: {
+    fontFamily: F.serif,
+    fontSize: 13,
+    color: C.ink,
+    fontWeight: '700',
+  },
+  }), [themeVersion]);
   const { reflectionForDate, upsertReflection } = useStore();
   const reflection = dateKey ? reflectionForDate(dateKey) : null;
   const [editing, setEditing] = useState(false);
@@ -181,119 +307,3 @@ export function ReflectionPage({ visible, dateKey, onClose }) {
   );
 }
 
-const p = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.paper },
-
-  // Top bar
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  iconBtn: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 18,
-  },
-  editActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    paddingRight: 4,
-  },
-  cancelTxt: {
-    fontSize: 14,
-    color: C.inkMuted,
-    fontWeight: '500',
-  },
-  saveBtn: {
-    backgroundColor: C.ink,
-    paddingHorizontal: 18,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  saveBtnTxt: {
-    fontSize: 13,
-    color: C.white,
-    fontWeight: '700',
-    letterSpacing: 0.2,
-  },
-
-  // Date header
-  header: {
-    paddingHorizontal: 24,
-    paddingTop: 24,
-    paddingBottom: 20,
-  },
-  kicker: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: C.amber,
-    letterSpacing: 1.5,
-    marginBottom: 10,
-  },
-  dateHeader: {
-    fontFamily: F.serif,
-    fontSize: 30,
-    color: C.ink,
-    letterSpacing: -0.5,
-    lineHeight: 36,
-    marginBottom: 8,
-  },
-  metaTxt: {
-    fontSize: 12,
-    color: C.inkMuted,
-    fontWeight: '500',
-  },
-
-  // Body — read mode
-  bodyWrap: {
-    paddingHorizontal: 24,
-    paddingTop: 4,
-  },
-  bodyTxt: {
-    fontSize: 16,
-    color: C.ink,
-    lineHeight: 26,
-    letterSpacing: -0.1,
-  },
-  editHint: {
-    fontSize: 12,
-    color: C.inkFaint,
-    marginTop: 18,
-    fontStyle: 'italic',
-  },
-
-  // Body — edit mode
-  editor: {
-    fontSize: 16,
-    color: C.ink,
-    lineHeight: 26,
-    letterSpacing: -0.1,
-    paddingHorizontal: 24,
-    paddingTop: 4,
-    minHeight: 200,
-  },
-
-  // Empty fallback (defensive)
-  emptyWrap: {
-    alignItems: 'center',
-    paddingTop: 60,
-    paddingHorizontal: 24,
-    gap: 12,
-  },
-  emptyTxt: {
-    fontSize: 14,
-    color: C.inkMuted,
-    textAlign: 'center',
-  },
-  emptyLink: {
-    fontSize: 13,
-    color: C.ink,
-    fontWeight: '700',
-  },
-});

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
@@ -23,7 +23,7 @@ import { GoalsScreen }         from './src/screens/GoalsScreen';
 import { ProfileScreen }       from './src/screens/ProfileScreen';
 import { LoginScreen }         from './src/screens/LoginScreen';
 import { RichNoteEditor }      from './src/components/RichNoteEditor';
-import { C } from './src/theme';
+import { useTheme } from './src/theme';
 
 const Tab   = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -51,6 +51,30 @@ function DiscoverStack() {
 
 // ── Tab item — icon + label, sage pill behind both when active ────────
 function TabItem({ name, nameActive, label, active }) {
+  const { C, themeVersion } = useTheme();
+  const ti = useMemo(() => StyleSheet.create({
+    item: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 14,
+      paddingVertical: 6,
+      borderRadius: 14,
+      gap: 3,
+    },
+    itemActive: {
+      backgroundColor: C.sagePale,
+    },
+    label: {
+      fontSize: 10,
+      color: C.inkMuted,
+      fontWeight: '500',
+    },
+    labelActive: {
+      color: C.ink,
+      fontWeight: '600',
+    },
+  }), [themeVersion]);
+
   const iconName  = active ? nameActive : name;
   const iconColor = active ? C.ink : C.inkMuted;
 
@@ -62,31 +86,26 @@ function TabItem({ name, nameActive, label, active }) {
   );
 }
 
-const ti = StyleSheet.create({
-  item: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 14,
-    gap: 3,
-  },
-  itemActive: {
-    backgroundColor: C.sagePale,
-  },
-  label: {
-    fontSize: 10,
-    color: C.inkMuted,
-    fontWeight: '500',
-  },
-  labelActive: {
-    color: C.ink,
-    fontWeight: '600',
-  },
-});
-
 // ── Floating "+" FAB ──────────────────────────────────────────────────
 function CaptureFAB({ onPress }) {
+  const { C, themeVersion } = useTheme();
+  const fab = useMemo(() => StyleSheet.create({
+    btn: {
+      position: 'absolute',
+      right: 20,
+      bottom: 96, // sits above the tab bar
+      width: 56, height: 56,
+      borderRadius: 14, // rounded-square per Figma
+      backgroundColor: C.ink,
+      alignItems: 'center', justifyContent: 'center',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.22,
+      shadowRadius: 12,
+      elevation: 10,
+    },
+  }), [themeVersion]);
+
   return (
     <TouchableOpacity
       style={fab.btn}
@@ -98,26 +117,10 @@ function CaptureFAB({ onPress }) {
   );
 }
 
-const fab = StyleSheet.create({
-  btn: {
-    position: 'absolute',
-    right: 20,
-    bottom: 96, // sits above the tab bar
-    width: 56, height: 56,
-    borderRadius: 14, // rounded-square per Figma
-    backgroundColor: C.ink,
-    alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.22,
-    shadowRadius: 12,
-    elevation: 10,
-  },
-});
-
 // ── Tab navigator ──────────────────────────────────────────────────────
 function Tabs() {
   const { books, addNote, user } = useStore();
+  const { C } = useTheme();
   const [showCapture, setShowCapture] = useState(false);
 
   // Auth gate — if there's no user identity yet (fresh install or after
@@ -236,6 +239,7 @@ function StreakTracker() {
 
 // ── Root ───────────────────────────────────────────────────────────────
 export default function App() {
+  const { C } = useTheme();
   const [fontsLoaded] = useFonts({
     DMSerifDisplay_400Regular,
     DMSerifDisplay_400Regular_Italic,
