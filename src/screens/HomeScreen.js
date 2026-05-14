@@ -1,8 +1,9 @@
-import React, { useRef, useState, useMemo } from 'react';
+import React, { useRef, useState, useMemo, useEffect } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet, Dimensions,
+  View, ScrollView, FlatList, TouchableOpacity, StyleSheet, Dimensions,
   Modal,
 } from 'react-native';
+import { AppText as Text } from '../components/AppText';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useStore } from '../store';
@@ -229,7 +230,7 @@ function StreakCard({ streak, onPress }) {
 }
 
 // ── Main screen ────────────────────────────────────────────────────────
-export function HomeScreen({ navigation }) {
+export function HomeScreen({ navigation, route }) {
   const { C, F, themeVersion } = useTheme();
   const { books, notes, readingBooks, currentStreak, reflections, user } = useStore();
 
@@ -250,6 +251,17 @@ export function HomeScreen({ navigation }) {
   const [reflectionDate, setReflectionDate] = useState(null);
   // Active Day Streak grid modal
   const [streakModalOpen, setStreakModalOpen] = useState(false);
+
+  // Honour `reflectionDate` route param — set when a reflection result is
+  // tapped in the global search modal. The `_t` cache-buster ensures the
+  // same date reopens the page after being closed.
+  useEffect(() => {
+    const d = route?.params?.reflectionDate;
+    if (d) {
+      setReflectionDate(d);
+      navigation.setParams({ reflectionDate: undefined, _t: undefined });
+    }
+  }, [route?.params?.reflectionDate, route?.params?._t]);
 
   const finished   = books.filter(b => b.status === 'finished');
   const wantToRead = books.filter(b => b.status === 'want_to_read');
@@ -686,10 +698,14 @@ export function HomeScreen({ navigation }) {
     },
   }), [themeVersion]);
 
-  return (
-    <SafeAreaView style={s.safe} edges={['top']}>
-      <ScrollView showsVerticalScrollIndicator={false} bounces>
+  // Grid sizing — derive the number of columns from screen width so the
+  // wrap behaves like the old flexWrap layout. Tile width + gap dictates
+  // how many fit; we floor at 2 so phones always show a proper grid.
+  const numColumns = Math.max(2, Math.floor((SW - 40 + TILE_GUTTER) / (TILE_W + TILE_GUTTER)));
+  const showGrid = activeCollection !== 'reflections';
 
+  const header = (
+    <>
         {/* ── TOP APP BAR ────────────────────────────────────────── */}
         <AppHeader
           brand={isFirstTime ? `Welcome, ${firstName}` : `Welcome back, ${firstName}`}
@@ -916,9 +932,9 @@ export function HomeScreen({ navigation }) {
           })}
         </View>
 
-        {activeCollection === 'reflections' ? (
-          // Reflections list — sorted newest first. Tap a row to open DayPanel
-          // for that date (read-only viewing + inline edit happen in there).
+        {/* Reflections list lives in the header because it's a separate
+            render path. The grid below virtualises through FlatList. */}
+        {activeCollection === 'reflections' && (
           <View style={s.reflectionsList}>
             {reflections.length === 0 ? (
               <View style={s.collectionEmpty}>
@@ -930,7 +946,6 @@ export function HomeScreen({ navigation }) {
               [...reflections]
                 .sort((a, b) => b.date.localeCompare(a.date))
                 .map(r => {
-                  // First non-empty line as the preview
                   const firstLine = (r.text || '').split('\n').find(l => l.trim()) || '';
                   const [y, m, d] = r.date.split('-').map(Number);
                   const date = new Date(y, m - 1, d);
@@ -959,11 +974,54 @@ export function HomeScreen({ navigation }) {
                 })
             )}
           </View>
-        ) : (
-        <View style={s.collectionGrid}>
-          {collectionBooks.length === 0 ? (
+        )}
+    </>
+  );
+
+  const renderTile = ({ item: b }) => (
+    <TouchableOpacity
+      style={[s.tile, { marginBottom: TILE_GUTTER }]}
+      onPress={() => navigation.navigate('BookDetail', { bookId: b.id })}
+      activeOpacity={0.85}
+    >
+      <View style={s.tileCover}>
+        <BookCover
+          title={b.title}
+          author={b.author}
+          cover={b.cover}
+          coverId={b.coverId}
+          width={TILE_W}
+          height={TILE_H}
+        />
+        {b.status === 'finished' && (
+          <View style={s.tileCheck}>
+            <Ionicons name="checkmark" size={11} color={C.white} />
+          </View>
+        )}
+      </View>
+      <Text style={s.tileTitle} numberOfLines={2}>{b.title}</Text>
+      <Text style={s.tileAuthor} numberOfLines={1}>{b.author}</Text>
+    </TouchableOpacity>
+  );
+
+  return (
+    <SafeAreaView style={s.safe} edges={['top']}>
+      <FlatList
+        // `key` forces remount when the column count or collection mode
+        // changes — FlatList can't switch numColumns without remounting.
+        key={`${activeCollection}-${numColumns}`}
+        data={showGrid ? collectionBooks : []}
+        keyExtractor={b => b.id}
+        renderItem={renderTile}
+        numColumns={showGrid ? numColumns : 1}
+        columnWrapperStyle={showGrid && numColumns > 1
+          ? { paddingHorizontal: 20, gap: TILE_GUTTER }
+          : undefined}
+        ListHeaderComponent={header}
+        ListEmptyComponent={
+          showGrid ? (
             <TouchableOpacity
-              style={s.collectionEmpty}
+              style={[s.collectionEmpty, { paddingHorizontal: 20 }]}
               onPress={() => navigation.navigate('Add')}
               activeOpacity={0.7}
             >
@@ -974,40 +1032,17 @@ export function HomeScreen({ navigation }) {
               </Text>
               <Text style={s.collectionEmptyLink}>+ Add a book →</Text>
             </TouchableOpacity>
-          ) : (
-            collectionBooks.map(b => (
-              <TouchableOpacity
-                key={b.id}
-                style={s.tile}
-                onPress={() => navigation.navigate('BookDetail', { bookId: b.id })}
-                activeOpacity={0.85}
-              >
-                <View style={s.tileCover}>
-                  <BookCover
-                    title={b.title}
-                    author={b.author}
-                    cover={b.cover}
-                    coverId={b.coverId}
-                    width={TILE_W}
-                    height={TILE_H}
-                  />
-                  {b.status === 'finished' && (
-                    <View style={s.tileCheck}>
-                      <Ionicons name="checkmark" size={11} color={C.white} />
-                    </View>
-                  )}
-                </View>
-                <Text style={s.tileTitle} numberOfLines={2}>{b.title}</Text>
-                <Text style={s.tileAuthor} numberOfLines={1}>{b.author}</Text>
-              </TouchableOpacity>
-            ))
-          )}
-        </View>
-        )}
-
-        <View style={{ height: 130 }} />
-
-      </ScrollView>
+          ) : null
+        }
+        ListFooterComponent={<View style={{ height: 130 }} />}
+        contentContainerStyle={showGrid ? { paddingTop: 20 } : undefined}
+        showsVerticalScrollIndicator={false}
+        bounces
+        removeClippedSubviews
+        initialNumToRender={12}
+        windowSize={9}
+        maxToRenderPerBatch={9}
+      />
 
       {/* Full-screen reflection page — opens from the Reflections list rows.
           Closing simply clears the date so the same row can be tapped again. */}

@@ -18,12 +18,13 @@
  */
 
 import React, { useMemo } from 'react';
-import { Text } from 'react-native';
+import { AppText as Text } from './AppText';
 import { useTheme } from '../theme';
 
-// Regex matches in priority order: bold > italic, underline, highlight.
-// Bold (**...**) is matched before italic (*...*) to avoid `*` ambiguity.
+// Regex matches in priority order: wiki-links first (so `[[Title]]` isn't
+// shredded by the `**...**` pass), then bold > underline > highlight > italic.
 const PATTERNS = [
+  { type: 'wikilink',  regex: /\[\[([^\]\n]+?)\]\]/ },
   { type: 'bold',      regex: /\*\*([^*]+?)\*\*/ },
   { type: 'underline', regex: /__([^_]+?)__/ },
   { type: 'highlight', regex: /==([^=]+?)==/ },
@@ -61,6 +62,14 @@ export function MarkdownText({ children, style, ...rest }) {
     italic:    { fontFamily: F.serifItalic, fontStyle: 'italic' },
     underline: { fontFamily: F.serif, textDecorationLine: 'underline' },
     highlight: { fontFamily: F.serif, backgroundColor: C.amberPale },
+    // Wiki-link chip — rendered as a subtly tinted, accent-colored span so
+    // [[Title]] references read as a link without being visually noisy.
+    wikilink:  {
+      fontFamily: F.serif,
+      color: C.sage,
+      fontWeight: '700',
+      backgroundColor: C.sagePale,
+    },
   }), [themeVersion]);
 
   const chunks = parseChunks(typeof children === 'string' ? children : '', spanStyles);

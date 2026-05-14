@@ -1,5 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, Image, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
+import { Image } from 'expo-image';
+import { AppText as Text } from './AppText';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../theme';
 
@@ -47,11 +49,15 @@ export function BookCover({ title, author, cover = 'sage', coverId, width = 88, 
       s.shadow,
     ]}>
       {showImage ? (
-        // Real book cover photo from Open Library
+        // Real book cover photo from Open Library — expo-image gives us
+        // memory + disk caching so covers load instantly on subsequent
+        // renders (Library grid, BookDetail, search results, etc.).
         <Image
-          source={{ uri: imageUrl }}
+          source={imageUrl}
           style={[s.image, { width, height, borderRadius: rounding }]}
-          resizeMode="cover"
+          contentFit="cover"
+          cachePolicy="disk"
+          transition={150}
           onError={() => setImgError(true)}
         />
       ) : (

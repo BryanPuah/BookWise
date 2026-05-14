@@ -1,19 +1,22 @@
 /**
  * AppHeader — the top bar used across all main screens.
  * Matches Figma: hamburger left, "Modern Library" serif brand centre-left,
- * avatar circle right.
+ * search + avatar circle right.
  */
 
-import React, { useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import { AppText as Text } from './AppText';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTheme } from '../theme';
 import { useStore } from '../store';
 import { AVATAR_COLORS, getAvatarColor, getInitials } from './EditProfileModal';
+import { GlobalSearchModal } from './GlobalSearchModal';
 
 export function AppHeader({ onMenuPress, onAvatarPress, brand = 'Modern Library', avatarUri }) {
   const { C, F, themeVersion } = useTheme();
   const { user } = useStore();
+  const [searchOpen, setSearchOpen] = useState(false);
 
   // Show the colored initials avatar only once the user has typed a name
   // AND picked an explicit color in the profile settings. Otherwise fall
@@ -40,6 +43,12 @@ export function AppHeader({ onMenuPress, onAvatarPress, brand = 'Modern Library'
       fontSize: 22,
       color: C.ink,
       letterSpacing: -0.2,
+    },
+    right: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    searchBtn: {
+      width: 34, height: 34, borderRadius: 17,
+      alignItems: 'center', justifyContent: 'center',
+      backgroundColor: C.cream,
     },
     avatar: {
       width: 34, height: 34, borderRadius: 17,
@@ -69,20 +78,33 @@ export function AppHeader({ onMenuPress, onAvatarPress, brand = 'Modern Library'
         <Text style={s.brand} numberOfLines={1} ellipsizeMode="tail">{brand}</Text>
       </View>
 
-      <TouchableOpacity
-        style={[s.avatar, { backgroundColor: avatarBg }]}
-        onPress={onAvatarPress}
-        activeOpacity={0.75}
-        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-      >
-        {avatarUri ? (
-          <Image source={{ uri: avatarUri }} style={s.avatarImg} />
-        ) : showInitials ? (
-          <Text style={s.avatarInitials}>{initials}</Text>
-        ) : (
-          <Ionicons name="person" size={16} color={C.white} />
-        )}
-      </TouchableOpacity>
+      <View style={s.right}>
+        <TouchableOpacity
+          style={s.searchBtn}
+          onPress={() => setSearchOpen(true)}
+          activeOpacity={0.75}
+          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+        >
+          <Ionicons name="search" size={17} color={C.ink} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[s.avatar, { backgroundColor: avatarBg }]}
+          onPress={onAvatarPress}
+          activeOpacity={0.75}
+          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+        >
+          {avatarUri ? (
+            <Image source={{ uri: avatarUri }} style={s.avatarImg} />
+          ) : showInitials ? (
+            <Text style={s.avatarInitials}>{initials}</Text>
+          ) : (
+            <Ionicons name="person" size={16} color={C.white} />
+          )}
+        </TouchableOpacity>
+      </View>
+
+      <GlobalSearchModal visible={searchOpen} onClose={() => setSearchOpen(false)} />
     </View>
   );
 }

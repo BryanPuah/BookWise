@@ -1,10 +1,12 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, TextInput,
-  StyleSheet, ActivityIndicator, Image, Animated,
+  View, ScrollView, TouchableOpacity,
+  StyleSheet, ActivityIndicator, Animated,
   Dimensions, KeyboardAvoidingView, Platform, PanResponder, Modal,
   TouchableWithoutFeedback, Keyboard,
 } from 'react-native';
+import { Image } from 'expo-image';
+import { AppText as Text, AppTextInput as TextInput } from '../components/AppText';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -56,9 +58,11 @@ function CoverThumb({ coverId, title, width = 56, height = 80 }) {
   const { C, F } = useTheme();
   return coverId ? (
     <Image
-      source={{ uri: getImageUrl(coverId, 'M') }}
+      source={getImageUrl(coverId, 'M')}
       style={{ width, height, borderRadius: 6, backgroundColor: C.creamDark }}
-      resizeMode="cover"
+      contentFit="cover"
+      cachePolicy="disk"
+      transition={150}
     />
   ) : (
     <LinearGradient
@@ -1245,8 +1249,11 @@ export function DiscoverScreen() {
                   >
                     {book.cover_i ? (
                       <Image
-                        source={{ uri: getImageUrl(book.cover_i, 'L') }}
+                        source={getImageUrl(book.cover_i, 'L')}
                         style={s.recoCover}
+                        contentFit="cover"
+                        cachePolicy="disk"
+                        transition={150}
                       />
                     ) : (
                       <View style={[s.recoCover, s.recoCoverFallback]}>

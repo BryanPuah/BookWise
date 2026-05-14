@@ -12,9 +12,10 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, ScrollView,
+  View, TouchableOpacity, ScrollView,
   StyleSheet, Modal, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { AppText as Text, AppTextInput as TextInput } from './AppText';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useStore } from '../store';

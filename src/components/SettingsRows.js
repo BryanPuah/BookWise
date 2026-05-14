@@ -7,8 +7,9 @@
 
 import React, { useMemo, useState } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, Switch,
+  View, TouchableOpacity, StyleSheet, Switch,
 } from 'react-native';
+import { AppText as Text } from './AppText';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTheme } from '../theme';
 

@@ -11,8 +11,9 @@
 
 import React, { useMemo } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet, Modal,
+  View, ScrollView, TouchableOpacity, StyleSheet, Modal,
 } from 'react-native';
+import { AppText as Text } from './AppText';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useStore } from '../store';

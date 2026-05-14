@@ -3,8 +3,9 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import {
-  View, Text, TextInput, StyleSheet, ActivityIndicator, TouchableOpacity,
+  View, StyleSheet, ActivityIndicator, TouchableOpacity,
 } from 'react-native';
+import { AppText as Text } from './src/components/AppText';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import {
@@ -141,20 +142,22 @@ function Tabs() {
 
   const handleSave = (data) => {
     addNote({
-      id:        Date.now().toString(),
-      bookId:    data.bookId,
-      bookTitle: data.bookTitle,
-      title:     data.title || '',
-      blocks:    data.blocks || [],
-      types:     data.types || [data.type || 'insight'],
-      type:      data.type,
-      text:      data.text,
-      thinking:  data.thinking || '',
-      page:      data.page || '',
-      chapter:   data.chapter || '',
-      isQuote:   data.type === 'quote',
-      starred:   false,
-      date:      new Date().toISOString().slice(0, 10),
+      id:            Date.now().toString(),
+      bookId:        data.bookId,
+      bookTitle:     data.bookTitle,
+      title:         data.title || '',
+      blocks:        data.blocks || [],
+      types:         data.types || [data.type || 'insight'],
+      type:          data.type,
+      text:          data.text,
+      thinking:      data.thinking || '',
+      page:          data.page || '',
+      chapter:       data.chapter || '',
+      tags:          Array.isArray(data.tags) ? data.tags : [],
+      linkedNoteIds: Array.isArray(data.linkedNoteIds) ? data.linkedNoteIds : [],
+      isQuote:       data.type === 'quote',
+      starred:       false,
+      date:          new Date().toISOString().slice(0, 10),
     });
   };
 
@@ -255,21 +258,6 @@ export default function App() {
     DMSerifDisplay_400Regular,
     DMSerifDisplay_400Regular_Italic,
   });
-
-  // Apply DMSerifDisplay as the default font for every <Text> and <TextInput>
-  // in the app. Components that set their own fontFamily still win.
-  //
-  // TO REVERT: delete this useEffect block. The font fallback will return to
-  // the system default (San Francisco on iOS, Roboto on Android).
-  useEffect(() => {
-    if (!fontsLoaded) return;
-    const familyStyle = { fontFamily: 'DMSerifDisplay_400Regular' };
-    // Text.defaultProps may be undefined on first mount; initialise then merge
-    Text.defaultProps = Text.defaultProps || {};
-    Text.defaultProps.style = [familyStyle, Text.defaultProps.style];
-    TextInput.defaultProps = TextInput.defaultProps || {};
-    TextInput.defaultProps.style = [familyStyle, TextInput.defaultProps.style];
-  }, [fontsLoaded]);
 
   if (!fontsLoaded) {
     return (

@@ -24,15 +24,16 @@
 
 import React, { useState, useMemo } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, TextInput,
+  View, ScrollView, TouchableOpacity,
   StyleSheet, Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { AppText as Text, AppTextInput as TextInput } from '../components/AppText';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useStore } from '../store';
 import { BookCover } from '../components/BookCover';
 import { RichNoteEditor } from '../components/RichNoteEditor';
-import { NoteCard } from './NotesScreen';
+import { NoteCard } from './notes/NoteCard';
 import { useTheme } from '../theme';
 
 // ── Stars — interactive rating ────────────────────────────────────────
