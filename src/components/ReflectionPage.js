@@ -62,7 +62,7 @@ export function ReflectionPage({ visible, dateKey, onClose }) {
     height: 36,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 18,
+    borderRadius: 999,
   },
   editActions: {
     flexDirection: 'row',

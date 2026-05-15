@@ -158,9 +158,9 @@ export function CalendarModal({ visible, notesByKey, onClose, onSelectDay }) {
   const { C, F, themeVersion } = useTheme();
   const cal = useMemo(() => StyleSheet.create({
     overlay:  { flex: 1, justifyContent: 'flex-end' },
-    backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.45)' },
+    backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: C.scrim },
     sheetOuter: {
-      shadowColor: '#000',
+      shadowColor: C.shadow,
       shadowOffset: { width: 0, height: -6 },
       shadowOpacity: 0.1,
       shadowRadius: 20,

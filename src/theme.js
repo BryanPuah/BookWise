@@ -40,6 +40,34 @@ export const SP = {
   xs: 4, sm: 8, md: 12, lg: 16, xl: 20, '2xl': 24, '3xl': 32, '4xl': 40,
 };
 
+// Avatar swatches — paper-friendly hues that harmonise with the accent
+// themes but stay fixed (not theme-driven) so a user's chosen avatar
+// color stays put regardless of which app accent they switch to.
+export const AVATAR_COLORS = [
+  { key: 'olive',    label: 'Olive',    color: '#7A8B5E' },
+  { key: 'berry',    label: 'Berry',    color: '#B7295A' },
+  { key: 'red',      label: 'Red',      color: '#D1453B' },
+  { key: 'orange',   label: 'Orange',   color: '#D97706' },
+  { key: 'yellow',   label: 'Yellow',   color: '#C7A53A' },
+  { key: 'forest',   label: 'Forest',   color: '#1F7A4D' },
+  { key: 'teal',     label: 'Teal',     color: '#0F8B8D' },
+  { key: 'sky',      label: 'Sky',      color: '#3A8DC4' },
+  { key: 'indigo',   label: 'Indigo',   color: '#5B5FA8' },
+  { key: 'plum',     label: 'Plum',     color: '#8B5076' },
+  { key: 'charcoal', label: 'Charcoal', color: '#475569' },
+];
+
+// Note-type → node colour for the graph view + any future type-coded
+// chrome. Fixed across themes for visual stability.
+export const NOTE_TYPE_COLORS = {
+  quote:      '#D4A55A',
+  insight:    '#7A8B5E',
+  question:   '#D1453B',
+  action:     '#1F7A4D',
+  summary:    '#5B5FA8',
+  connection: '#8B5076',
+};
+
 // ── Ink + semantic tokens ──────────────────────────────────────────────
 // Two ink palettes — light (dark ink on paper) and dark (light ink on
 // near-black surfaces). The active mode is chosen by `_mode` and applied
@@ -265,6 +293,9 @@ function buildPalette(themeName, backgroundName, mode) {
     amberLight:  isDark ? '#383B54' : t.highlightLight,
     heroTop:     t.heroTop,
     heroBot:     t.heroBot,
+    // Overlay primitives — single canonical values for elevation and modal scrims.
+    shadow:      '#000',
+    scrim:       'rgba(0,0,0,0.45)',
   };
 }
 

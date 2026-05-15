@@ -97,7 +97,7 @@ export function ExploreView({ notes, books, onStar, onDelete, onEdit }) {
       <View style={ev.searchWrap}>
         <Ionicons name="search" size={16} color={C.inkMuted} />
         <TextInput style={ev.search} value={search} onChangeText={setSearch}
-          placeholder="Search your digital garden..."
+          placeholder="Search your notes…"
           placeholderTextColor={C.inkFaint} />
         {search.length > 0 && (
           <TouchableOpacity onPress={() => setSearch('')}>

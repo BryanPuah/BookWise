@@ -9,7 +9,7 @@
  * Tapped from the Active Day Streak card on the home screen.
  */
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef, useEffect } from 'react';
 import {
   View, ScrollView, TouchableOpacity, StyleSheet, Modal,
 } from 'react-native';
@@ -92,6 +92,7 @@ export function StreakActivityModal({ visible, onClose }) {
 
   // Grid
   gridKicker: {
+    fontFamily: F.sans,
     fontSize: 10,
     fontWeight: '700',
     color: C.inkMuted,
@@ -108,6 +109,7 @@ export function StreakActivityModal({ visible, onClose }) {
   },
   monthLabel: {
     position: 'absolute',
+    fontFamily: F.sans,
     fontSize: 11,
     color: C.inkMuted,
     fontWeight: '600',
@@ -116,7 +118,7 @@ export function StreakActivityModal({ visible, onClose }) {
     width: 28,
     paddingRight: 4,
   },
-  weekdayLabel: { fontSize: 10, color: C.inkMuted, fontWeight: '500' },
+  weekdayLabel: { fontFamily: F.sans, fontSize: 10, color: C.inkMuted, fontWeight: '500' },
   weekCol: { width: COL_WIDTH, gap: 0 },
   cell: {
     width: CELL,
@@ -147,7 +149,7 @@ export function StreakActivityModal({ visible, onClose }) {
     height: CELL,
     borderRadius: 2,
   },
-  legendTxt: { fontSize: 11, color: C.inkMuted, marginHorizontal: 6 },
+  legendTxt: { fontFamily: F.sans, fontSize: 11, color: C.inkMuted, marginHorizontal: 6 },
 
   // Caption
   caption: {
@@ -155,6 +157,7 @@ export function StreakActivityModal({ visible, onClose }) {
     paddingTop: 18,
   },
   captionTxt: {
+    fontFamily: F.sans,
     fontSize: 12,
     color: C.inkMuted,
     lineHeight: 18,
@@ -166,6 +169,17 @@ export function StreakActivityModal({ visible, onClose }) {
   const { weeks, today } = useMemo(buildYearGrid, []);
   const monthLabels = useMemo(() => getMonthLabels(weeks), [weeks]);
   const todayKey = ymdKey(today);
+
+  // Pin the horizontal grid to the right edge when the modal opens so the
+  // most recent weeks are visible without manual scrolling. The flag resets
+  // each time the modal becomes visible — needed because pageSheet content
+  // stays mounted while hidden, so onContentSizeChange would otherwise only
+  // fire on first ever open.
+  const scrollRef = useRef(null);
+  const didInitialScroll = useRef(false);
+  useEffect(() => {
+    if (visible) didInitialScroll.current = false;
+  }, [visible]);
 
   return (
     <Modal
@@ -190,9 +204,16 @@ export function StreakActivityModal({ visible, onClose }) {
         {/* Activity grid — horizontal scroll on small screens */}
         <Text style={s.gridKicker}>ACTIVITY · LAST 12 MONTHS</Text>
         <ScrollView
+          ref={scrollRef}
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={s.gridScroll}
+          onContentSizeChange={(w) => {
+            if (!didInitialScroll.current && w > 0) {
+              didInitialScroll.current = true;
+              scrollRef.current?.scrollToEnd({ animated: false });
+            }
+          }}
         >
           <View>
             {/* Month labels row */}
@@ -267,8 +288,7 @@ export function StreakActivityModal({ visible, onClose }) {
         {/* Caption */}
         <View style={s.caption}>
           <Text style={s.captionTxt}>
-            Each square represents one day. Sage cells mark days you were active —
-            reading, writing notes, or adding a reflection.
+            Filled squares are days you read, wrote a note, or added a reflection.
           </Text>
         </View>
       </SafeAreaView>

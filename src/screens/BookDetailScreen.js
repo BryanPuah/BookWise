@@ -80,7 +80,7 @@ export function BookDetailScreen({ route, navigation }) {
       height: 36,
       alignItems: 'center',
       justifyContent: 'center',
-      borderRadius: 18,
+      borderRadius: 999,
     },
 
     // Hero card — unified container holding identity + status + progress
@@ -93,7 +93,7 @@ export function BookDetailScreen({ route, navigation }) {
       backgroundColor: C.white,
       borderLeftWidth: 6,
       borderLeftColor: C.sage,
-      shadowColor: '#000',
+      shadowColor: C.shadow,
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.06,
       shadowRadius: 10,
@@ -189,14 +189,14 @@ export function BookDetailScreen({ route, navigation }) {
       letterSpacing: 0.3,
     },
     actionBtn: {
-      backgroundColor: C.sage,
-      paddingHorizontal: 16,
-      paddingVertical: 10,
-      borderRadius: 22,
+      backgroundColor: C.ink,
+      paddingHorizontal: 18,
+      paddingVertical: 12,
+      borderRadius: 14,
     },
     actionBtnTxt: {
-      fontFamily: F.serif,
-      fontSize: 13,
+      fontFamily: F.sans,
+      fontSize: 15,
       color: C.white,
       fontWeight: '700',
     },
@@ -204,7 +204,7 @@ export function BookDetailScreen({ route, navigation }) {
       backgroundColor: C.cream,
       paddingHorizontal: 14,
       paddingVertical: 10,
-      borderRadius: 22,
+      borderRadius: 999,
       borderWidth: 1,
       borderColor: C.border,
     },
@@ -262,7 +262,7 @@ export function BookDetailScreen({ route, navigation }) {
       marginTop: 8,
     },
     pageInputLabel: {
-      fontFamily: F.serif,
+      fontFamily: F.sans,
       fontSize: 10,
       fontWeight: '700',
       color: C.inkFaint,
@@ -281,14 +281,14 @@ export function BookDetailScreen({ route, navigation }) {
       color: C.ink,
     },
     updateBtn: {
-      backgroundColor: C.sage,
+      backgroundColor: C.ink,
       paddingHorizontal: 18,
-      paddingVertical: 10,
-      borderRadius: 10,
+      paddingVertical: 12,
+      borderRadius: 14,
     },
     updateBtnTxt: {
-      fontFamily: F.serif,
-      fontSize: 13,
+      fontFamily: F.sans,
+      fontSize: 15,
       color: C.white,
       fontWeight: '700',
     },
@@ -318,7 +318,7 @@ export function BookDetailScreen({ route, navigation }) {
     },
     notesCount: {
       fontFamily: F.serif,
-      fontSize: 16,
+      fontSize: 14,
       color: C.inkMuted,
       letterSpacing: -0.2,
     },
@@ -328,7 +328,7 @@ export function BookDetailScreen({ route, navigation }) {
       alignItems: 'center',
       gap: 6,
       backgroundColor: C.sage,
-      borderRadius: 18,
+      borderRadius: 999,
       paddingHorizontal: 12,
       paddingVertical: 7,
     },
@@ -573,7 +573,7 @@ export function BookDetailScreen({ route, navigation }) {
 
                   <View style={s.progressInputRow}>
                     <View style={{ flex: 1 }}>
-                      <Text style={s.pageInputLabel}>Update page</Text>
+                      <Text style={s.pageInputLabel}>Where are you up to?</Text>
                       <TextInput
                         style={s.pageInput}
                         value={pageInput}
@@ -590,7 +590,7 @@ export function BookDetailScreen({ route, navigation }) {
                       onPress={handlePageUpdate}
                       activeOpacity={0.85}
                     >
-                      <Text style={s.updateBtnTxt}>Update</Text>
+                      <Text style={s.updateBtnTxt}>Save progress</Text>
                     </TouchableOpacity>
                   </View>
                 </View>

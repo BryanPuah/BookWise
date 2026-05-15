@@ -4,19 +4,23 @@
  * search + avatar circle right.
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { View, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { AppText as Text } from './AppText';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useTheme } from '../theme';
+import { useTheme, AVATAR_COLORS } from '../theme';
 import { useStore } from '../store';
-import { AVATAR_COLORS, getAvatarColor, getInitials } from './EditProfileModal';
+import { getAvatarColor, getInitials } from './EditProfileModal';
 import { GlobalSearchModal } from './GlobalSearchModal';
 
 export function AppHeader({ onMenuPress, onAvatarPress, brand = 'Modern Library', avatarUri }) {
   const { C, F, themeVersion } = useTheme();
   const { user } = useStore();
   const [searchOpen, setSearchOpen] = useState(false);
+  // Reset on every avatarUri change so a new URL gets a fresh shot at loading
+  // — otherwise a one-time 404 would lock the avatar to the initials fallback.
+  const [imgError, setImgError] = useState(false);
+  useEffect(() => { setImgError(false); }, [avatarUri]);
 
   // Show the colored initials avatar only once the user has typed a name
   // AND picked an explicit color in the profile settings. Otherwise fall
@@ -46,12 +50,12 @@ export function AppHeader({ onMenuPress, onAvatarPress, brand = 'Modern Library'
     },
     right: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     searchBtn: {
-      width: 34, height: 34, borderRadius: 17,
+      width: 36, height: 36, borderRadius: 999,
       alignItems: 'center', justifyContent: 'center',
       backgroundColor: C.cream,
     },
     avatar: {
-      width: 34, height: 34, borderRadius: 17,
+      width: 36, height: 36, borderRadius: 999,
       alignItems: 'center', justifyContent: 'center',
       overflow: 'hidden',
     },
@@ -60,7 +64,7 @@ export function AppHeader({ onMenuPress, onAvatarPress, brand = 'Modern Library'
       fontFamily: F.serif,
       fontSize: 13,
       fontWeight: '700',
-      color: '#FFFFFF',
+      color: C.white,
       letterSpacing: -0.2,
     },
   }), [themeVersion]);
@@ -85,7 +89,7 @@ export function AppHeader({ onMenuPress, onAvatarPress, brand = 'Modern Library'
           activeOpacity={0.75}
           hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
         >
-          <Ionicons name="search" size={17} color={C.ink} />
+          <Ionicons name="search" size={22} color={C.ink} />
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -94,8 +98,12 @@ export function AppHeader({ onMenuPress, onAvatarPress, brand = 'Modern Library'
           activeOpacity={0.75}
           hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
         >
-          {avatarUri ? (
-            <Image source={{ uri: avatarUri }} style={s.avatarImg} />
+          {avatarUri && !imgError ? (
+            <Image
+              source={{ uri: avatarUri }}
+              style={s.avatarImg}
+              onError={() => setImgError(true)}
+            />
           ) : showInitials ? (
             <Text style={s.avatarInitials}>{initials}</Text>
           ) : (

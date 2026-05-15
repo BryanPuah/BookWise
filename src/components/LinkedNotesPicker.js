@@ -44,7 +44,7 @@ export function LinkedNotesPicker({
     safe: { flex: 1, backgroundColor: C.paper },
     headerRow: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-      paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10,
+      paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10,
       borderBottomWidth: 0.5, borderBottomColor: C.border,
     },
     cancelTxt: { fontFamily: F.serif, fontSize: 14, color: C.inkSoft, fontWeight: '600' },

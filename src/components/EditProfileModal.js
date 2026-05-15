@@ -19,24 +19,9 @@ import { AppText as Text, AppTextInput as TextInput } from './AppText';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useStore } from '../store';
-import { useTheme } from '../theme';
+import { useTheme, AVATAR_COLORS } from '../theme';
 
-// Paper-friendly palette — same hue family as the accent themes so the
-// avatar harmonises with the rest of the app regardless of which accent
-// the user picked.
-export const AVATAR_COLORS = [
-  { key: 'olive',    label: 'Olive',    color: '#7A8B5E' },
-  { key: 'berry',    label: 'Berry',    color: '#B7295A' },
-  { key: 'red',      label: 'Red',      color: '#D1453B' },
-  { key: 'orange',   label: 'Orange',   color: '#D97706' },
-  { key: 'yellow',   label: 'Yellow',   color: '#C7A53A' },
-  { key: 'forest',   label: 'Forest',   color: '#1F7A4D' },
-  { key: 'teal',     label: 'Teal',     color: '#0F8B8D' },
-  { key: 'sky',      label: 'Sky',      color: '#3A8DC4' },
-  { key: 'indigo',   label: 'Indigo',   color: '#5B5FA8' },
-  { key: 'plum',     label: 'Plum',     color: '#8B5076' },
-  { key: 'charcoal', label: 'Charcoal', color: '#475569' },
-];
+export { AVATAR_COLORS };
 
 // First letter of first word + first letter of last word, uppercased.
 // "?" is the fallback for empty names so the circle is never blank.
@@ -141,7 +126,7 @@ export function EditProfileModal({ visible, onClose }) {
     previewInitials: {
       fontFamily: F.serif,
       fontSize: 32,
-      color: '#FFFFFF',
+      color: C.white,
       letterSpacing: -0.5,
     },
 
@@ -169,7 +154,7 @@ export function EditProfileModal({ visible, onClose }) {
       borderRadius: 20,
       alignItems: 'center',
       justifyContent: 'center',
-      shadowColor: '#000',
+      shadowColor: C.shadow,
       shadowOffset: { width: 0, height: 1 },
       shadowOpacity: 0.08,
       shadowRadius: 3,
@@ -287,7 +272,7 @@ export function EditProfileModal({ visible, onClose }) {
                   >
                     <View style={[p.swatch, { backgroundColor: c.color }]}>
                       {active && (
-                        <Ionicons name="checkmark" size={22} color="#FFFFFF" />
+                        <Ionicons name="checkmark" size={22} color={C.white} />
                       )}
                     </View>
                   </TouchableOpacity>

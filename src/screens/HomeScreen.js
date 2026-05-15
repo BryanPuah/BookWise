@@ -56,7 +56,7 @@ function RangePickerModal({ visible, currentRange, onSelect, onClose }) {
   const rp = useMemo(() => StyleSheet.create({
     backdrop: {
       flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.4)',
+      backgroundColor: C.scrim,
       justifyContent: 'center',
       alignItems: 'center',
       paddingHorizontal: 40,
@@ -67,7 +67,7 @@ function RangePickerModal({ visible, currentRange, onSelect, onClose }) {
       backgroundColor: C.paper,
       borderRadius: 16,
       paddingVertical: 8,
-      shadowColor: '#000',
+      shadowColor: C.shadow,
       shadowOffset: { width: 0, height: 8 },
       shadowOpacity: 0.18,
       shadowRadius: 24,
@@ -324,7 +324,7 @@ export function HomeScreen({ navigation, route }) {
       height: 260,
       borderLeftWidth: 6,
       borderLeftColor: C.sage,
-      shadowColor: '#000',
+      shadowColor: C.shadow,
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.06,
       shadowRadius: 10,
@@ -339,7 +339,7 @@ export function HomeScreen({ navigation, route }) {
       paddingBottom: 30,
     },
     heroCoverCol: {
-      shadowColor: '#000',
+      shadowColor: C.shadow,
       shadowOffset: { width: 2, height: 4 },
       shadowOpacity: 0.18,
       shadowRadius: 10,
@@ -384,8 +384,8 @@ export function HomeScreen({ navigation, route }) {
       alignItems: 'baseline',
       marginBottom: 6,
     },
-    heroProgressLbl:   { fontFamily: F.serif, fontSize: 11, color: C.ink, fontWeight: '600' },
-    heroProgressPages: { fontFamily: F.serif, fontSize: 11, color: C.inkMuted },
+    heroProgressLbl:   { fontFamily: F.sans, fontSize: 11, color: C.ink, fontWeight: '600' },
+    heroProgressPages: { fontFamily: F.sans, fontSize: 11, color: C.inkMuted },
     heroTrack: {
       height: 4,
       backgroundColor: C.creamDark,
@@ -462,8 +462,8 @@ export function HomeScreen({ navigation, route }) {
     emptyHeroIcon:   { fontSize: 36, marginBottom: 12 },
     emptyHeroTitle:  { fontFamily: F.serif, fontSize: 20, color: C.ink, textAlign: 'center', marginBottom: 6 },
     emptyHeroSub:    { fontFamily: F.serif, fontSize: 13, color: C.inkMuted, textAlign: 'center', lineHeight: 20, marginBottom: 20 },
-    emptyHeroBtn:    { backgroundColor: C.ink, paddingHorizontal: 20, paddingVertical: 11, borderRadius: 22 },
-    emptyHeroBtnTxt: { fontFamily: F.serif, color: C.white, fontSize: 13, fontWeight: '600' },
+    emptyHeroBtn:    { backgroundColor: C.ink, paddingHorizontal: 18, paddingVertical: 12, borderRadius: 14 },
+    emptyHeroBtnTxt: { fontFamily: F.sans, color: C.white, fontSize: 15, fontWeight: '700' },
 
     // Get Started card — shown only on the all-zero first launch (no
     // books, no notes, no reflections). Replaces the carousel/empty-hero
@@ -475,9 +475,9 @@ export function HomeScreen({ navigation, route }) {
       backgroundColor: C.white,
       borderLeftWidth: 6,
       borderLeftColor: C.sage,
-      paddingHorizontal: 22,
-      paddingVertical: 22,
-      shadowColor: '#000',
+      paddingHorizontal: 20,
+      paddingVertical: 20,
+      shadowColor: C.shadow,
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.06,
       shadowRadius: 10,
@@ -537,7 +537,7 @@ export function HomeScreen({ navigation, route }) {
     // Stats row — three big numerals evenly spaced across the row
     goalsWrap: {
       flexDirection: 'row',
-      paddingHorizontal: 24,
+      paddingHorizontal: 20,
       paddingTop: 12,
       paddingBottom: 14,
       justifyContent: 'space-between',

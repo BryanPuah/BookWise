@@ -6,13 +6,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../theme';
 
 export function BookCover({ title, author, cover = 'sage', coverId, width = 88, height = 124 }) {
-  const { covers, F, themeVersion } = useTheme();
+  const { C, covers, F, themeVersion } = useTheme();
   const [imgError, setImgError] = useState(false);
 
   const s = useMemo(() => StyleSheet.create({
     wrap: { overflow: 'hidden' },
     shadow: {
-      shadowColor: '#000',
+      shadowColor: C.shadow,
       shadowOffset: { width: 3, height: 6 },
       shadowOpacity: 0.28,
       shadowRadius: 12,

@@ -33,12 +33,12 @@ function useDpnlStyles() {
   const { C, F, themeVersion } = useTheme();
   return useMemo(() => StyleSheet.create({
     overlay:  { flex: 1, justifyContent: 'flex-end' },
-    backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.45)' },
+    backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: C.scrim },
     sheet: {
       backgroundColor: C.paper,
       borderTopLeftRadius: 26,
       borderTopRightRadius: 26,
-      shadowColor: '#000',
+      shadowColor: C.shadow,
       shadowOffset: { width: 0, height: -6 },
       shadowOpacity: 0.1,
       shadowRadius: 20,
@@ -286,7 +286,7 @@ function useDpnlStyles() {
       width: 54, height: 54, borderRadius: 27,
       backgroundColor: C.sage,
       alignItems: 'center', justifyContent: 'center',
-      shadowColor: '#000',
+      shadowColor: C.shadow,
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.22,
       shadowRadius: 10,
@@ -520,7 +520,7 @@ function DaySection({
 
       {allEmpty && (
         <View style={dpnl.emptyDay}>
-          <Text style={dpnl.emptyDayTxt}>A rest day — nothing on the agenda.</Text>
+          <Text style={dpnl.emptyDayTxt}>Nothing logged for this day yet.</Text>
         </View>
       )}
 
@@ -530,7 +530,7 @@ function DaySection({
             <Text style={dpnl.subsectionTitle}>Goals</Text>
             {onManageGoals && (
               <TouchableOpacity onPress={onManageGoals} activeOpacity={0.6}>
-                <Text style={dpnl.manageLink}>Manage</Text>
+                <Text style={dpnl.manageLink}>Edit goals</Text>
               </TouchableOpacity>
             )}
           </View>

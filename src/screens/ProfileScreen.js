@@ -15,7 +15,7 @@
 
 import React, { useState, useMemo } from 'react';
 import {
-  View, ScrollView, TouchableOpacity, StyleSheet,
+  View, ScrollView, TouchableOpacity, StyleSheet, Alert,
 } from 'react-native';
 import { AppText as Text } from '../components/AppText';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -238,7 +238,7 @@ export function ProfileScreen() {
       borderRadius: 44,
       alignItems: 'center',
       justifyContent: 'center',
-      shadowColor: '#000',
+      shadowColor: C.shadow,
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.10,
       shadowRadius: 6,
@@ -247,7 +247,7 @@ export function ProfileScreen() {
     avatarInitials: {
       fontFamily: F.serif,
       fontSize: 34,
-      color: '#FFFFFF',
+      color: C.white,
       letterSpacing: -0.6,
     },
     editBadge: {
@@ -369,7 +369,7 @@ export function ProfileScreen() {
               <Ionicons name="pencil" size={11} color={C.white} />
             </View>
           </View>
-          <Text style={s.name}>{user.name || 'Reader'}</Text>
+          <Text style={s.name} numberOfLines={2} ellipsizeMode="tail">{user.name || 'Reader'}</Text>
           <Text style={s.headerStats}>{headerSubtitle}</Text>
         </TouchableOpacity>
 
@@ -382,7 +382,7 @@ export function ProfileScreen() {
           <SettingRow
             icon="mail-outline"
             label="Email Address"
-            value={user.email || 'Add email'}
+            value={user.email || 'Tap to add'}
             rightChevron
             onPress={() => setEditOpen(true)}
           />
@@ -402,11 +402,18 @@ export function ProfileScreen() {
         {/* Logout */}
         <TouchableOpacity
           style={s.logoutBtn}
-          onPress={logout}
+          onPress={() => Alert.alert(
+            'Sign out?',
+            "You'll need to sign back in to access your library.",
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Sign out', style: 'destructive', onPress: logout },
+            ],
+          )}
           activeOpacity={0.85}
         >
           <Ionicons name="log-out-outline" size={18} color={C.rose} />
-          <Text style={s.logoutTxt}>Logout</Text>
+          <Text style={s.logoutTxt}>Sign out</Text>
         </TouchableOpacity>
       </ScrollView>
 

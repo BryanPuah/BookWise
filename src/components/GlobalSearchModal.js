@@ -71,7 +71,7 @@ export function GlobalSearchModal({ visible, onClose }) {
     safe: { flex: 1, backgroundColor: C.paper },
     headerRow: {
       flexDirection: 'row', alignItems: 'center', gap: 10,
-      paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10,
+      paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10,
       borderBottomWidth: 0.5, borderBottomColor: C.border,
     },
     inputWrap: {
@@ -167,7 +167,7 @@ export function GlobalSearchModal({ visible, onClose }) {
     <Modal
       visible={visible}
       animationType="slide"
-      presentationStyle="fullScreen"
+      presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
       {/* Modals on iOS create a separate React tree that doesn't inherit

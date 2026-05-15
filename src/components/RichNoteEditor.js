@@ -46,7 +46,7 @@ import { BulletBlock } from './editor/blocks/BulletBlock';
 import { ImageBlock } from './editor/blocks/ImageBlock';
 
 // ── Main editor screen (step 2) ───────────────────────────────────────
-function EditorScreen({ book, initialData, onSave, onCancel, onChangeBook }) {
+function EditorScreen({ book, initialData, onSave, onCancel, onChangeBook, registerCancelGuard }) {
   const { C, F, themeVersion } = useTheme();
   const { notes: allNotes, books: allBooks } = useStore();
   const ed = useMemo(() => StyleSheet.create({
@@ -83,9 +83,13 @@ function EditorScreen({ book, initialData, onSave, onCancel, onChangeBook }) {
     // Inline "Change" affordance shown when book was pre-attached and the
     // user is composing a new note — lets them swap target without
     // backing out of the modal.
-    changeBookRow: {
-      flexDirection: 'row', alignItems: 'center',
-      marginTop: 6, gap: 4,
+    changeBookPill: {
+      alignSelf: 'flex-start',
+      marginTop: 8,
+      backgroundColor: C.cream,
+      borderWidth: 1, borderColor: C.border,
+      paddingHorizontal: 10, paddingVertical: 4,
+      borderRadius: 999,
     },
     changeBookTxt: {
       fontFamily: F.serif, fontSize: 12,
@@ -188,8 +192,8 @@ function EditorScreen({ book, initialData, onSave, onCancel, onChangeBook }) {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert(
-        'Photos access needed',
-        'BookWise needs access to your photos so you can attach them to notes. Enable it in Settings.',
+        'Allow photo access?',
+        'To attach photos to your notes, turn on Photos access in your iPhone settings.',
       );
       return;
     }
@@ -207,8 +211,8 @@ function EditorScreen({ book, initialData, onSave, onCancel, onChangeBook }) {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert(
-        'Camera access needed',
-        'BookWise needs access to the camera so you can capture book pages and notes. Enable it in Settings.',
+        'Use your camera?',
+        'Snap pages and notes by turning on Camera access in your iPhone settings.',
       );
       return;
     }
@@ -228,6 +232,57 @@ function EditorScreen({ book, initialData, onSave, onCancel, onChangeBook }) {
   // Linked-notes picker — only relevant when "Connection" type is active.
   const [linksPickerOpen, setLinksPickerOpen] = useState(false);
   const isConnection = types.includes('connection');
+
+  // ── Dirty-state tracking ─────────────────────────────────────────────
+  // True when the user has typed/changed something they'd lose on cancel.
+  // For a new note, dirty = any non-default content. For an existing note,
+  // dirty = any field differs from the initial snapshot.
+  const isDirty = useMemo(() => {
+    const hasBlockContent = blocks.some(b => {
+      if (b.type === 'image') return !!b.uri;
+      return (b.text || '').trim() || (b.attribution || '').trim();
+    });
+    if (!initialData) {
+      const nonDefaultTypes = !(types.length === 1 && types[0] === 'insight');
+      return hasBlockContent || tags.length > 0 || linkedNoteIds.length > 0 || nonDefaultTypes;
+    }
+    const initBlocks = initialData.blocks || [];
+    const blocksChanged = blocks.length !== initBlocks.length
+      || blocks.some((b, i) => {
+        const o = initBlocks[i];
+        if (!o) return true;
+        return b.type !== o.type
+          || (b.text || '') !== (o.text || '')
+          || (b.attribution || '') !== (o.attribution || '')
+          || (b.uri || '') !== (o.uri || '');
+      });
+    const initTypes = initialData.types?.length
+      ? initialData.types
+      : (initialData.type ? [initialData.type] : ['insight']);
+    const typesChanged = types.join('|') !== initTypes.join('|');
+    const tagsChanged  = tags.join('|') !== (initialData.tags || []).join('|');
+    const linksChanged = linkedNoteIds.join('|') !== (initialData.linkedNoteIds || []).join('|');
+    return blocksChanged || typesChanged || tagsChanged || linksChanged;
+  }, [blocks, types, tags, linkedNoteIds, initialData]);
+
+  const confirmCancel = () => {
+    if (!isDirty) { onCancel(); return; }
+    Alert.alert(
+      'Discard changes?',
+      'Your edits to this note will be lost.',
+      [
+        { text: 'Keep editing', style: 'cancel' },
+        { text: 'Discard',      style: 'destructive', onPress: onCancel },
+      ],
+    );
+  };
+
+  // Expose the dirty-aware cancel up to the Modal so hardware-back / swipe-
+  // down dismissals also prompt instead of silently discarding.
+  useEffect(() => {
+    registerCancelGuard?.(confirmCancel);
+    return () => registerCancelGuard?.(null);
+  });
 
   // Save — flatten blocks → text for backwards compat
   const handleSave = () => {
@@ -270,7 +325,7 @@ function EditorScreen({ book, initialData, onSave, onCancel, onChangeBook }) {
         <View style={ed.appBar}>
           <View style={ed.appBarActions}>
             <TouchableOpacity
-              onPress={onCancel}
+              onPress={confirmCancel}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               style={ed.backBtn}
             >
@@ -291,11 +346,10 @@ function EditorScreen({ book, initialData, onSave, onCancel, onChangeBook }) {
           {onChangeBook && (
             <TouchableOpacity
               onPress={onChangeBook}
-              activeOpacity={0.6}
+              activeOpacity={0.7}
               hitSlop={{ top: 6, bottom: 6, left: 4, right: 8 }}
-              style={ed.changeBookRow}
+              style={ed.changeBookPill}
             >
-              <Ionicons name="swap-horizontal" size={13} color={C.inkMuted} />
               <Text style={ed.changeBookTxt}>Change book</Text>
             </TouchableOpacity>
           )}
@@ -494,6 +548,9 @@ function EditorScreen({ book, initialData, onSave, onCancel, onChangeBook }) {
 //   onClose()    — close without saving
 export function RichNoteEditor({ visible, books, initialNote, defaultBook, onSave, onClose }) {
   const [pickedBook, setPickedBook] = useState(null);
+  // Set by EditorScreen on mount with its dirty-aware cancel handler. Null
+  // while the BookPicker step is showing — picker has no work to lose.
+  const cancelGuardRef = useRef(null);
 
   useEffect(() => {
     if (visible && initialNote) {
@@ -511,6 +568,13 @@ export function RichNoteEditor({ visible, books, initialNote, defaultBook, onSav
     onClose();
   };
 
+  // Modal hardware-back / swipe-down path. Defers to the editor's confirm if
+  // it has registered one, otherwise closes immediately.
+  const handleRequestClose = () => {
+    if (cancelGuardRef.current) cancelGuardRef.current();
+    else handleCancel();
+  };
+
   const handleSaveFromEditor = (data) => {
     onSave(data);
     setPickedBook(null);
@@ -521,7 +585,7 @@ export function RichNoteEditor({ visible, books, initialNote, defaultBook, onSav
       visible={visible}
       animationType="slide"
       presentationStyle="fullScreen"
-      onRequestClose={handleCancel}
+      onRequestClose={handleRequestClose}
     >
       {/* Modals on iOS create a separate React tree that doesn't inherit
           the app-root SafeAreaProvider context. We provide our own here so
@@ -540,6 +604,7 @@ export function RichNoteEditor({ visible, books, initialNote, defaultBook, onSav
             onSave={handleSaveFromEditor}
             onCancel={handleCancel}
             onChangeBook={!initialNote ? () => setPickedBook(null) : null}
+            registerCancelGuard={(fn) => { cancelGuardRef.current = fn; }}
           />
         )}
       </SafeAreaProvider>

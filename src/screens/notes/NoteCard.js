@@ -46,7 +46,7 @@ export function NoteCard({ note, onDelete, onEdit, showBook = false }) {
       borderWidth: 1,
       borderColor: C.border,
       overflow: 'hidden',
-      shadowColor: '#000',
+      shadowColor: C.shadow,
       shadowOffset: { width: 0, height: 1 },
       shadowOpacity: 0.04,
       shadowRadius: 3,
@@ -80,12 +80,12 @@ export function NoteCard({ note, onDelete, onEdit, showBook = false }) {
     },
 
     title: {
-      fontFamily: F.serif, fontSize: 18, color: C.ink,
-      letterSpacing: -0.3, lineHeight: 25, marginBottom: 6,
+      fontFamily: F.serif, fontSize: 15, color: C.ink,
+      letterSpacing: -0.3, lineHeight: 22, marginBottom: 6,
     },
     titleQuote: {
-      fontFamily: F.serif, fontStyle: 'italic', fontSize: 17,
-      color: C.ink, lineHeight: 26, marginBottom: 6,
+      fontFamily: F.serif, fontStyle: 'italic', fontSize: 15,
+      color: C.ink, lineHeight: 24, marginBottom: 6,
     },
 
     thumbnail: {

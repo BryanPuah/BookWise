@@ -15,7 +15,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Svg, { Circle, Line, Text as SvgText, G } from 'react-native-svg';
 import { AppText as Text } from '../../components/AppText';
-import { useTheme } from '../../theme';
+import { useTheme, NOTE_TYPE_COLORS } from '../../theme';
 import { NoteCard } from './NoteCard';
 import { NT, noteHasType } from './shared';
 
@@ -121,16 +121,7 @@ export function GraphView({ notes, books, onEdit }) {
     emptySub: { fontFamily: F.serif, fontSize: 13, color: C.inkMuted, textAlign: 'center', lineHeight: 20 },
   }), [themeVersion]);
 
-  // Map note-type → node colour. Fixed values (not theme-driven) so the
-  // mapping stays stable across accent themes.
-  const typeColor = {
-    quote:      '#D4A55A',
-    insight:    '#7A8B5E',
-    question:   '#D1453B',
-    action:     '#1F7A4D',
-    summary:    '#5B5FA8',
-    connection: '#8B5076',
-  };
+  const typeColor = NOTE_TYPE_COLORS;
 
   const { nodes, edges } = useMemo(() => {
     let groups;

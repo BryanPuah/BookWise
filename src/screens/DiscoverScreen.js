@@ -12,9 +12,20 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useStore } from '../store';
 import { useTheme, covers } from '../theme';
+import { LoadingState, ErrorState, classifyFetchError } from '../components/StateView';
 
 const { width: SW, height: SH } = Dimensions.get('window');
 const PAGE_SIZE = 20;
+// RN fetch has no default timeout — a stalled connection hangs forever and
+// the user just sees a spinner. 8s is long enough for Open Library on a
+// slow-but-working link, short enough to surface trouble before patience runs out.
+const FETCH_TIMEOUT_MS = 8000;
+async function fetchWithTimeout(url, ms = FETCH_TIMEOUT_MS) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  try { return await fetch(url, { signal: ctrl.signal }); }
+  finally { clearTimeout(t); }
+}
 // COVER_KEYS captures the initial covers keys; these are stable across all
 // themes (sage/amber/navy/rose/plum/slate) so it's safe to read at module load.
 const COVER_KEYS = Object.keys(covers);
@@ -130,8 +141,8 @@ function GenreSheet({ onSelect, onClose, activeGenres = [] }) {
   // above it. Smaller of ~78% of screen, or (screen - safe-area top - 60).
   const sheetMaxHeight = Math.min(SH * 0.78, SH - insets.top - 60);
   const s = useMemo(() => StyleSheet.create({
-    bookSheetOverlay:   { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
-    bookSheet:          { backgroundColor: C.paper, borderTopLeftRadius: 28, borderTopRightRadius: 28, shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.12, shadowRadius: 20, elevation: 20 },
+    bookSheetOverlay:   { flex: 1, justifyContent: 'flex-end', backgroundColor: C.scrim },
+    bookSheet:          { backgroundColor: C.paper, borderTopLeftRadius: 28, borderTopRightRadius: 28, shadowColor: C.shadow, shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.12, shadowRadius: 20, elevation: 20 },
     bookSheetHandle:    { alignItems: 'center', paddingVertical: 14 },
     bookSheetHandleBar: { width: 40, height: 4, borderRadius: 2, backgroundColor: C.creamDark },
     genreSheet:         { height: sheetMaxHeight },
@@ -220,8 +231,8 @@ function GenreSheet({ onSelect, onClose, activeGenres = [] }) {
 function AddReadingItemSheet({ onAdd, onClose }) {
   const { C, F, themeVersion } = useTheme();
   const s = useMemo(() => StyleSheet.create({
-    ownOverlay:       { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' },
-    ownSheet:         { backgroundColor: C.paper, borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: '90%', shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.12, shadowRadius: 20, elevation: 20 },
+    ownOverlay:       { flex: 1, justifyContent: 'flex-end', backgroundColor: C.scrim },
+    ownSheet:         { backgroundColor: C.paper, borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: '90%', shadowColor: C.shadow, shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.12, shadowRadius: 20, elevation: 20 },
     ownHandle:        { alignItems: 'center', paddingVertical: 14 },
     ownHandleBar:     { width: 40, height: 4, borderRadius: 2, backgroundColor: C.creamDark },
     ownScrollContent: { paddingHorizontal: 20, paddingBottom: 320 },
@@ -240,8 +251,8 @@ function AddReadingItemSheet({ onAdd, onClose }) {
     formatChipTxt:    { fontFamily: F.serif, fontSize: 12, fontWeight: '500', color: C.inkSoft },
     formatChipTxtActive: { fontFamily: F.serif, color: C.sage, fontWeight: '700' },
 
-    addBtn:        { backgroundColor: C.ink, borderRadius: 16, paddingVertical: 15, alignItems: 'center' },
-    addBtnTxt:     { fontFamily: F.serif, fontSize: 16, fontWeight: '700', color: C.white, letterSpacing: -0.2 },
+    addBtn:        { backgroundColor: C.ink, borderRadius: 14, paddingHorizontal: 18, paddingVertical: 12, alignItems: 'center' },
+    addBtnTxt:     { fontFamily: F.sans, fontSize: 15, fontWeight: '700', color: C.white, letterSpacing: -0.2 },
     wantBtn:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: C.cream, borderRadius: 16, paddingVertical: 13, borderWidth: 1, borderColor: C.border },
     wantBtnIcon:   { fontSize: 15 },
     wantBtnTxt:    { fontFamily: F.serif, fontSize: 14, fontWeight: '600', color: C.ink },
@@ -555,12 +566,12 @@ function AddReadingItemSheet({ onAdd, onClose }) {
 function BookSheet({ book, added, onAdd, onAddWantToRead, onClose }) {
   const { C, F, themeVersion } = useTheme();
   const s = useMemo(() => StyleSheet.create({
-    bookSheetOverlay:   { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
-    bookSheet:          { backgroundColor: C.paper, borderTopLeftRadius: 28, borderTopRightRadius: 28, shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.12, shadowRadius: 20, elevation: 20 },
+    bookSheetOverlay:   { flex: 1, justifyContent: 'flex-end', backgroundColor: C.scrim },
+    bookSheet:          { backgroundColor: C.paper, borderTopLeftRadius: 28, borderTopRightRadius: 28, shadowColor: C.shadow, shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.12, shadowRadius: 20, elevation: 20 },
     bookSheetHandle:    { alignItems: 'center', paddingVertical: 14 },
     bookSheetHandleBar: { width: 40, height: 4, borderRadius: 2, backgroundColor: C.creamDark },
     sheetTop:      { flexDirection: 'row', gap: 16, paddingHorizontal: 20, marginBottom: 16 },
-    sheetCoverShadow: { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 10, elevation: 6 },
+    sheetCoverShadow: { shadowColor: C.shadow, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 10, elevation: 6 },
     sheetTitle:    { fontFamily: F.serif, fontSize: 18, fontWeight: '700', color: C.ink, letterSpacing: -0.3, lineHeight: 24, marginBottom: 6, flex: 1 },
     sheetTopInfo:  { flex: 1, justifyContent: 'center' },
     sheetAuthor:   { fontFamily: F.serif, fontSize: 13, color: C.inkMuted, marginBottom: 10 },
@@ -570,16 +581,16 @@ function BookSheet({ book, added, onAdd, onAddWantToRead, onClose }) {
     genrePill:     { backgroundColor: C.sagePale, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, borderWidth: 1, borderColor: C.sage },
     genrePillTxt:  { fontFamily: F.serif, fontSize: 11, color: C.sage, fontWeight: '700' },
     sheetActions:  { paddingHorizontal: 20, paddingTop: 8, gap: 8 },
-    addBtn:        { backgroundColor: C.ink, borderRadius: 16, paddingVertical: 15, alignItems: 'center' },
-    addBtnTxt:     { fontFamily: F.serif, fontSize: 16, fontWeight: '700', color: C.white, letterSpacing: -0.2 },
+    addBtn:        { backgroundColor: C.ink, borderRadius: 14, paddingHorizontal: 18, paddingVertical: 12, alignItems: 'center' },
+    addBtnTxt:     { fontFamily: F.sans, fontSize: 15, fontWeight: '700', color: C.white, letterSpacing: -0.2 },
     addBtnSub:     { fontFamily: F.serif, fontSize: 11, color: C.inkFaint, textAlign: 'center' },
     wantBtn:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: C.cream, borderRadius: 16, paddingVertical: 13, borderWidth: 1, borderColor: C.border },
     wantBtnIcon:   { fontSize: 15 },
     wantBtnTxt:    { fontFamily: F.serif, fontSize: 14, fontWeight: '600', color: C.ink },
-    alreadyAdded:  { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: '#E9F7EF', borderRadius: 14, padding: 14 },
-    alreadyAddedIcon: { fontSize: 20, color: '#1E8449' },
-    alreadyAddedTxt:  { fontFamily: F.serif, fontSize: 14, fontWeight: '600', color: '#1E8449' },
-    alreadyAddedSub:  { fontFamily: F.serif, fontSize: 11, color: '#27AE60', marginTop: 2 },
+    alreadyAdded:  { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: C.sagePale, borderRadius: 14, padding: 14 },
+    alreadyAddedIcon: { fontSize: 20, color: C.forest },
+    alreadyAddedTxt:  { fontFamily: F.serif, fontSize: 14, fontWeight: '600', color: C.forest },
+    alreadyAddedSub:  { fontFamily: F.serif, fontSize: 11, color: C.sage, marginTop: 2 },
     closeBtn:      { paddingVertical: 12, alignItems: 'center' },
     closeBtnTxt:   { fontFamily: F.serif, fontSize: 14, color: C.inkMuted, fontWeight: '500' },
   }), [themeVersion]);
@@ -775,26 +786,34 @@ export function DiscoverScreen() {
   const recoCacheRef = useRef({ key: null, books: [] });
   const [recommended, setRecommended] = useState([]);
   const [recoLoading, setRecoLoading] = useState(false);
+  // null | 'offline' | 'server' — drives the ErrorState preset
+  const [recoError, setRecoError] = useState(null);
+  // Bumped by the Retry button to force a fresh fetch past the cache.
+  const [recoRetryToken, setRecoRetryToken] = useState(0);
 
   useEffect(() => {
     if (!topGenres.length) {
       setRecommended([]);
+      setRecoError(null);
       return;
     }
     // Use top 2 genres if available, joined with OR — gives more variety
     const queryGenres = topGenres.slice(0, 2);
     const cacheKey = queryGenres.join('|');
-    if (recoCacheRef.current.key === cacheKey) {
+    if (recoRetryToken === 0 && recoCacheRef.current.key === cacheKey) {
       setRecommended(recoCacheRef.current.books);
+      setRecoError(null);
       return;
     }
     let cancelled = false;
     setRecoLoading(true);
+    setRecoError(null);
     (async () => {
       try {
         const q = queryGenres.map(g => `subject:"${g}"`).join(' OR ');
         const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&fields=key,title,author_name,first_publish_year,number_of_pages_median,cover_i,subject&limit=24`;
-        const res = await fetch(url);
+        const res = await fetchWithTimeout(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         const docs = (data.docs || [])
           .filter(r => r.key && r.title && r.author_name?.length && r.cover_i);
@@ -806,21 +825,30 @@ export function DiscoverScreen() {
           recoCacheRef.current = { key: cacheKey, books: filtered };
           setRecommended(filtered);
         }
-      } catch {
-        if (!cancelled) setRecommended([]);
+      } catch (err) {
+        if (!cancelled) {
+          setRecommended([]);
+          setRecoError(classifyFetchError(err));
+        }
       } finally {
         if (!cancelled) setRecoLoading(false);
       }
     })();
     return () => { cancelled = true; };
-  }, [topGenres.join('|')]); // intentionally stringified to compare values not refs
+  }, [topGenres.join('|'), recoRetryToken]); // intentionally stringified to compare values not refs
 
   const addedKeys = new Set(books.map(b => b.olKey).filter(Boolean));
+
+  // null | 'offline' | 'server' — drives the ErrorState preset
+  const [searchError, setSearchError] = useState(null);
 
   const fetchResults = useCallback(async (q, pageIndex = 0, append = false) => {
     const offset = pageIndex * PAGE_SIZE;
     const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&fields=key,title,author_name,first_publish_year,number_of_pages_median,subject,cover_i&limit=${PAGE_SIZE}&offset=${offset}`;
-    const res  = await fetch(url);
+    const res  = await fetchWithTimeout(url);
+    // fetch() resolves on HTTP errors — escalate to a throw so callers' catch
+    // blocks can distinguish "server unhappy" from "zero matches".
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     const docs = (data.docs || []).filter(r => r.key && r.title && r.author_name?.length);
     setTotalFound(data.numFound || 0);
@@ -837,8 +865,12 @@ export function DiscoverScreen() {
     setSearched(true);
     setCurrentQuery(q);
     setPage(0);
+    setSearchError(null);
     try { await fetchResults(q, 0, false); }
-    catch { setResults([]); }
+    catch (err) {
+      setResults([]);
+      setSearchError(classifyFetchError(err));
+    }
     finally { setLoading(false); }
   };
 
@@ -977,17 +1009,13 @@ export function DiscoverScreen() {
     promptTxt:  { fontFamily: F.serif, fontSize: 17, fontWeight: '700', color: C.ink, marginBottom: 8, textAlign: 'center' },
     promptSub:  { fontFamily: F.serif, fontSize: 13, color: C.inkMuted, textAlign: 'center', lineHeight: 19 },
 
-    // Loading
-    loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-    loadingTxt:  { fontFamily: F.serif, fontSize: 13, color: C.inkMuted },
-
     // Empty search
     emptyWrap:    { flex: 1, alignItems: 'center', paddingTop: 60, paddingHorizontal: 40 },
     emptyIcon:    { fontSize: 40, marginBottom: 16 },
     emptyTxt:     { fontFamily: F.serif, fontSize: 17, fontWeight: '700', color: C.ink, textAlign: 'center', marginBottom: 8 },
     emptySub:     { fontFamily: F.serif, fontSize: 13, color: C.inkMuted, textAlign: 'center', lineHeight: 20, marginBottom: 24 },
-    tryClearBtn:  { backgroundColor: C.ink, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24 },
-    tryClearTxt:  { fontFamily: F.serif, fontSize: 14, color: C.white, fontWeight: '600' },
+    tryClearBtn:  { backgroundColor: C.ink, paddingHorizontal: 18, paddingVertical: 12, borderRadius: 14 },
+    tryClearTxt:  { fontFamily: F.sans, fontSize: 15, color: C.white, fontWeight: '700' },
 
     // Results
     resultsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 4, paddingBottom: 12 },
@@ -995,9 +1023,9 @@ export function DiscoverScreen() {
     clearTxt:      { fontFamily: F.serif, fontSize: 12, color: C.amber, fontWeight: '600' },
     resultsList:   { paddingHorizontal: 16 },
 
-    loadMoreBtn:        { marginHorizontal: 20, marginVertical: 16, backgroundColor: C.ink, borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
+    loadMoreBtn:        { marginHorizontal: 20, marginVertical: 16, backgroundColor: C.ink, borderRadius: 14, paddingHorizontal: 18, paddingVertical: 12, alignItems: 'center' },
     loadMoreBtnLoading: { opacity: 0.6 },
-    loadMoreTxt:        { fontFamily: F.serif, fontSize: 14, color: C.white, fontWeight: '600' },
+    loadMoreTxt:        { fontFamily: F.sans, fontSize: 15, color: C.white, fontWeight: '700' },
 
     // ── Browse Categories + Recommended sections ──
     sectionWrap: {
@@ -1040,7 +1068,7 @@ export function DiscoverScreen() {
     categoryTileTxt: {
       fontFamily: F.serif,
       fontSize: 20,
-      color: '#fff',
+      color: C.white,
       textAlign: 'center',
       letterSpacing: -0.3,
     },
@@ -1107,12 +1135,12 @@ export function DiscoverScreen() {
       letterSpacing: 0.5,
     },
 
-    // ── Results overlay (full-screen modal) ──
+    // ── Results overlay (pageSheet modal) ──
     overlayHeader: {
       flexDirection: 'row',
       alignItems: 'center',
       paddingHorizontal: 12,
-      paddingTop: 8,
+      paddingTop: 14,
       paddingBottom: 12,
       gap: 8,
     },
@@ -1121,7 +1149,7 @@ export function DiscoverScreen() {
       height: 36,
       alignItems: 'center',
       justifyContent: 'center',
-      borderRadius: 18,
+      borderRadius: 999,
     },
     overlayTitle: {
       flex: 1,
@@ -1232,6 +1260,18 @@ export function DiscoverScreen() {
               <View style={s.recoLoadingWrap}>
                 <ActivityIndicator size="small" color={C.inkMuted} />
               </View>
+            ) : recoError ? (
+              <ErrorState
+                compact
+                kind={recoError}
+                title={recoError === 'offline' ? "You're offline" : "Couldn't reach Open Library"}
+                sub={
+                  recoError === 'offline'
+                    ? 'Recommendations need a connection. Reconnect and retry.'
+                    : 'Open Library is having a moment. Try again.'
+                }
+                onRetry={() => setRecoRetryToken(t => t + 1)}
+              />
             ) : recommended.length === 0 ? (
               <Text style={s.recoEmpty}>No recommendations yet</Text>
             ) : (
@@ -1290,11 +1330,14 @@ export function DiscoverScreen() {
         )}
       </ScrollView>
 
-      {/* ── Results overlay — full-screen modal for search / category / recommended ── */}
+      {/* ── Results overlay — page-sheet modal for search / category / recommended.
+          pageSheet (vs fullScreen) leaves a comfortable gap under the notch so
+          the back chevron sits well within thumb reach — matches the rest of
+          the app's search/picker sheets. */}
       <Modal
         visible={searched}
         animationType="slide"
-        presentationStyle="fullScreen"
+        presentationStyle="pageSheet"
         onRequestClose={clear}
       >
         <SafeAreaView style={s.safe} edges={['top']}>
@@ -1308,7 +1351,7 @@ export function DiscoverScreen() {
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   activeOpacity={0.7}
                 >
-                  <Ionicons name="chevron-back" size={24} color={C.ink} />
+                  <Ionicons name="chevron-back" size={22} color={C.ink} />
                 </TouchableOpacity>
                 <Text style={s.overlayTitle} numberOfLines={1}>
                   {currentQuery}
@@ -1347,10 +1390,23 @@ export function DiscoverScreen() {
                 keyboardShouldPersistTaps="handled"
               >
                 {loading ? (
-                  <View style={s.loadingWrap}>
-                    <ActivityIndicator size="large" color={C.amber} />
-                    <Text style={s.loadingTxt}>Searching...</Text>
-                  </View>
+                  <LoadingState message="Searching..." />
+                ) : searchError ? (
+                  <ErrorState
+                    kind={searchError}
+                    title={
+                      searchError === 'offline'
+                        ? "You're offline"
+                        : "Couldn't reach Open Library"
+                    }
+                    sub={
+                      searchError === 'offline'
+                        ? "Reconnect to search the catalog — or add this book manually for now."
+                        : 'Check your connection and try again, or add this manually.'
+                    }
+                    onRetry={() => handleSearch(currentQuery)}
+                    secondary={{ label: '+ Add it manually', onPress: () => setShowAddOwn(true) }}
+                  />
                 ) : results.length === 0 ? (
                   <View style={s.emptyWrap}>
                     <Text style={s.emptyIcon}>📭</Text>

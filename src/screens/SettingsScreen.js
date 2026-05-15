@@ -53,7 +53,7 @@ export function SettingsScreen({ navigation }) {
       height: 36,
       alignItems: 'center',
       justifyContent: 'center',
-      borderRadius: 18,
+      borderRadius: 999,
     },
     screenTitle: {
       fontFamily: F.serif,
@@ -105,7 +105,7 @@ export function SettingsScreen({ navigation }) {
         title: 'Bookwise — Notes Export',
       });
     } catch (e) {
-      Alert.alert('Export failed', 'Could not open the share sheet. Try again.');
+      Alert.alert("Couldn't share that", 'Something went wrong opening the share menu — give it another try.');
     }
   };
 
@@ -115,7 +115,7 @@ export function SettingsScreen({ navigation }) {
     const url = `mailto:${FEEDBACK_EMAIL}?subject=${subject}&body=${body}`;
     const supported = await Linking.canOpenURL(url);
     if (!supported) {
-      Alert.alert('No mail app', `Send feedback to ${FEEDBACK_EMAIL}.`);
+      Alert.alert('Email us directly', `Send your feedback to ${FEEDBACK_EMAIL}.`);
       return;
     }
     Linking.openURL(url);

@@ -56,11 +56,11 @@ export function FinishedBooksScreen({ navigation }) {
     emptySub: { fontFamily: F.serif, fontSize: 14, color: C.inkMuted, textAlign: 'center', lineHeight: 22, marginBottom: 24 },
     browseBtn: {
       backgroundColor: C.ink,
-      paddingHorizontal: 24,
+      paddingHorizontal: 18,
       paddingVertical: 12,
-      borderRadius: 24,
+      borderRadius: 14,
     },
-    browseBtnTxt: { fontFamily: F.serif, fontSize: 14, color: C.white, fontWeight: '600' },
+    browseBtnTxt: { fontFamily: F.sans, fontSize: 15, color: C.white, fontWeight: '700' },
 
     list: { padding: 20, gap: 12 },
 

@@ -138,7 +138,7 @@ export function SwatchPicker({ icon, label, entries, activeKey, onPick, variant 
       ...(isBackground
         ? { borderWidth: 1, borderColor: C.borderMid }
         : {
-            shadowColor: '#000',
+            shadowColor: C.shadow,
             shadowOffset: { width: 0, height: 1 },
             shadowOpacity: 0.08,
             shadowRadius: 3,

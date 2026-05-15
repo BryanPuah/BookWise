@@ -125,7 +125,7 @@ export function GoalEditor({ visible, goal, onSave, onClose, defaultRecurrence =
     weekdayBtn: {
       flex: 1,
       aspectRatio: 1,
-      borderRadius: 18,
+      borderRadius: 16,
       backgroundColor: C.cream,
       borderWidth: 1, borderColor: C.border,
       alignItems: 'center', justifyContent: 'center',
@@ -264,7 +264,7 @@ export function GoalEditor({ visible, goal, onSave, onClose, defaultRecurrence =
                 placeholderTextColor={C.inkFaint}
               />
               <Text style={ge.hint}>
-                The {monthDay || '1'}{ordinalSuffix(parseInt(monthDay, 10))} of every month
+                Repeats on the {monthDay || '1'}{ordinalSuffix(parseInt(monthDay, 10))} of every month
               </Text>
             </>
           )}
@@ -438,7 +438,7 @@ export function GoalsScreen({ navigation }) {
           <View style={s.empty}>
             <Text style={s.emptyIcon}>🎯</Text>
             <Text style={s.emptyTitle}>No goals yet</Text>
-            <Text style={s.emptySub}>Tap + to add your first goal.</Text>
+            <Text style={s.emptySub}>Set one — daily reading, a weekly walk, a one-off finish line.</Text>
           </View>
         ) : (
           <View style={{ paddingHorizontal: 20 }}>

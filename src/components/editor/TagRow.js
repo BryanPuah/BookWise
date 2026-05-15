@@ -9,6 +9,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   View, TouchableOpacity, Pressable, StyleSheet, Modal,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { AppText as Text, AppTextInput as TextInput } from '../AppText';
@@ -55,7 +56,7 @@ export function TagRow({ selectedTypes, onToggle, tags, onTagsChange }) {
     addBtnTxt: { fontFamily: F.serif, fontSize: 12, color: C.inkMuted, fontWeight: '500' },
     pickerBackdrop: {
       flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.4)',
+      backgroundColor: C.scrim,
       justifyContent: 'center', alignItems: 'center',
       paddingHorizontal: 40,
     },
@@ -64,7 +65,7 @@ export function TagRow({ selectedTypes, onToggle, tags, onTagsChange }) {
       backgroundColor: C.paper,
       borderRadius: 16,
       paddingVertical: 8,
-      shadowColor: '#000', shadowOffset: { width: 0, height: 8 },
+      shadowColor: C.shadow, shadowOffset: { width: 0, height: 8 },
       shadowOpacity: 0.18, shadowRadius: 24, elevation: 16,
     },
     pickerTitle: {
@@ -153,12 +154,16 @@ export function TagRow({ selectedTypes, onToggle, tags, onTagsChange }) {
         animationType="fade"
         onRequestClose={() => { setDraft(''); setPickerOpen(false); }}
       >
-        <TouchableOpacity
-          style={tg.pickerBackdrop}
-          activeOpacity={1}
-          onPress={() => { setDraft(''); setPickerOpen(false); }}
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-          <Pressable style={tg.pickerCard} onPress={() => {}}>
+          <TouchableOpacity
+            style={tg.pickerBackdrop}
+            activeOpacity={1}
+            onPress={() => { setDraft(''); setPickerOpen(false); }}
+          >
+            <Pressable style={tg.pickerCard} onPress={() => {}}>
             <Text style={tg.pickerTitle}>ADD TAG</Text>
 
             <View style={tg.pickerInputWrap}>
@@ -208,8 +213,9 @@ export function TagRow({ selectedTypes, onToggle, tags, onTagsChange }) {
                 <Text style={tg.pickerLabel}>{t.label}</Text>
               </TouchableOpacity>
             ))}
-          </Pressable>
-        </TouchableOpacity>
+            </Pressable>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
