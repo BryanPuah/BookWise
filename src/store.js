@@ -17,11 +17,13 @@ const daysAgoKey = (n) => {
 
 // ── User profile ─────────────────────────────────────────────────────
 // Single signed-in user (no multi-account). Shape:
-//   { name: string, email: string, avatarSeed: string }
+//   { name: string, email: string, avatarSeed: string, hasOnboarded: bool }
 // `avatarSeed` is a stable string we hand to the avatar source (DiceBear
 // API) so the same user always gets the same rendered avatar. Empty user
 // (`name === ''`) means "not logged in" — App.js routes to LoginScreen.
-const DEFAULT_USER = { name: '', email: '', avatarSeed: '' };
+// `hasOnboarded` gates the post-login name-confirm screen; logout resets
+// it so a new account on the same device walks through onboarding again.
+const DEFAULT_USER = { name: '', email: '', avatarSeed: '', hasOnboarded: false };
 
 export function StoreProvider({ children }) {
   const [books, setBooks] = useState([]);

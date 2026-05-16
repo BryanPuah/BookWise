@@ -24,16 +24,55 @@
 import { useEffect, useReducer } from 'react';
 import { Platform } from 'react-native';
 
-// ── Static design tokens (never theme-dependent) ───────────────────────
-// `serif` is the reading face (DM Serif Display, loaded via expo-google-fonts).
-// `sans` is the chrome face — small uppercase labels, form inputs, tab bar.
-// Writing in a display serif at 10–11px is eye-strain territory, so anything
-// label-like or input-like gets the system sans fallback (SF on iOS, Roboto
-// on Android) for legibility.
+// ── Typography registry ────────────────────────────────────────────────
+// `serif` is the reading face — selectable via `setFont()` and surfaced
+// in Settings → Appearance → Font Style. `sans` is the chrome face for
+// small labels / inputs / tab bar and stays fixed (display serifs at
+// 10–11px are eye-strain territory).
+//
+// Each entry maps to a platform-resolved font family. Only DM Serif
+// Display is bundled (via expo-google-fonts); the rest are built-in
+// system faces, so no additional install is needed.
+const SYSTEM_SANS = Platform.OS === 'ios' ? 'System' : 'sans-serif';
+
+export const FONTS = {
+  serif: {
+    label: 'DM Serif',
+    serif:       'DMSerifDisplay_400Regular',
+    serifItalic: 'DMSerifDisplay_400Regular_Italic',
+  },
+  georgia: {
+    label: 'Georgia',
+    serif:       Platform.OS === 'ios' ? 'Georgia'        : 'serif',
+    serifItalic: Platform.OS === 'ios' ? 'Georgia-Italic' : 'serif',
+  },
+  system: {
+    label: 'System',
+    serif:       SYSTEM_SANS,
+    serifItalic: SYSTEM_SANS,
+  },
+  avenir: {
+    label: 'Avenir',
+    serif:       Platform.OS === 'ios' ? 'Avenir-Book'        : 'sans-serif-light',
+    serifItalic: Platform.OS === 'ios' ? 'Avenir-BookOblique' : 'sans-serif-light',
+  },
+  mono: {
+    label: 'Monospace',
+    serif:       Platform.OS === 'ios' ? 'Courier New'         : 'monospace',
+    serifItalic: Platform.OS === 'ios' ? 'Courier New-Oblique' : 'monospace',
+  },
+};
+
+export const DEFAULT_FONT = 'serif';
+
+// `F` is a mutable singleton — properties are reassigned in place by
+// `setFont()` so existing `F.serif` reads keep returning the active
+// reading face. Stylesheets pick up the change because callers thread
+// `themeVersion` through their useMemo deps (see useTheme docstring).
 export const F = {
-  serif:       'DMSerifDisplay_400Regular',
-  serifItalic: 'DMSerifDisplay_400Regular_Italic',
-  sans:        Platform.OS === 'ios' ? 'System' : 'sans-serif',
+  serif:       FONTS[DEFAULT_FONT].serif,
+  serifItalic: FONTS[DEFAULT_FONT].serifItalic,
+  sans:        SYSTEM_SANS,
 };
 
 export const SP = {
@@ -318,6 +357,7 @@ function buildCovers(themeName) {
 // the codebase reads via `C.heroTop` (which we verified before this).
 let _themeName = DEFAULT_THEME;
 let _backgroundName = DEFAULT_BACKGROUND;
+let _fontName = DEFAULT_FONT;
 let _mode = 'light';
 let _themeVersion = 0;
 
@@ -336,6 +376,10 @@ export function getBackgroundName() {
 
 export function getMode() {
   return _mode;
+}
+
+export function getFontName() {
+  return _fontName;
 }
 
 function notify() {
@@ -363,6 +407,19 @@ export function setBackground(name) {
   if (!BACKGROUNDS[name] || name === _backgroundName) return;
   _backgroundName = name;
   rebuildPalette();
+  notify();
+}
+
+// Swap the reading face. Mutates F.serif / F.serifItalic in place so
+// the existing string references stay valid for any modules that
+// captured `F` at import time, then bumps themeVersion so subscribed
+// stylesheets rebuild with the new font.
+export function setFont(name) {
+  if (!FONTS[name] || name === _fontName) return;
+  _fontName = name;
+  const f = FONTS[name];
+  F.serif = f.serif;
+  F.serifItalic = f.serifItalic;
   notify();
 }
 
@@ -404,13 +461,16 @@ export function useTheme() {
     covers,
     themeName: _themeName,
     backgroundName: _backgroundName,
+    fontName: _fontName,
     mode: _mode,
     themeVersion: _themeVersion,
     setTheme,
     setAccent,
     setBackground,
+    setFont,
     setMode,
     themes: THEMES,
     backgrounds: BACKGROUNDS,
+    fonts: FONTS,
   };
 }

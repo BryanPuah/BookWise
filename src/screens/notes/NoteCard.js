@@ -106,7 +106,7 @@ export function NoteCard({ note, onDelete, onEdit, showBook = false }) {
       marginTop: 14, paddingTop: 11,
       borderTopWidth: 0.5, borderTopColor: C.border,
     },
-    footerBook: { flex: 1, fontFamily: F.serif, fontSize: 12, color: C.ink, fontWeight: '600' },
+    footerBook: { flex: 1, fontFamily: F.serif, fontSize: 13, color: C.ink, fontWeight: '800', letterSpacing: -0.2 },
     footerMeta: { fontFamily: F.serif, fontSize: 11, color: C.inkMuted, fontWeight: '500' },
 
     metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 10 },

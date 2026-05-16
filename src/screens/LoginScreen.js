@@ -8,9 +8,9 @@
  *
  * Layout follows the editorial language used elsewhere in Bookwise —
  * serif display headline, small uppercase kicker labels, paper-tone
- * surfaces, sage accent — but with the affordances people expect from
- * any modern productivity / note-taking app: social sign-in, email +
- * password, sign-in / sign-up toggle, and a terms footer.
+ * surfaces, sage accent. Social sign-in is the primary path; email +
+ * password is revealed on demand. Sign-in vs. sign-up is detected on
+ * submit, not surfaced as a UI choice.
  */
 
 import React, { useState, useMemo } from 'react';
@@ -25,18 +25,17 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useStore } from '../store';
 import { useTheme } from '../theme';
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export function LoginScreen() {
   const { C, F, themeVersion } = useTheme();
   const { updateUser } = useStore();
 
-  // 'signin' / 'signup' — toggles copy only; the auth path is identical.
-  const [mode, setMode] = useState('signin');
+  const [showEmail, setShowEmail] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [focused, setFocused] = useState(null); // 'email' | 'password' | null
-
-  const isSignUp = mode === 'signup';
+  const [focused, setFocused] = useState(null);
 
   const s = useMemo(() => StyleSheet.create({
     safe: { flex: 1, backgroundColor: C.paper },
@@ -196,16 +195,16 @@ export function LoginScreen() {
       paddingVertical: 6,
     },
 
-    forgotRow: {
-      alignItems: 'flex-end',
-      marginTop: -2,
-      marginBottom: 12,
+    useEmailRow: {
+      alignItems: 'center',
+      paddingVertical: 10,
+      marginBottom: 4,
     },
-    forgotTxt: {
+    useEmailLink: {
       fontFamily: F.sans,
-      fontSize: 12,
+      fontSize: 13,
       fontWeight: '600',
-      color: C.sage,
+      color: C.inkMuted,
     },
 
     // ── Primary CTA ──────────────────────────────────────────────
@@ -231,26 +230,6 @@ export function LoginScreen() {
       letterSpacing: 0.3,
     },
 
-    // ── Mode toggle ──────────────────────────────────────────────
-    toggleRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginTop: 16,
-      gap: 6,
-    },
-    toggleTxt: {
-      fontFamily: F.sans,
-      fontSize: 13,
-      color: C.inkMuted,
-    },
-    toggleLink: {
-      fontFamily: F.sans,
-      fontSize: 13,
-      color: C.ink,
-      fontWeight: '700',
-    },
-
     // ── Footer ───────────────────────────────────────────────────
     footer: {
       marginTop: 20,
@@ -270,7 +249,7 @@ export function LoginScreen() {
     },
   }), [themeVersion]);
 
-  const canContinue = email.trim().length > 0 && password.length > 0;
+  const canContinue = EMAIL_RE.test(email.trim()) && password.length > 0;
 
   // Derive a display name from the email local-part so the rest of the
   // app has something to render. "ada.lovelace@x.io" → "Ada Lovelace".
@@ -287,13 +266,16 @@ export function LoginScreen() {
     updateUser({ name, email: clean, avatarSeed: '' });
   };
 
-  // Social paths just synthesize a placeholder identity for now.
+  // Placeholder identities until real OAuth lands. Distinct per provider
+  // so it's obvious in development which path was taken.
   const handleSocial = (provider) => {
-    const name = provider === 'apple' ? 'Reader' : 'Reader';
-    const email = provider === 'apple'
-      ? 'reader@privaterelay.appleid.com'
-      : 'reader@gmail.com';
-    updateUser({ name, email, avatarSeed: '' });
+    const identities = {
+      apple:  { name: 'Apple Reader',  email: 'reader@privaterelay.appleid.com' },
+      google: { name: 'Google Reader', email: 'reader@gmail.com' },
+    };
+    const id = identities[provider];
+    if (!id) return;
+    updateUser({ ...id, avatarSeed: '' });
   };
 
   return (
@@ -320,25 +302,19 @@ export function LoginScreen() {
             <Text style={s.wordmark}>BOOKWISE</Text>
           </View>
 
-          {/* Hero copy */}
+          {/* Hero copy — unified for new + returning readers */}
           <View style={s.hero}>
-            <Text style={s.kicker}>
-              {isSignUp ? 'BUILD YOUR PRACTICE' : 'WELCOME BACK'}
-            </Text>
+            <Text style={s.kicker}>A READER’S NOTEBOOK</Text>
             <Text style={s.title}>
-              {isSignUp ? 'A reader’s ' : 'Pick up where you '}
-              <Text style={s.titleAccent}>
-                {isSignUp ? 'notebook.' : 'left off.'}
-              </Text>
+              Capture what you{' '}
+              <Text style={s.titleAccent}>read.</Text>
             </Text>
             <Text style={s.subtitle}>
-              {isSignUp
-                ? 'Capture quotes, questions, and insights as you read — and watch them weave together over time.'
-                : 'Your notes, highlights, and the threads between them — right where you left them.'}
+              Quotes, questions, and insights — woven together over time.
             </Text>
           </View>
 
-          {/* Social sign-in */}
+          {/* Social sign-in — primary path */}
           <View style={s.socialStack}>
             <TouchableOpacity
               style={[s.socialBtn, s.socialApple]}
@@ -363,115 +339,102 @@ export function LoginScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Divider */}
-          <View style={s.divider}>
-            <View style={s.rule} />
-            <Text style={s.dividerTxt}>OR WITH EMAIL</Text>
-            <View style={s.rule} />
-          </View>
-
-          {/* Email */}
-          <View style={s.fieldWrap}>
-            <Text style={s.label}>EMAIL</Text>
-            <View style={[s.inputShell, focused === 'email' && s.inputShellFocus]}>
-              <Ionicons
-                name="mail-outline"
-                size={16}
-                color={focused === 'email' ? C.sage : C.inkFaint}
-                style={{ marginRight: 10 }}
-              />
-              <TextInput
-                style={s.input}
-                value={email}
-                onChangeText={setEmail}
-                placeholder="you@example.com"
-                placeholderTextColor={C.inkFaint}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                autoComplete="email"
-                returnKeyType="next"
-                onFocus={() => setFocused('email')}
-                onBlur={() => setFocused(null)}
-              />
-            </View>
-          </View>
-
-          {/* Password */}
-          <View style={s.fieldWrap}>
-            <Text style={s.label}>PASSWORD</Text>
-            <View style={[s.inputShell, focused === 'password' && s.inputShellFocus]}>
-              <Ionicons
-                name="lock-closed-outline"
-                size={16}
-                color={focused === 'password' ? C.sage : C.inkFaint}
-                style={{ marginRight: 10 }}
-              />
-              <TextInput
-                style={s.input}
-                value={password}
-                onChangeText={setPassword}
-                placeholder={isSignUp ? 'Create a password' : 'Your password'}
-                placeholderTextColor={C.inkFaint}
-                secureTextEntry={!showPassword}
-                autoCapitalize="none"
-                autoCorrect={false}
-                returnKeyType="done"
-                onFocus={() => setFocused('password')}
-                onBlur={() => setFocused(null)}
-                onSubmitEditing={handleContinue}
-              />
-              <TouchableOpacity
-                onPress={() => setShowPassword(v => !v)}
-                style={s.eye}
-                hitSlop={8}
-              >
-                <Ionicons
-                  name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                  size={18}
-                  color={C.inkMuted}
-                />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Forgot password (sign-in mode only) */}
-          {!isSignUp && (
-            <View style={s.forgotRow}>
-              <TouchableOpacity hitSlop={8} activeOpacity={0.7}>
-                <Text style={s.forgotTxt}>Forgot password?</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* Primary CTA */}
-          <TouchableOpacity
-            onPress={handleContinue}
-            activeOpacity={0.88}
-            style={[s.cta, !canContinue && { opacity: 0.45, shadowOpacity: 0 }]}
-            disabled={!canContinue}
-          >
-            <Text style={s.ctaTxt}>
-              {isSignUp ? 'Create account' : 'Sign in'}
-            </Text>
-            <Ionicons name="arrow-forward" size={16} color={C.white} />
-          </TouchableOpacity>
-
-          {/* Mode toggle */}
-          <View style={s.toggleRow}>
-            <Text style={s.toggleTxt}>
-              {isSignUp ? 'Already have an account?' : 'New to Bookwise?'}
-            </Text>
+          {/* Email path — hidden until requested */}
+          {!showEmail ? (
             <TouchableOpacity
-              onPress={() => setMode(isSignUp ? 'signin' : 'signup')}
+              style={s.useEmailRow}
+              onPress={() => setShowEmail(true)}
               hitSlop={8}
               activeOpacity={0.7}
             >
-              <Text style={s.toggleLink}>
-                {isSignUp ? 'Sign in' : 'Create an account'}
-              </Text>
+              <Text style={s.useEmailLink}>Use email instead</Text>
             </TouchableOpacity>
-          </View>
+          ) : (
+            <>
+              {/* Divider */}
+              <View style={s.divider}>
+                <View style={s.rule} />
+                <Text style={s.dividerTxt}>OR WITH EMAIL</Text>
+                <View style={s.rule} />
+              </View>
+
+              {/* Email */}
+              <View style={s.fieldWrap}>
+                <Text style={s.label}>EMAIL</Text>
+                <View style={[s.inputShell, focused === 'email' && s.inputShellFocus]}>
+                  <Ionicons
+                    name="mail-outline"
+                    size={16}
+                    color={focused === 'email' ? C.sage : C.inkFaint}
+                    style={{ marginRight: 10 }}
+                  />
+                  <TextInput
+                    style={s.input}
+                    value={email}
+                    onChangeText={setEmail}
+                    placeholder="you@example.com"
+                    placeholderTextColor={C.inkFaint}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    autoComplete="email"
+                    returnKeyType="next"
+                    onFocus={() => setFocused('email')}
+                    onBlur={() => setFocused(null)}
+                  />
+                </View>
+              </View>
+
+              {/* Password */}
+              <View style={s.fieldWrap}>
+                <Text style={s.label}>PASSWORD</Text>
+                <View style={[s.inputShell, focused === 'password' && s.inputShellFocus]}>
+                  <Ionicons
+                    name="lock-closed-outline"
+                    size={16}
+                    color={focused === 'password' ? C.sage : C.inkFaint}
+                    style={{ marginRight: 10 }}
+                  />
+                  <TextInput
+                    style={s.input}
+                    value={password}
+                    onChangeText={setPassword}
+                    placeholder="Password"
+                    placeholderTextColor={C.inkFaint}
+                    secureTextEntry={!showPassword}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    returnKeyType="done"
+                    onFocus={() => setFocused('password')}
+                    onBlur={() => setFocused(null)}
+                    onSubmitEditing={handleContinue}
+                  />
+                  <TouchableOpacity
+                    onPress={() => setShowPassword(v => !v)}
+                    style={s.eye}
+                    hitSlop={8}
+                  >
+                    <Ionicons
+                      name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                      size={18}
+                      color={C.inkMuted}
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Primary CTA — sign-in vs. sign-up is detected on submit */}
+              <TouchableOpacity
+                onPress={handleContinue}
+                activeOpacity={0.88}
+                style={[s.cta, !canContinue && { opacity: 0.45, shadowOpacity: 0 }]}
+                disabled={!canContinue}
+              >
+                <Text style={s.ctaTxt}>Continue</Text>
+                <Ionicons name="arrow-forward" size={16} color={C.white} />
+              </TouchableOpacity>
+            </>
+          )}
 
           {/* Footer — terms */}
           <View style={s.footer}>

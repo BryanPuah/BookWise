@@ -143,6 +143,27 @@ export function BookDetailScreen({ route, navigation }) {
       gap: 3,
     },
 
+    // Genre pills — horizontal scrollable row mirroring DiscoverScreen's sheet
+    genreScroll: {
+      paddingHorizontal: 18,
+      gap: 6,
+      paddingBottom: 14,
+    },
+    genrePill: {
+      backgroundColor: C.sagePale,
+      paddingHorizontal: 12,
+      paddingVertical: 5,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: C.sage,
+    },
+    genrePillTxt: {
+      fontFamily: F.serif,
+      fontSize: 11,
+      color: C.sage,
+      fontWeight: '700',
+    },
+
     // Divider between identity and status/progress
     heroDivider: {
       height: 0.5,
@@ -215,19 +236,83 @@ export function BookDetailScreen({ route, navigation }) {
       fontWeight: '600',
     },
 
-    // Reading progress block
-    progressSection: { gap: 8 },
-    progressHeader: {
+    // Reading progress — compact, single tap-to-edit row + bar
+    progressSection: { gap: 10 },
+    progressTopRow: {
       flexDirection: 'row',
       justifyContent: 'space-between',
-      alignItems: 'baseline',
+      alignItems: 'center',
+      minHeight: 34,
+      gap: 12,
     },
-    progressLabel: {
+    // Display state — tappable pill showing current page
+    pagePill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+      borderRadius: 999,
+      backgroundColor: C.cream,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    pagePillTxt: {
       fontFamily: F.serif,
-      fontSize: 11,
+      fontSize: 13,
+      color: C.ink,
+      fontWeight: '600',
+    },
+    // Edit state — inline input + save/cancel
+    editRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      flex: 1,
+    },
+    editText: {
+      fontFamily: F.serif,
+      fontSize: 13,
+      color: C.ink,
+      fontWeight: '500',
+    },
+    editInput: {
+      fontFamily: F.sans,
+      fontSize: 14,
+      color: C.ink,
       fontWeight: '700',
-      color: C.inkMuted,
-      letterSpacing: 0.5,
+      backgroundColor: C.white,
+      borderWidth: 1.5,
+      borderColor: C.sage,
+      borderRadius: 8,
+      paddingHorizontal: 8,
+      paddingVertical: 5,
+      minWidth: 60,
+      textAlign: 'center',
+    },
+    editActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      marginLeft: 'auto',
+    },
+    editIconBtn: {
+      width: 30,
+      height: 30,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 999,
+      backgroundColor: C.cream,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    editSaveBtn: {
+      width: 30,
+      height: 30,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 999,
+      backgroundColor: C.sage,
     },
     progressPct: {
       fontFamily: F.serif,
@@ -237,60 +322,15 @@ export function BookDetailScreen({ route, navigation }) {
       letterSpacing: -0.5,
     },
     track: {
-      height: 4,
+      height: 6,
       backgroundColor: C.cream,
-      borderRadius: 2,
+      borderRadius: 3,
       overflow: 'hidden',
     },
     fill: {
-      height: 4,
+      height: 6,
       backgroundColor: C.sage,
-      borderRadius: 2,
-    },
-    // Literal page count beneath the bar — gives a hard number alongside the %
-    progressPages: {
-      fontFamily: F.serif,
-      fontSize: 12,
-      color: C.inkMuted,
-      fontWeight: '500',
-      marginTop: 2,
-    },
-    progressInputRow: {
-      flexDirection: 'row',
-      gap: 8,
-      alignItems: 'flex-end',
-      marginTop: 8,
-    },
-    pageInputLabel: {
-      fontFamily: F.sans,
-      fontSize: 10,
-      fontWeight: '700',
-      color: C.inkFaint,
-      letterSpacing: 0.5,
-      marginBottom: 5,
-    },
-    pageInput: {
-      fontFamily: F.sans,
-      backgroundColor: C.cream,
-      borderWidth: 1,
-      borderColor: C.border,
-      borderRadius: 10,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      fontSize: 13,
-      color: C.ink,
-    },
-    updateBtn: {
-      backgroundColor: C.ink,
-      paddingHorizontal: 18,
-      paddingVertical: 12,
-      borderRadius: 14,
-    },
-    updateBtnTxt: {
-      fontFamily: F.sans,
-      fontSize: 15,
-      color: C.white,
-      fontWeight: '700',
+      borderRadius: 3,
     },
 
     // Notes section
@@ -363,6 +403,7 @@ export function BookDetailScreen({ route, navigation }) {
   const book = books.find(b => b.id === bookId);
 
   const [pageInput, setPageInput] = useState(book?.currentPage?.toString() || '');
+  const [editingPage, setEditingPage] = useState(false);
   const [editorOpen, setEditorOpen]   = useState(false);
   const [editingNote, setEditingNote] = useState(null);
 
@@ -372,6 +413,14 @@ export function BookDetailScreen({ route, navigation }) {
   const progress = book.pageCount ? Math.min(1, book.currentPage / book.pageCount) : 0;
   const pct = Math.round(progress * 100);
   const hasDescription = book.description && !book.description.startsWith('Subjects:');
+
+  // Live preview: while editing, the bar + % reflect the pending input so
+  // the user can see their value land before committing.
+  const pendingPage = parseInt(pageInput, 10);
+  const pendingValid = !isNaN(pendingPage) && pendingPage >= 0 && pendingPage <= book.pageCount;
+  const displayPct = editingPage && pendingValid
+    ? Math.round(Math.min(1, pendingPage / book.pageCount) * 100)
+    : pct;
 
   const handlePageUpdate = () => {
     const p = parseInt(pageInput, 10);
@@ -384,6 +433,20 @@ export function BookDetailScreen({ route, navigation }) {
       patch.status = 'reading';
     }
     updateBook(bookId, patch);
+  };
+
+  const startEditPage = () => {
+    setPageInput(book.currentPage?.toString() || '0');
+    setEditingPage(true);
+  };
+  const cancelEditPage = () => {
+    setPageInput(book.currentPage?.toString() || '0');
+    setEditingPage(false);
+  };
+  const saveEditPage = () => {
+    if (!pendingValid) return;
+    handlePageUpdate();
+    setEditingPage(false);
   };
 
   const handleRemoveBook = () => {
@@ -524,6 +587,21 @@ export function BookDetailScreen({ route, navigation }) {
               </View>
             </View>
 
+            {/* Genre pills — horizontal scroll, mirrors the DiscoverScreen book sheet */}
+            {book.genres?.length > 0 && (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={s.genreScroll}
+              >
+                {book.genres.map((g, i) => (
+                  <View key={i} style={s.genrePill}>
+                    <Text style={s.genrePillTxt}>{g}</Text>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+
             {/* Thin divider separating identity from status/progress */}
             <View style={s.heroDivider} />
 
@@ -556,42 +634,66 @@ export function BookDetailScreen({ route, navigation }) {
                 )}
               </View>
 
-              {/* Reading progress — only when reading or finished */}
+              {/* Reading progress — compact tap-to-edit. The page pill IS
+                  the edit affordance: tap to enter edit mode, inline input
+                  appears with save/cancel. The bar and % update live as
+                  the user types so they can preview the change. */}
               {(book.status === 'reading' || book.status === 'finished') && book.pageCount > 0 && (
                 <View style={s.progressSection}>
-                  <View style={s.progressHeader}>
-                    <Text style={s.progressLabel}>Reading progress</Text>
-                    <Text style={s.progressPct}>{pct}%</Text>
-                  </View>
-                  <View style={s.track}>
-                    <View style={[s.fill, { width: `${pct}%` }]} />
-                  </View>
-                  {/* Page count below the bar */}
-                  <Text style={s.progressPages}>
-                    {book.currentPage} / {book.pageCount} pages
-                  </Text>
+                  <View style={s.progressTopRow}>
+                    {editingPage ? (
+                      <View style={s.editRow}>
+                        <Text style={s.editText}>Page</Text>
+                        <TextInput
+                          style={s.editInput}
+                          value={pageInput}
+                          onChangeText={setPageInput}
+                          keyboardType="numeric"
+                          autoFocus
+                          selectTextOnFocus
+                          returnKeyType="done"
+                          onSubmitEditing={saveEditPage}
+                          maxLength={5}
+                          placeholderTextColor={C.inkFaint}
+                        />
+                        <Text style={s.editText}>of {book.pageCount}</Text>
+                        <View style={s.editActions}>
+                          <TouchableOpacity
+                            onPress={cancelEditPage}
+                            style={s.editIconBtn}
+                            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                          >
+                            <Ionicons name="close" size={16} color={C.inkMuted} />
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={saveEditPage}
+                            style={[s.editSaveBtn, !pendingValid && { opacity: 0.35 }]}
+                            disabled={!pendingValid}
+                            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                          >
+                            <Ionicons name="checkmark" size={18} color={C.white} />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ) : (
+                      <TouchableOpacity
+                        onPress={startEditPage}
+                        activeOpacity={0.7}
+                        style={s.pagePill}
+                      >
+                        <Ionicons name="book-outline" size={13} color={C.inkMuted} />
+                        <Text style={s.pagePillTxt}>
+                          Page {book.currentPage} of {book.pageCount}
+                        </Text>
+                        <Ionicons name="pencil-outline" size={12} color={C.inkFaint} />
+                      </TouchableOpacity>
+                    )}
 
-                  <View style={s.progressInputRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.pageInputLabel}>Where are you up to?</Text>
-                      <TextInput
-                        style={s.pageInput}
-                        value={pageInput}
-                        onChangeText={setPageInput}
-                        keyboardType="numeric"
-                        placeholder={`of ${book.pageCount}`}
-                        placeholderTextColor={C.inkFaint}
-                        returnKeyType="done"
-                        onSubmitEditing={handlePageUpdate}
-                      />
-                    </View>
-                    <TouchableOpacity
-                      style={s.updateBtn}
-                      onPress={handlePageUpdate}
-                      activeOpacity={0.85}
-                    >
-                      <Text style={s.updateBtnTxt}>Save progress</Text>
-                    </TouchableOpacity>
+                    <Text style={s.progressPct}>{displayPct}%</Text>
+                  </View>
+
+                  <View style={s.track}>
+                    <View style={[s.fill, { width: `${displayPct}%` }]} />
                   </View>
                 </View>
               )}

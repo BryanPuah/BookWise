@@ -23,7 +23,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useStore } from '../store';
 import { useTheme } from '../theme';
-import { SettingRow, SwatchPicker } from '../components/SettingsRows';
+import { SettingRow, SwatchPicker, FontPicker } from '../components/SettingsRows';
 import { buildMarkdownExport } from './ProfileScreen';
 
 const APP_VERSION = '1.0.0';
@@ -35,6 +35,7 @@ export function SettingsScreen({ navigation }) {
     C, F, themeVersion,
     themes, themeName, setAccent,
     backgrounds, backgroundName, setBackground,
+    fonts, fontName, setFont,
     mode, setMode,
   } = useTheme();
 
@@ -162,6 +163,14 @@ export function SettingsScreen({ navigation }) {
             activeKey={backgroundName}
             onPick={setBackground}
             variant="background"
+          />
+          <View style={s.divider} />
+          <FontPicker
+            icon="text-outline"
+            label="Font Style"
+            entries={Object.entries(fonts)}
+            activeKey={fontName}
+            onPick={setFont}
           />
         </View>
 

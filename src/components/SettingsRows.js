@@ -3,6 +3,7 @@
  *
  * SettingRow   — single row: icon + label + optional switch/value/chevron.
  * SwatchPicker — collapsible row that expands to a grid of color swatches.
+ * FontPicker   — collapsible row that expands to a list of typography samples.
  */
 
 import React, { useMemo, useState } from 'react';
@@ -197,6 +198,124 @@ export function SwatchPicker({ icon, label, entries, activeKey, onPick, variant 
                 );
               })}
             </View>
+          </View>
+        </>
+      )}
+    </View>
+  );
+}
+
+// Collapsible picker for the reading font. Each row previews the face
+// inline ("Aa  Label") so the user sees what they're picking before
+// committing. The active row gets the accent pale background + check.
+export function FontPicker({ icon, label, entries, activeKey, onPick }) {
+  const { C, F, themeVersion } = useTheme();
+  const [expanded, setExpanded] = useState(false);
+
+  const s = useMemo(() => StyleSheet.create({
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 14,
+      paddingVertical: 14,
+    },
+    rowIconWrap: { width: 30, alignItems: 'center' },
+    rowLabel: {
+      flex: 1,
+      fontFamily: F.serif,
+      fontSize: 14,
+      color: C.ink,
+      fontWeight: '500',
+      marginLeft: 6,
+    },
+    rowRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    rowValue: {
+      fontFamily: F.serif,
+      fontSize: 13,
+      color: C.inkMuted,
+      fontWeight: '500',
+    },
+    divider: {
+      height: 0.5,
+      backgroundColor: C.border,
+      marginLeft: 50,
+    },
+    listWrap: {
+      paddingHorizontal: 14,
+      paddingTop: 6,
+      paddingBottom: 10,
+    },
+    optionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      borderRadius: 10,
+      marginVertical: 2,
+    },
+    optionRowActive: {
+      backgroundColor: C.sagePale,
+    },
+    sample: {
+      width: 38,
+      fontSize: 22,
+      color: C.ink,
+    },
+    optionLabel: {
+      flex: 1,
+      fontSize: 15,
+      color: C.ink,
+      marginLeft: 10,
+    },
+  }), [themeVersion]);
+
+  const activeEntry = entries.find(([k]) => k === activeKey);
+  const activeLabel = activeEntry?.[1]?.label || 'Default';
+
+  return (
+    <View>
+      <TouchableOpacity
+        style={s.row}
+        onPress={() => setExpanded(v => !v)}
+        activeOpacity={0.7}
+      >
+        <View style={s.rowIconWrap}>
+          <Ionicons name={icon} size={18} color={C.inkMuted} />
+        </View>
+        <Text style={s.rowLabel}>{label}</Text>
+        <View style={s.rowRight}>
+          <Text style={s.rowValue}>{activeLabel}</Text>
+          <Ionicons
+            name={expanded ? 'chevron-down' : 'chevron-forward'}
+            size={16}
+            color={C.inkFaint}
+          />
+        </View>
+      </TouchableOpacity>
+      {expanded && (
+        <>
+          <View style={s.divider} />
+          <View style={s.listWrap}>
+            {entries.map(([key, item]) => {
+              const active = key === activeKey;
+              return (
+                <TouchableOpacity
+                  key={key}
+                  style={[s.optionRow, active && s.optionRowActive]}
+                  onPress={() => onPick(key)}
+                  activeOpacity={0.7}
+                  accessibilityLabel={`${item.label} font`}
+                >
+                  <Text style={[s.sample, { fontFamily: item.serif }]}>Aa</Text>
+                  <Text style={[s.optionLabel, { fontFamily: item.serif }]}>
+                    {item.label}
+                  </Text>
+                  {active && (
+                    <Ionicons name="checkmark" size={18} color={C.sage} />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </>
       )}

@@ -23,6 +23,7 @@ import { GoalsScreen }         from './src/screens/GoalsScreen';
 import { ProfileScreen }       from './src/screens/ProfileScreen';
 import { SettingsScreen }      from './src/screens/SettingsScreen';
 import { LoginScreen }         from './src/screens/LoginScreen';
+import { ConfirmNameScreen }   from './src/screens/onboarding/ConfirmNameScreen';
 import { RichNoteEditor }      from './src/components/RichNoteEditor';
 import { useTheme, F } from './src/theme';
 
@@ -134,10 +135,15 @@ function Tabs() {
   const { C } = useTheme();
   const [showCapture, setShowCapture] = useState(false);
 
-  // Auth gate — if there's no user identity yet (fresh install or after
-  // logout), show the LoginScreen instead of the main app.
+  // Auth + onboarding gate. Three states:
+  //   no name              → LoginScreen (fresh install or post-logout)
+  //   name, !hasOnboarded  → ConfirmNameScreen (correct the email-derived guess)
+  //   else                 → tabs
   if (!user.name) {
     return <LoginScreen />;
+  }
+  if (!user.hasOnboarded) {
+    return <ConfirmNameScreen />;
   }
 
   const handleSave = (data) => {

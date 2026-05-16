@@ -19,12 +19,12 @@ import React from 'react';
 import { Text as RNText, TextInput as RNTextInput } from 'react-native';
 import { F } from '../theme';
 
-const defaultTextStyle = { fontFamily: F.serif };
-
+// Read F.serif at render time (not module-load time) so font swaps via
+// setFont() propagate to every text node on the next render pass.
 export function AppText({ style, ...rest }) {
-  return <RNText {...rest} style={[defaultTextStyle, style]} />;
+  return <RNText {...rest} style={[{ fontFamily: F.serif }, style]} />;
 }
 
 export function AppTextInput({ style, ...rest }) {
-  return <RNTextInput {...rest} style={[defaultTextStyle, style]} />;
+  return <RNTextInput {...rest} style={[{ fontFamily: F.serif }, style]} />;
 }
