@@ -13,7 +13,7 @@ import {
   DMSerifDisplay_400Regular,
   DMSerifDisplay_400Regular_Italic,
 } from '@expo-google-fonts/dm-serif-display';
-import { StoreProvider, useStore } from './src/store';
+import { StoreProvider, useStore, todayKey } from './src/store';
 import { HomeScreen }          from './src/screens/HomeScreen';
 import { FinishedBooksScreen } from './src/screens/FinishedBooksScreen';
 import { BookDetailScreen }    from './src/screens/BookDetailScreen';
@@ -26,6 +26,7 @@ import { LoginScreen }         from './src/screens/LoginScreen';
 import { ConfirmNameScreen }   from './src/screens/onboarding/ConfirmNameScreen';
 import { RichNoteEditor }      from './src/components/RichNoteEditor';
 import { useTheme, F } from './src/theme';
+import { genId } from './src/schema';
 
 const Tab   = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -148,7 +149,7 @@ function Tabs() {
 
   const handleSave = (data) => {
     addNote({
-      id:            Date.now().toString(),
+      id:            genId('n'),
       bookId:        data.bookId,
       bookTitle:     data.bookTitle,
       title:         data.title || '',
@@ -163,7 +164,7 @@ function Tabs() {
       linkedNoteIds: Array.isArray(data.linkedNoteIds) ? data.linkedNoteIds : [],
       isQuote:       data.type === 'quote',
       starred:       false,
-      date:          new Date().toISOString().slice(0, 10),
+      date:          todayKey(),
     });
   };
 

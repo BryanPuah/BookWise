@@ -112,9 +112,10 @@ export function LinkedNotesPicker({
     else                          onChange([...selectedIds, id]);
   };
 
-  // Show currently-selected notes at the top even when filter is empty,
-  // so the user can always uncheck them without finding them in the list.
-  const selectedNotes = filtered.filter(n => selectedIds.includes(n.id));
+  // Show currently-selected notes at the top even when the search query
+  // would exclude them — sourcing from `eligible` (not `filtered`) so the
+  // user can always uncheck a linked note without clearing the search.
+  const selectedNotes = eligible.filter(n => selectedIds.includes(n.id));
   const unselectedNotes = filtered.filter(n => !selectedIds.includes(n.id));
 
   const renderRow = (n) => {
@@ -180,7 +181,7 @@ export function LinkedNotesPicker({
           contentContainerStyle={s.scrollBody}
           showsVerticalScrollIndicator={false}
         >
-          {filtered.length === 0 && (
+          {filtered.length === 0 && selectedNotes.length === 0 && (
             <View style={s.empty}>
               <Text style={s.emptyTitle}>
                 {q ? 'No matches' : 'No other notes to link yet'}

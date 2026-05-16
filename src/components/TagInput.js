@@ -47,13 +47,26 @@ export function TagInput({ tags, onChange }) {
 
   const removeAt = (i) => onChange(tags.filter((_, idx) => idx !== i));
 
-  // Commit on space / comma. Other characters flow through normally.
+  // Commit on space / comma. When the change contains multiple delimiters
+  // (paste, fast typing) we split into tokens and commit all of them in a
+  // single onChange call. The trailing fragment (if any) stays as draft.
   const handleChangeText = (next) => {
-    if (next.endsWith(' ') || next.endsWith(',')) {
-      commit(next.slice(0, -1));
+    if (!/[\s,]/.test(next)) {
+      setDraft(next);
       return;
     }
-    setDraft(next);
+    const parts = next.split(/[\s,]+/);
+    const endsWithDelim = /[\s,]$/.test(next);
+    const tokensToCommit = endsWithDelim ? parts : parts.slice(0, -1);
+    const normalized = tokensToCommit
+      .map(normalizeTag)
+      .filter(Boolean);
+    if (normalized.length > 0) {
+      const merged = [...tags];
+      normalized.forEach(t => { if (!merged.includes(t)) merged.push(t); });
+      if (merged.length !== tags.length) onChange(merged);
+    }
+    setDraft(endsWithDelim ? '' : parts[parts.length - 1]);
   };
 
   // Backspace on empty draft → pop the most recent tag.

@@ -44,19 +44,28 @@ export function SettingRow({
     },
   }), [themeVersion]);
 
+  // Resolve a row-level press handler. A row carrying a switch should be
+  // tappable across its full width — not just the small switch element —
+  // so users can hit the label or padding to toggle. Falls back to the
+  // explicit onPress for chevron rows.
+  const hasSwitch = switchValue !== undefined;
+  const rowPress = onPress || (hasSwitch && onSwitchChange
+    ? () => onSwitchChange(!switchValue)
+    : undefined);
+
   return (
     <TouchableOpacity
       style={s.row}
-      onPress={onPress}
-      activeOpacity={onPress ? 0.7 : 1}
-      disabled={!onPress}
+      onPress={rowPress}
+      activeOpacity={rowPress ? 0.7 : 1}
+      disabled={!rowPress}
     >
       <View style={s.rowIconWrap}>
         <Ionicons name={icon} size={18} color={C.inkMuted} />
       </View>
       <Text style={s.rowLabel}>{label}</Text>
       <View style={s.rowRight}>
-        {switchValue !== undefined && (
+        {hasSwitch && (
           <Switch
             value={switchValue}
             onValueChange={onSwitchChange}

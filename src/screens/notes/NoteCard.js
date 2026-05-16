@@ -20,10 +20,11 @@ import { AppText as Text } from '../../components/AppText';
 import { useStore } from '../../store';
 import { MarkdownText } from '../../components/MarkdownText';
 import { useTheme } from '../../theme';
-import { NT, typeAccent, timeAgo } from './shared';
+import { useNT, typeAccent, timeAgo } from './shared';
 
 export function NoteCard({ note, onDelete, onEdit, showBook = false }) {
   const { C, F, themeVersion } = useTheme();
+  const NT = useNT();
   const { notes: allNotes } = useStore();
 
   const hasBlocks = Array.isArray(note.blocks) && note.blocks.length > 0;

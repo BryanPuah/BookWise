@@ -30,7 +30,8 @@ import {
 import { AppText as Text, AppTextInput as TextInput } from '../components/AppText';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useStore } from '../store';
+import { useStore, todayKey } from '../store';
+import { genId } from '../schema';
 import { BookCover } from '../components/BookCover';
 import { RichNoteEditor } from '../components/RichNoteEditor';
 import { NoteCard } from './notes/NoteCard';
@@ -476,9 +477,11 @@ export function BookDetailScreen({ route, navigation }) {
   };
 
   const handleUndoFinished = () => {
+    // Flip back to "reading" without losing progress. The old ternary
+    // reset to 0 whenever currentPage === pageCount (i.e. always, since
+    // finishing snaps to pageCount). Preserve whatever's there.
     updateBook(bookId, {
       status: 'reading',
-      currentPage: book.currentPage < book.pageCount ? book.currentPage : 0,
       finishedAt: null,
     });
   };
@@ -490,12 +493,12 @@ export function BookDetailScreen({ route, navigation }) {
       setEditingNote(null);
     } else {
       addNote({
-        id: Date.now().toString(),
+        id: genId('n'),
         bookId,
         bookTitle: book.title,
         ...data,
         starred: data.starred || false,
-        date: new Date().toISOString().slice(0, 10),
+        date: todayKey(),
       });
     }
     setEditorOpen(false);

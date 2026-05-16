@@ -12,9 +12,9 @@
  * rather than chaining screens here.
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
-  View, TouchableOpacity, StyleSheet,
+  View, TouchableOpacity, Pressable, StyleSheet,
   KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -30,6 +30,7 @@ export function ConfirmNameScreen() {
 
   const [name, setName] = useState(user.name || '');
   const [focused, setFocused] = useState(false);
+  const nameRef = useRef(null);
 
   const s = useMemo(() => StyleSheet.create({
     safe: { flex: 1, backgroundColor: C.paper },
@@ -115,6 +116,7 @@ export function ConfirmNameScreen() {
       borderColor: C.border,
       borderRadius: 12,
       paddingHorizontal: 14,
+      minHeight: 48,
     },
     inputShellFocus: {
       borderColor: C.sage,
@@ -206,7 +208,10 @@ export function ConfirmNameScreen() {
 
           <View style={s.fieldWrap}>
             <Text style={s.label}>YOUR NAME</Text>
-            <View style={[s.inputShell, focused && s.inputShellFocus]}>
+            <Pressable
+              onPress={() => nameRef.current?.focus()}
+              style={[s.inputShell, focused && s.inputShellFocus]}
+            >
               <Ionicons
                 name="person-outline"
                 size={16}
@@ -214,6 +219,7 @@ export function ConfirmNameScreen() {
                 style={{ marginRight: 10 }}
               />
               <TextInput
+                ref={nameRef}
                 style={s.input}
                 value={name}
                 onChangeText={setName}
@@ -226,7 +232,7 @@ export function ConfirmNameScreen() {
                 onBlur={() => setFocused(false)}
                 onSubmitEditing={handleContinue}
               />
-            </View>
+            </Pressable>
           </View>
 
           <TouchableOpacity

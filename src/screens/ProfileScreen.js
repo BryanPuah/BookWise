@@ -21,7 +21,7 @@ import { AppText as Text } from '../components/AppText';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useStore } from '../store';
+import { useStore, todayKey } from '../store';
 import {
   EditProfileModal, getAvatarColor, getInitials,
 } from '../components/EditProfileModal';
@@ -37,7 +37,7 @@ import { SettingRow } from '../components/SettingsRows';
 // Exported so SettingsScreen can call it from the Export Notes row.
 export function buildMarkdownExport({ notes, reflections, books, user }) {
   const lines = [];
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayKey();
   const owner = user?.name?.trim() || 'My';
   lines.push(`# ${owner} — Bookwise Export`);
   lines.push(`_Generated ${today} · ${notes.length} notes · ${reflections.length} reflections_`);

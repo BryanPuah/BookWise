@@ -17,7 +17,8 @@ import {
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { AppText as Text, AppTextInput as TextInput } from '../AppText';
-import { useStore } from '../../store';
+import { useStore, todayKey } from '../../store';
+import { genId } from '../../schema';
 import { GoalEditor } from '../../screens/GoalsScreen';
 import { useTheme } from '../../theme';
 import {
@@ -639,14 +640,14 @@ export function DayPanel({ visible, day, data, onClose, onManageGoals }) {
 
   const handleAddGoal = (data) => {
     addGoal({
-      id: `g_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      id: genId('g'),
       label:      data.label,
       tag:        data.tag,
       recurrence: data.recurrence,
       weekday:    data.weekday,
       monthDay:   data.monthDay,
       dueDate:    data.dueDate,
-      created:    new Date().toISOString().slice(0, 10),
+      created:    todayKey(),
     });
   };
 

@@ -5,22 +5,33 @@
  * Graph) and NoteCard can import the same constants and utilities without
  * a circular dependency.
  *
- * NOTE: The module-level `C` import here is used ONLY by the `NT` constant.
- * Its colors are frozen to the default theme — acceptable trade-off for v1.
- * Components doing their own styling MUST use the `C` returned by
- * `useTheme()` so styles rebuild when the theme changes.
+ * Note-type meta (label / icon / bg / desc) is built per-render from the
+ * active palette — call `useNT()` from a component to get the themed map.
+ * Reading `NT` directly is intentionally not supported any more because the
+ * old static export froze to whatever theme was loaded first.
  */
 
-import { C } from '../../theme';
+import { useMemo } from 'react';
+import { useTheme } from '../../theme';
 
-export const NT = {
-  quote:      { label: 'Quote',      icon: '💬', color: C.ink, bg: C.cream,     desc: 'Direct words from the author' },
-  insight:    { label: 'Insight',    icon: '💡', color: C.ink, bg: C.amberPale, desc: 'Your own interpretation or realisation' },
-  question:   { label: 'Question',   icon: '🔍', color: C.ink, bg: C.cream,     desc: 'Something you want to investigate further' },
-  action:     { label: 'Action',     icon: '✅', color: C.ink, bg: C.sagePale,  desc: 'Something you will apply or do' },
-  summary:    { label: 'Summary',    icon: '📌', color: C.ink, bg: C.amberPale, desc: 'Distilled key idea from a chapter' },
-  connection: { label: 'Connection', icon: '🔗', color: C.ink, bg: C.sagePale,  desc: 'This idea connects to another book or note' },
-};
+// `buildNT(C)` is exported so non-component callers (tests, derived
+// constants) can construct the map from any palette.
+export function buildNT(C) {
+  return {
+    quote:      { label: 'Quote',      icon: '💬', color: C.ink, bg: C.cream,     desc: 'Direct words from the author' },
+    insight:    { label: 'Insight',    icon: '💡', color: C.ink, bg: C.amberPale, desc: 'Your own interpretation or realisation' },
+    question:   { label: 'Question',   icon: '🔍', color: C.ink, bg: C.cream,     desc: 'Something you want to investigate further' },
+    action:     { label: 'Action',     icon: '✅', color: C.ink, bg: C.sagePale,  desc: 'Something you will apply or do' },
+    summary:    { label: 'Summary',    icon: '📌', color: C.ink, bg: C.amberPale, desc: 'Distilled key idea from a chapter' },
+    connection: { label: 'Connection', icon: '🔗', color: C.ink, bg: C.sagePale,  desc: 'This idea connects to another book or note' },
+  };
+}
+
+// Hook that returns a NT map rebuilt when the theme changes.
+export function useNT() {
+  const { C, themeVersion } = useTheme();
+  return useMemo(() => buildNT(C), [themeVersion]);
+}
 
 // Returns true if `note` carries the given type tag — checks the multi-type
 // `types[]` array first, then falls back to the legacy single `type` field.

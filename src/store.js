@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState } from 'react';
+import { genId } from './schema';
 
 const StoreContext = createContext(null);
 
@@ -8,11 +9,21 @@ const StoreContext = createContext(null);
 //   'monthly' — show on day-of-month N (1..31)
 //   'once'    — show only on dueDate (YYYY-MM-DD)
 
-const todayKey = () => new Date().toISOString().slice(0, 10);
+// Local-date "YYYY-MM-DD" — must match the user's calendar day. Using
+// toISOString() here would slice the UTC date, which is off by one for any
+// timezone outside UTC (notes get saved under tomorrow's or yesterday's
+// key, then never show up in today's timeline pill).
+const fmtLocalKey = (d) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+export const todayKey = () => fmtLocalKey(new Date());
 const daysAgoKey = (n) => {
   const d = new Date();
   d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
+  return fmtLocalKey(d);
 };
 
 // ── User profile ─────────────────────────────────────────────────────
@@ -82,6 +93,11 @@ export function StoreProvider({ children }) {
     const weekday  = d.getDay();
     const monthDay = d.getDate();
 
+    // Days in this month — used to "spill" goals dated past the end of
+    // shorter months onto the last day. A 31st-of-month goal should fire
+    // on Feb 28 / Apr 30, not silently disappear in those months.
+    const lastDayOfMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+
     return goals.filter(g => {
       // Don't show goals dated before they were created
       if (g.created && dateKey < g.created) return false;
@@ -89,7 +105,11 @@ export function StoreProvider({ children }) {
       switch (g.recurrence) {
         case 'daily':   return true;
         case 'weekly':  return g.weekday === weekday;
-        case 'monthly': return g.monthDay === monthDay;
+        case 'monthly': {
+          if (typeof g.monthDay !== 'number') return false;
+          const target = Math.min(g.monthDay, lastDayOfMonth);
+          return monthDay === target;
+        }
         case 'once':    return g.dueDate === dateKey;
         default:        return true; // legacy goals (no recurrence) treat as daily
       }
@@ -125,11 +145,12 @@ export function StoreProvider({ children }) {
     else if (set.has(yesterday)) start = yesterday;
     else return 0;
 
-    // Walk backward from start, counting consecutive days
+    // Walk backward from start, counting consecutive days. Use local-date
+    // keys so the comparison aligns with how markDayActive writes them.
     let count = 0;
     let d = new Date(start + 'T00:00:00');
     while (true) {
-      const key = d.toISOString().slice(0, 10);
+      const key = fmtLocalKey(d);
       if (!set.has(key)) break;
       count++;
       d.setDate(d.getDate() - 1);
@@ -166,7 +187,7 @@ export function StoreProvider({ children }) {
       );
     } else {
       setReflections(rs => [...rs, {
-        id: `r_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        id: genId('r'),
         date,
         text: trimmed,
         updatedAt: new Date().toISOString(),

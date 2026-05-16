@@ -17,7 +17,8 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppText as Text } from '../components/AppText';
-import { useStore } from '../store';
+import { useStore, todayKey } from '../store';
+import { genId } from '../schema';
 import { AppHeader } from '../components/AppHeader';
 import { RichNoteEditor } from '../components/RichNoteEditor';
 import { useTheme } from '../theme';
@@ -59,7 +60,7 @@ export function NotesScreen({ navigation, route }) {
 
   const handleSave = (data) => {
     addNote({
-      id:            Date.now().toString(),
+      id:            genId('n'),
       bookId:        data.bookId,
       bookTitle:     data.bookTitle,
       title:         data.title || '',
@@ -74,7 +75,7 @@ export function NotesScreen({ navigation, route }) {
       linkedNoteIds: Array.isArray(data.linkedNoteIds) ? data.linkedNoteIds : [],
       isQuote:       data.type === 'quote',
       starred:       false,
-      date:          new Date().toISOString().slice(0, 10),
+      date:          todayKey(),
     });
   };
 
@@ -84,19 +85,30 @@ export function NotesScreen({ navigation, route }) {
   };
 
   const handleSaveEdit = (data) => {
-    if (editNote) {
-      updateNote(editNote.id, {
-        title:         data.title || '',
-        blocks:        data.blocks || [],
-        types:         data.types || [data.type || 'insight'],
-        type:          data.type,
-        text:          data.text,
-        thinking:      data.thinking || '',
-        page:          data.page || '',
-        chapter:       data.chapter || '',
-        tags:          Array.isArray(data.tags) ? data.tags : [],
-        linkedNoteIds: Array.isArray(data.linkedNoteIds) ? data.linkedNoteIds : [],
-        isQuote:       data.type === 'quote',
+    if (!editNote) { setEditNote(null); return; }
+    const patch = {
+      title:         data.title || '',
+      blocks:        data.blocks || [],
+      types:         data.types || [data.type || 'insight'],
+      type:          data.type,
+      text:          data.text,
+      thinking:      data.thinking || '',
+      page:          data.page || '',
+      chapter:       data.chapter || '',
+      tags:          Array.isArray(data.tags) ? data.tags : [],
+      linkedNoteIds: Array.isArray(data.linkedNoteIds) ? data.linkedNoteIds : [],
+      isQuote:       data.type === 'quote',
+    };
+    // Guard against "deleted mid-edit" — if the underlying note is gone,
+    // re-add it from the edit state rather than silently dropping the save.
+    const stillExists = notes.some(n => n.id === editNote.id);
+    if (stillExists) {
+      updateNote(editNote.id, patch);
+    } else {
+      addNote({
+        ...editNote,
+        ...patch,
+        starred: editNote.starred || false,
       });
     }
     setEditNote(null);
@@ -112,6 +124,11 @@ export function NotesScreen({ navigation, route }) {
   // Honour `editNoteId` route param — set when a note is tapped from the
   // global search modal. Opens that note in the editor. The `_t`
   // cache-buster lets the same note be reopened after being closed.
+  //
+  // `notes` is deliberately not a dependency: re-running this effect
+  // whenever the store updates would re-fire while the editor is open and
+  // overwrite the in-flight edit state with the stored snapshot. The route
+  // param is the only trigger we want.
   useEffect(() => {
     const id = route?.params?.editNoteId;
     if (!id) return;
@@ -121,7 +138,7 @@ export function NotesScreen({ navigation, route }) {
       setShowEditModal(true);
     }
     navigation.setParams({ editNoteId: undefined, _t: undefined });
-  }, [route?.params?.editNoteId, route?.params?._t, notes]);
+  }, [route?.params?.editNoteId, route?.params?._t]);
 
   const VIEWS = [
     { key: 'explore',  label: 'Explore' },
@@ -187,7 +204,7 @@ export function NotesScreen({ navigation, route }) {
       {view === 'explore' && <ExploreView {...sharedProps} />}
       {view === 'by_book' && <ByBookView {...sharedProps} navigation={navigation} />}
       {view === 'by_type' && <ByTypeView notes={notes} onDelete={handleDelete} onEdit={handleEdit} />}
-      {view === 'graph'   && <GraphView notes={notes} books={books} onEdit={handleEdit} />}
+      {view === 'graph'   && <GraphView notes={notes} books={books} onEdit={handleEdit} onDelete={handleDelete} />}
 
     </SafeAreaView>
   );

@@ -24,9 +24,18 @@ function StarRow({ rating = 0 }) {
 export function FinishedBooksScreen({ navigation }) {
   const { C, F, themeVersion } = useTheme();
   const { books } = useStore();
+  // Newest-finished first. Reads `finishedAt` / `dateAdded` (schema fields)
+  // and parses each to a numeric timestamp. Missing values sort to the end
+  // (treated as -Infinity) so freshly-finished books surface at the top.
+  const tsOf = (b) => {
+    const raw = b.finishedAt || b.dateAdded;
+    if (!raw) return -Infinity;
+    const t = new Date(raw).getTime();
+    return Number.isNaN(t) ? -Infinity : t;
+  };
   const finished = books
     .filter(b => b.status === 'finished')
-    .sort((a, b) => (b.dateFinished || b.added) < (a.dateFinished || a.added) ? -1 : 1);
+    .sort((a, b) => tsOf(b) - tsOf(a));
 
   const s = useMemo(() => StyleSheet.create({
     safe: { flex: 1, backgroundColor: C.paper },

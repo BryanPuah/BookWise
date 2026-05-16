@@ -1,7 +1,6 @@
 /**
  * AppHeader — the top bar used across all main screens.
- * Matches Figma: hamburger left, "Modern Library" serif brand centre-left,
- * search + avatar circle right.
+ * "Modern Library" serif brand on the left, search + avatar circle on the right.
  */
 
 import React, { useMemo, useState, useEffect } from 'react';
@@ -13,7 +12,7 @@ import { useStore } from '../store';
 import { getAvatarColor, getInitials } from './EditProfileModal';
 import { GlobalSearchModal } from './GlobalSearchModal';
 
-export function AppHeader({ onMenuPress, onAvatarPress, brand = 'Modern Library', avatarUri }) {
+export function AppHeader({ onAvatarPress, brand = 'Modern Library', avatarUri }) {
   const { C, F, themeVersion } = useTheme();
   const { user } = useStore();
   const [searchOpen, setSearchOpen] = useState(false);
@@ -41,7 +40,7 @@ export function AppHeader({ onMenuPress, onAvatarPress, brand = 'Modern Library'
       paddingTop: 10,
       paddingBottom: 14,
     },
-    left: { flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1, marginRight: 12 },
+    left: { flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 12 },
     brand: {
       fontFamily: F.serif,
       fontSize: 22,
@@ -72,13 +71,6 @@ export function AppHeader({ onMenuPress, onAvatarPress, brand = 'Modern Library'
   return (
     <View style={s.bar}>
       <View style={s.left}>
-        <TouchableOpacity
-          onPress={onMenuPress}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          activeOpacity={0.6}
-        >
-          <Ionicons name="menu" size={22} color={C.ink} />
-        </TouchableOpacity>
         <Text style={s.brand} numberOfLines={1} ellipsizeMode="tail">{brand}</Text>
       </View>
 

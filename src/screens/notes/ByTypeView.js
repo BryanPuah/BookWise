@@ -14,7 +14,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { AppText as Text } from '../../components/AppText';
 import { useTheme } from '../../theme';
 import { NoteCard } from './NoteCard';
-import { NT, noteHasType } from './shared';
+import { useNT, noteHasType } from './shared';
 
 function TypeNotesScreen({ typeKey, typeMeta, notes, onDelete, onEdit, onBack }) {
   const { C, F, themeVersion } = useTheme();
@@ -89,6 +89,7 @@ function TypeNotesScreen({ typeKey, typeMeta, notes, onDelete, onEdit, onBack })
 
 export function ByTypeView({ notes, onDelete, onEdit }) {
   const { C, F, themeVersion } = useTheme();
+  const NT = useNT();
   const btv = useMemo(() => StyleSheet.create({
     typeBlock: {
       backgroundColor: C.white,

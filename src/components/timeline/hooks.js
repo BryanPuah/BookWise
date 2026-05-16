@@ -11,7 +11,7 @@ import { Animated, Dimensions, PanResponder } from 'react-native';
 
 export const { width: SW, height: SH } = Dimensions.get('window');
 
-export const DAY_WIDTH  = 50;
+export const DAY_WIDTH  = 42;
 export const DAY_GAP    = 5;
 export const DAYS_BACK  = 365;
 export const DAYS_AHEAD = 365;
@@ -115,7 +115,10 @@ export function useDragToDismiss({ onClose }) {
     dragging.current = false;
     const currentVal = dragStart.current + g.dy;
     if (currentVal > 80 || g.vy > 0.4) {
-      dismiss();
+      // Pass onClose so the parent's visible-state flips back when the
+      // sheet finishes animating away. Without this the modal stays
+      // semi-mounted with visible=true and can't be reopened.
+      dismiss(onClose);
     } else {
       snapBack();
     }

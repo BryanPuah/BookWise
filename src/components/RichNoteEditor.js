@@ -131,8 +131,10 @@ function EditorScreen({ book, initialData, onSave, onCancel, onChangeBook, regis
     addLinkTxt: { fontFamily: F.serif, fontSize: 12, color: C.inkSoft, fontWeight: '600' },
   }), [themeVersion]);
 
-  // initialData provided when editing an existing note
-  const [title]              = useState(initialData?.title || '');
+  // initialData provided when editing an existing note. Title isn't user-
+  // editable in this editor (no title field) — preserve whatever was on
+  // the original note so an edit round-trip doesn't blank it out.
+  const initialTitle = initialData?.title || '';
   const [blocks, setBlocks]  = useState(
     initialData?.blocks?.length
       ? initialData.blocks
@@ -279,10 +281,18 @@ function EditorScreen({ book, initialData, onSave, onCancel, onChangeBook, regis
 
   // Expose the dirty-aware cancel up to the Modal so hardware-back / swipe-
   // down dismissals also prompt instead of silently discarding.
+  //
+  // A ref carries the latest `confirmCancel` so we can register the guard
+  // exactly once (on mount) without re-registering on every keystroke. The
+  // previous effect had no dep array and tore down + reinstalled the guard
+  // on every render — leaving a brief window where back-press would skip
+  // the dirty prompt entirely.
+  const confirmCancelRef = useRef(confirmCancel);
+  confirmCancelRef.current = confirmCancel;
   useEffect(() => {
-    registerCancelGuard?.(confirmCancel);
+    registerCancelGuard?.(() => confirmCancelRef.current?.());
     return () => registerCancelGuard?.(null);
-  });
+  }, [registerCancelGuard]);
 
   // Save — flatten blocks → text for backwards compat
   const handleSave = () => {
@@ -301,7 +311,7 @@ function EditorScreen({ book, initialData, onSave, onCancel, onChangeBook, regis
     onSave({
       bookId:        book.id,
       bookTitle:     book.title,
-      title:         title.trim(),
+      title:         initialTitle.trim(),
       blocks:        cleanBlocks,
       types:         finalTypes,
       type:          finalTypes[0],

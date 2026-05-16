@@ -11,6 +11,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useStore } from '../store';
+import { genId } from '../schema';
 import { useTheme, covers } from '../theme';
 import { LoadingState, ErrorState, classifyFetchError } from '../components/StateView';
 
@@ -884,7 +885,7 @@ export function DiscoverScreen() {
   };
 
   const buildBookEntry = (book, status = 'want_to_read') => ({
-    id: Date.now().toString(),
+    id: genId('bk'),
     olKey: book.key,
     title: book.title,
     author: book.author_name?.[0] || 'Unknown',
@@ -941,7 +942,7 @@ export function DiscoverScreen() {
 
   const handleAddManualItem = useCallback(({ title, author, pages, genre, format, url }, status = 'want_to_read') => {
     addBook({
-      id: Date.now().toString(),
+      id: genId('bk'),
       olKey: null,
       title,
       author: author || (format && format !== 'Book' ? '' : 'Unknown'),

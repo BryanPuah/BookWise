@@ -19,26 +19,29 @@ import { AppText as Text, AppTextInput as TextInput } from '../components/AppTex
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Swipeable } from 'react-native-gesture-handler';
-import { useStore } from '../store';
+import { useStore, todayKey } from '../store';
+import { genId } from '../schema';
 import { C, useTheme } from '../theme';
 
 // Suggested tags
 const TAG_SUGGESTIONS = ['READING', 'WRITING', 'ADMIN', 'STUDY', 'HEALTH', 'CREATIVE'];
 
-// NOTE: TAG_TINT captures C values at module load and is intentionally
-// frozen to the default theme. Tag tints will not re-theme at runtime
-// — acceptable trade-off per the theme refactor design.
-const TAG_TINT = {
-  READING:  { bg: C.sagePale,  fg: C.ink },
-  WRITING:  { bg: C.amberPale, fg: C.ink },
-  ADMIN:    { bg: C.cream,     fg: C.inkSoft },
-  STUDY:    { bg: C.sagePale,  fg: C.ink },
-  HEALTH:   { bg: C.amberPale, fg: C.ink },
-  CREATIVE: { bg: C.cream,     fg: C.inkSoft },
-};
-
-function getTagTint(tag) {
-  return TAG_TINT[String(tag).toUpperCase()] || { bg: C.cream, fg: C.inkSoft };
+// Tag tints are built from the *active* palette so they re-theme along with
+// the rest of the chrome. Call `useTagTint()` inside a component to get a
+// `getTagTint(tag)` that's already bound to the current C.
+function useTagTint() {
+  const { C, themeVersion } = useTheme();
+  return useMemo(() => {
+    const map = {
+      READING:  { bg: C.sagePale,  fg: C.ink },
+      WRITING:  { bg: C.amberPale, fg: C.ink },
+      ADMIN:    { bg: C.cream,     fg: C.inkSoft },
+      STUDY:    { bg: C.sagePale,  fg: C.ink },
+      HEALTH:   { bg: C.amberPale, fg: C.ink },
+      CREATIVE: { bg: C.cream,     fg: C.inkSoft },
+    };
+    return (tag) => map[String(tag).toUpperCase()] || { bg: C.cream, fg: C.inkSoft };
+  }, [themeVersion]);
 }
 
 const WEEKDAY_LETTERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
@@ -56,8 +59,6 @@ export function formatRecurrence(goal) {
     default:        return 'Daily';
   }
 }
-
-const todayKey = () => new Date().toISOString().slice(0, 10);
 
 // ── Goal editor modal — used for Add and Edit ─────────────────────────
 export function GoalEditor({ visible, goal, onSave, onClose, defaultRecurrence = 'daily', defaultDueDate = null }) {
@@ -159,7 +160,19 @@ export function GoalEditor({ visible, goal, onSave, onClose, defaultRecurrence =
     }
   }, [visible, goal]);
 
-  const canSave = label.trim().length > 0;
+  // A 'once' goal needs a parseable YYYY-MM-DD — anything else makes the
+  // goal silently never match in goalsForDate. Validate before letting
+  // the user save so they get explicit feedback in the form.
+  const dueDateValid = (() => {
+    if (recurrence !== 'once') return true;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) return false;
+    const parsed = new Date(dueDate + 'T00:00:00');
+    if (isNaN(parsed.getTime())) return false;
+    const [y, m, d] = dueDate.split('-').map(Number);
+    return parsed.getFullYear() === y && parsed.getMonth() + 1 === m && parsed.getDate() === d;
+  })();
+
+  const canSave = label.trim().length > 0 && dueDateValid;
 
   const handleSave = () => {
     if (!canSave) return;
@@ -275,16 +288,18 @@ export function GoalEditor({ visible, goal, onSave, onClose, defaultRecurrence =
               <TextInput
                 style={ge.numInput}
                 value={dueDate}
-                onChangeText={setDueDate}
+                onChangeText={t => setDueDate(t.replace(/[^0-9-]/g, '').slice(0, 10))}
                 placeholder="YYYY-MM-DD"
                 placeholderTextColor={C.inkFaint}
+                keyboardType="numbers-and-punctuation"
+                autoCorrect={false}
               />
-              <Text style={ge.hint}>
-                {(() => {
-                  const d = new Date(dueDate + 'T00:00:00');
-                  if (isNaN(d.getTime())) return 'Enter a date as YYYY-MM-DD';
-                  return d.toLocaleDateString('en-AU', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-                })()}
+              <Text style={[ge.hint, !dueDateValid && { color: C.rose, fontStyle: 'normal' }]}>
+                {dueDateValid
+                  ? new Date(dueDate + 'T00:00:00').toLocaleDateString('en-AU', {
+                      weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+                    })
+                  : 'Enter a real date as YYYY-MM-DD (e.g. 2026-08-12)'}
               </Text>
             </>
           )}
@@ -320,6 +335,7 @@ export function GoalEditor({ visible, goal, onSave, onClose, defaultRecurrence =
 // ── Main GoalsScreen ──────────────────────────────────────────────────
 export function GoalsScreen({ navigation }) {
   const { C, F, themeVersion } = useTheme();
+  const getTagTint = useTagTint();
   const { goals, addGoal, updateGoal, removeGoal } = useStore();
   const [editorOpen, setEditorOpen]     = useState(false);
   const [editingGoal, setEditingGoal]   = useState(null);
@@ -388,7 +404,7 @@ export function GoalsScreen({ navigation }) {
       updateGoal(editingGoal.id, data);
     } else {
       addGoal({
-        id: `g_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        id: genId('g'),
         label:      data.label,
         tag:        data.tag,
         recurrence: data.recurrence,

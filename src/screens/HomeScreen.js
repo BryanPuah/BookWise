@@ -6,7 +6,7 @@ import {
 import { AppText as Text } from '../components/AppText';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useStore } from '../store';
+import { useStore, todayKey as localTodayKey } from '../store';
 import { BookCover } from '../components/BookCover';
 import { ReadingTimeline } from '../components/ReadingTimeline';
 import { AppHeader } from '../components/AppHeader';
@@ -126,7 +126,7 @@ function RangePickerModal({ visible, currentRange, onSelect, onClose }) {
 }
 
 // ── Goal card ──────────────────────────────────────────────────────────
-function GoalCard({ baseLabel, current, range, onChangeRange }) {
+function GoalCard({ baseLabel, current, range, onChangeRange, align = 'center' }) {
   const { C, F, themeVersion } = useTheme();
   const meta = RANGE_META[range];
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -134,27 +134,28 @@ function GoalCard({ baseLabel, current, range, onChangeRange }) {
   const s = useMemo(() => StyleSheet.create({
     goalStat: {
       flex: 1,
-      alignItems: 'flex-start',
+      alignItems: align,
     },
     goalMedal: {
       marginBottom: 10,
     },
     goalCountNum: {
       fontFamily: F.serif,
-      fontSize: 44,
+      fontSize: 40,
       color: C.amber,
-      letterSpacing: -1.5,
-      lineHeight: 48,
+      letterSpacing: -1,
+      lineHeight: 46,
       marginBottom: 6,
     },
     goalLabel: {
       fontFamily: F.serif,
-      fontSize: 14,
+      fontSize: 13,
+      lineHeight: 17,
       color: C.inkSoft,
       fontWeight: '400',
-      letterSpacing: -0.1,
+      textAlign: align === 'flex-start' ? 'left' : align === 'flex-end' ? 'right' : 'center',
     },
-  }), [themeVersion]);
+  }), [themeVersion, align]);
 
   return (
     <>
@@ -164,8 +165,8 @@ function GoalCard({ baseLabel, current, range, onChangeRange }) {
         activeOpacity={0.6}
       >
         <Ionicons name="ribbon" size={20} color={C.amber} style={s.goalMedal} />
-        <Text style={s.goalCountNum}>{current}</Text>
-        <Text style={s.goalLabel} numberOfLines={1}>
+        <Text style={s.goalCountNum} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{current}</Text>
+        <Text style={s.goalLabel} numberOfLines={2} ellipsizeMode="tail">
           {baseLabel} {meta.label}
         </Text>
       </TouchableOpacity>
@@ -185,32 +186,33 @@ function GoalCard({ baseLabel, current, range, onChangeRange }) {
 // "Active" = the app was opened that day (tracked in store.activeDays).
 // Zero state ("—") shown when streak is 0, so the visual layout doesn't
 // jump around.
-function StreakCard({ streak, onPress }) {
+function StreakCard({ streak, onPress, align = 'center' }) {
   const { C, F, themeVersion } = useTheme();
   const s = useMemo(() => StyleSheet.create({
     goalStat: {
       flex: 1,
-      alignItems: 'flex-start',
+      alignItems: align,
     },
     goalMedal: {
       marginBottom: 10,
     },
     goalCountNum: {
       fontFamily: F.serif,
-      fontSize: 44,
+      fontSize: 40,
       color: C.amber,
-      letterSpacing: -1.5,
-      lineHeight: 48,
+      letterSpacing: -1,
+      lineHeight: 46,
       marginBottom: 6,
     },
     goalLabel: {
       fontFamily: F.serif,
-      fontSize: 14,
+      fontSize: 13,
+      lineHeight: 17,
       color: C.inkSoft,
       fontWeight: '400',
-      letterSpacing: -0.1,
+      textAlign: align === 'flex-start' ? 'left' : align === 'flex-end' ? 'right' : 'center',
     },
-  }), [themeVersion]);
+  }), [themeVersion, align]);
 
   return (
     <TouchableOpacity
@@ -219,10 +221,10 @@ function StreakCard({ streak, onPress }) {
       activeOpacity={0.85}
     >
       <Ionicons name="flame" size={20} color={C.rose} style={s.goalMedal} />
-      <Text style={[s.goalCountNum, { color: C.rose }]}>
+      <Text style={[s.goalCountNum, { color: C.rose }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
         {streak > 0 ? streak : '—'}
       </Text>
-      <Text style={s.goalLabel} numberOfLines={1}>
+      <Text style={s.goalLabel} numberOfLines={2} ellipsizeMode="tail">
         Active Day Streak
       </Text>
     </TouchableOpacity>
@@ -239,6 +241,20 @@ export function HomeScreen({ navigation, route }) {
   const firstName = (user?.name || '').trim().split(/\s+/)[0] || 'Reader';
   const [activeIdx, setActiveIdx] = useState(0);
   const heroScrollRef = useRef(null);
+
+  // When a currently-reading book is removed, activeIdx can point past the
+  // end of `readingBooks`. Clamp it so the carousel + dots always reference
+  // a real slot. The clamp also fires when the array shrinks to zero
+  // (`emptyHero` then handles the empty state).
+  useEffect(() => {
+    if (readingBooks.length === 0) {
+      if (activeIdx !== 0) setActiveIdx(0);
+      return;
+    }
+    if (activeIdx > readingBooks.length - 1) {
+      setActiveIdx(readingBooks.length - 1);
+    }
+  }, [readingBooks.length, activeIdx]);
 
   // Per-card active range — both default to 'year' to match Figma label
   const [booksRange, setBooksRange] = useState('year');
@@ -271,7 +287,7 @@ export function HomeScreen({ navigation, route }) {
   // launch so a fresh user gets an actionable next step instead of a
   // blank empty-hero with no context.
   const isFirstTime = books.length === 0 && notes.length === 0 && reflections.length === 0;
-  const todayKey    = new Date().toISOString().slice(0, 10);
+  const todayKey    = localTodayKey();
 
   // Books shown in the grid below the tab strip
   const collectionBooks = useMemo(() => {
@@ -537,7 +553,7 @@ export function HomeScreen({ navigation, route }) {
     // Stats row — three big numerals evenly spaced across the row
     goalsWrap: {
       flexDirection: 'row',
-      paddingHorizontal: 20,
+      paddingHorizontal: 16,
       paddingTop: 12,
       paddingBottom: 14,
       justifyContent: 'space-between',
@@ -758,7 +774,12 @@ export function HomeScreen({ navigation, route }) {
               <Ionicons name="chevron-forward" size={16} color={C.inkFaint} />
             </TouchableOpacity>
           </View>
-        ) : readingBooks.length > 0 ? (
+        ) : readingBooks.length > 0 ? (() => {
+          // Clamp inline as well so the first render after readingBooks
+          // shrinks (e.g. user just deleted the active book) doesn't use
+          // the stale activeIdx for dots / hero indexing.
+          const safeActiveIdx = Math.min(activeIdx, readingBooks.length - 1);
+          return (
           <View style={s.heroCard}>
             <ScrollView
               ref={heroScrollRef}
@@ -774,8 +795,13 @@ export function HomeScreen({ navigation, route }) {
             >
               {readingBooks.map((book) => {
                 const bNotes = notes.filter(n => n.bookId === book.id);
-                const prog   = book.currentPage / (book.pageCount || 1);
-                const pct    = Math.round(prog * 100);
+                // Books with no page count (articles, podcasts, manually
+                // added items) can't have a meaningful percentage. Show an
+                // unquantified "In progress" state instead of "500% — 5/0".
+                const hasPages = book.pageCount > 0;
+                const pct = hasPages
+                  ? Math.min(100, Math.max(0, Math.round((book.currentPage / book.pageCount) * 100)))
+                  : 0;
                 const tag    = book.genres?.[0] || book.format || 'Reading';
                 return (
                   <TouchableOpacity
@@ -806,12 +832,20 @@ export function HomeScreen({ navigation, route }) {
 
                         {/* Progress label + pages */}
                         <View style={s.heroProgressRow}>
-                          <Text style={s.heroProgressLbl}>Reading Progress: {pct}%</Text>
-                          <Text style={s.heroProgressPages}>{book.currentPage} / {book.pageCount || 0} pages</Text>
+                          <Text style={s.heroProgressLbl}>
+                            {hasPages ? `Reading Progress: ${pct}%` : 'In progress'}
+                          </Text>
+                          {hasPages && (
+                            <Text style={s.heroProgressPages}>
+                              {book.currentPage} / {book.pageCount} pages
+                            </Text>
+                          )}
                         </View>
-                        <View style={s.heroTrack}>
-                          <View style={[s.heroFill, { width: `${pct}%` }]} />
-                        </View>
+                        {hasPages && (
+                          <View style={s.heroTrack}>
+                            <View style={[s.heroFill, { width: `${pct}%` }]} />
+                          </View>
+                        )}
 
                         {/* Action buttons */}
                         <View style={s.heroActions}>
@@ -828,7 +862,9 @@ export function HomeScreen({ navigation, route }) {
                             onPress={() => navigation.navigate('BookDetail', { bookId: book.id })}
                             activeOpacity={0.7}
                           >
-                            <Text style={s.heroSecondaryTxt}>Reading Progress: {pct}%</Text>
+                            <Text style={s.heroSecondaryTxt}>
+                              {hasPages ? `Reading Progress: ${pct}%` : 'Open book'}
+                            </Text>
                           </TouchableOpacity>
                         </View>
 
@@ -852,20 +888,20 @@ export function HomeScreen({ navigation, route }) {
                 return (
                   <View style={s.dotsRow} pointerEvents="none">
                     {Array.from({ length: total }, (_, i) => (
-                      <View key={i} style={[s.dot, i === activeIdx && s.dotActive]} />
+                      <View key={i} style={[s.dot, i === safeActiveIdx && s.dotActive]} />
                     ))}
                   </View>
                 );
               }
               let windowStart;
-              if (activeIdx <= 1)              windowStart = 0;
-              else if (activeIdx >= total - 2) windowStart = total - MAX;
-              else                             windowStart = activeIdx - 2;
+              if (safeActiveIdx <= 1)              windowStart = 0;
+              else if (safeActiveIdx >= total - 2) windowStart = total - MAX;
+              else                                 windowStart = safeActiveIdx - 2;
               return (
                 <View style={s.dotsRow} pointerEvents="none">
                   {Array.from({ length: MAX }, (_, k) => {
                     const realIdx = windowStart + k;
-                    const isActive = realIdx === activeIdx;
+                    const isActive = realIdx === safeActiveIdx;
                     const isEdge = (windowStart > 0 && k === 0) ||
                                    (windowStart + MAX < total && k === MAX - 1);
                     return (
@@ -880,7 +916,8 @@ export function HomeScreen({ navigation, route }) {
               );
             })()}
           </View>
-        ) : (
+          );
+        })() : (
           <TouchableOpacity
             style={s.emptyHero}
             onPress={() => navigation.navigate('Add')}

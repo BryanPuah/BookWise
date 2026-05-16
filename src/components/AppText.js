@@ -15,16 +15,40 @@
  * call sites.
  */
 
-import React from 'react';
+import React, { forwardRef } from 'react';
 import { Text as RNText, TextInput as RNTextInput } from 'react-native';
 import { F } from '../theme';
+
+// DM Serif Display (and the other selectable reading faces) ship no CJK
+// glyphs, so Chinese/Japanese/Korean would otherwise render as tofu or
+// the device default. When children contain any CJK codepoint, fall back
+// to F.sans (System), which resolves to a CJK-capable face on both iOS
+// and Android. Covers: CJK Symbols/Punctuation, Hiragana, Katakana, CJK
+// Extension A, Unified Ideographs, Hangul Syllables, CJK Compatibility
+// Ideographs, and Halfwidth/Fullwidth Forms.
+const CJK_RE = /[　-ヿ㐀-鿿가-힯豈-﫿＀-￯]/;
+
+function containsCJK(value) {
+  if (value == null || value === false) return false;
+  if (typeof value === 'string' || typeof value === 'number') {
+    return CJK_RE.test(String(value));
+  }
+  if (Array.isArray(value)) return value.some(containsCJK);
+  return false;
+}
 
 // Read F.serif at render time (not module-load time) so font swaps via
 // setFont() propagate to every text node on the next render pass.
 export function AppText({ style, ...rest }) {
-  return <RNText {...rest} style={[{ fontFamily: F.serif }, style]} />;
+  const fontFamily = containsCJK(rest.children) ? F.sans : F.serif;
+  return <RNText {...rest} style={[{ fontFamily }, style]} />;
 }
 
-export function AppTextInput({ style, ...rest }) {
-  return <RNTextInput {...rest} style={[{ fontFamily: F.serif }, style]} />;
-}
+// forwardRef so callers can programmatically focus the input — used by
+// the tap-target wrappers in LoginScreen / ConfirmNameScreen and by the
+// next-field chain in EditProfileModal.
+export const AppTextInput = forwardRef(function AppTextInput({ style, ...rest }, ref) {
+  const sample = rest.value != null ? rest.value : rest.defaultValue;
+  const fontFamily = containsCJK(sample) ? F.sans : F.serif;
+  return <RNTextInput ref={ref} {...rest} style={[{ fontFamily }, style]} />;
+});

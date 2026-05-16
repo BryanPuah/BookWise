@@ -10,7 +10,7 @@
  * draft state.
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   View, TouchableOpacity, ScrollView,
   StyleSheet, Modal, KeyboardAvoidingView, Platform,
@@ -22,6 +22,8 @@ import { useStore } from '../store';
 import { useTheme, AVATAR_COLORS } from '../theme';
 
 export { AVATAR_COLORS };
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // First letter of first word + first letter of last word, uppercased.
 // "?" is the fallback for empty names so the circle is never blank.
@@ -56,15 +58,18 @@ export function getAvatarColor(seed, name) {
 export function EditProfileModal({ visible, onClose }) {
   const { C, F, themeVersion } = useTheme();
   const { user, updateUser } = useStore();
-  const [name, setName]   = useState(user.name);
-  const [email, setEmail] = useState(user.email);
-  const [seed, setSeed]   = useState(user.avatarSeed);
+  const [name, setName]   = useState(user.name || '');
+  const [email, setEmail] = useState(user.email || '');
+  const [seed, setSeed]   = useState(user.avatarSeed || '');
+  const [emailError, setEmailError] = useState(false);
+  const emailRef = useRef(null);
 
   useEffect(() => {
     if (visible) {
-      setName(user.name);
-      setEmail(user.email);
-      setSeed(user.avatarSeed);
+      setName(user.name || '');
+      setEmail(user.email || '');
+      setSeed(user.avatarSeed || '');
+      setEmailError(false);
     }
   }, [visible, user.name, user.email, user.avatarSeed]);
 
@@ -186,12 +191,31 @@ export function EditProfileModal({ visible, onClose }) {
       fontSize: 15,
       color: C.ink,
     },
+    inputError: {
+      borderColor: C.rose,
+    },
+    errorTxt: {
+      fontFamily: F.serif,
+      fontSize: 12,
+      color: C.rose,
+      marginHorizontal: 22,
+      marginTop: 6,
+    },
   }), [themeVersion]);
 
+  const trimmedName = name.trim();
+  const trimmedEmail = email.trim();
+  const emailValid = trimmedEmail.length === 0 || EMAIL_RE.test(trimmedEmail);
+  const canSave = trimmedName.length > 0 && emailValid;
+
   const handleSave = () => {
+    if (!canSave) {
+      if (!emailValid) setEmailError(true);
+      return;
+    }
     updateUser({
-      name: name.trim() || user.name,
-      email: email.trim() || user.email,
+      name: trimmedName,
+      email: trimmedEmail,
       avatarSeed: seed,
     });
     onClose();
@@ -207,7 +231,7 @@ export function EditProfileModal({ visible, onClose }) {
       <SafeAreaView style={p.safe} edges={['top', 'bottom']}>
         <KeyboardAvoidingView
           style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
           {/* Top bar */}
           <View style={p.topBar}>
@@ -218,7 +242,8 @@ export function EditProfileModal({ visible, onClose }) {
             <TouchableOpacity
               onPress={handleSave}
               activeOpacity={0.85}
-              style={p.saveBtn}
+              style={[p.saveBtn, !canSave && { opacity: 0.4 }]}
+              disabled={!canSave}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
               <Text style={p.saveBtnTxt}>Save</Text>
@@ -226,8 +251,11 @@ export function EditProfileModal({ visible, onClose }) {
           </View>
 
           <ScrollView
-            contentContainerStyle={{ paddingBottom: 60 }}
+            contentContainerStyle={{ paddingBottom: 200 }}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
+            automaticallyAdjustKeyboardInsets
+            showsVerticalScrollIndicator={false}
           >
             {/* Avatar preview */}
             <Text style={p.sectionLabel}>AVATAR</Text>
@@ -289,19 +317,33 @@ export function EditProfileModal({ visible, onClose }) {
               placeholder="Your name"
               placeholderTextColor={C.inkFaint}
               autoCapitalize="words"
+              autoCorrect={false}
+              returnKeyType="next"
+              textContentType="name"
+              onSubmitEditing={() => emailRef.current?.focus()}
+              blurOnSubmit={false}
             />
 
             {/* Email */}
             <Text style={p.sectionLabel}>EMAIL</Text>
             <TextInput
-              style={p.input}
+              ref={emailRef}
+              style={[p.input, emailError && p.inputError]}
               value={email}
-              onChangeText={setEmail}
+              onChangeText={(t) => { setEmail(t); if (emailError) setEmailError(false); }}
+              onBlur={() => setEmailError(trimmedEmail.length > 0 && !emailValid)}
               placeholder="you@example.com"
               placeholderTextColor={C.inkFaint}
               autoCapitalize="none"
+              autoCorrect={false}
               keyboardType="email-address"
+              textContentType="emailAddress"
+              returnKeyType="done"
+              onSubmitEditing={handleSave}
             />
+            {emailError ? (
+              <Text style={p.errorTxt}>Enter a valid email address.</Text>
+            ) : null}
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>

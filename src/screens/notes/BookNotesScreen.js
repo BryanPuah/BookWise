@@ -11,10 +11,11 @@ import { AppText as Text } from '../../components/AppText';
 import { BookCover } from '../../components/BookCover';
 import { useTheme } from '../../theme';
 import { NoteCard } from './NoteCard';
-import { NT, noteHasType } from './shared';
+import { useNT, noteHasType } from './shared';
 
 export function BookNotesScreen({ book, notes, onStar, onDelete, onEdit, onBack, navigation }) {
   const { C, F, themeVersion } = useTheme();
+  const NT = useNT();
   const bns = useMemo(() => StyleSheet.create({
     header: { backgroundColor: C.white, borderBottomWidth: 0.5, borderBottomColor: C.border, paddingBottom: 14 },
     backBtn: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 8, alignSelf: 'flex-start' },

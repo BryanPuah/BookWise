@@ -17,7 +17,13 @@ import Svg, { Circle, Line, Text as SvgText, G } from 'react-native-svg';
 import { AppText as Text } from '../../components/AppText';
 import { useTheme, NOTE_TYPE_COLORS } from '../../theme';
 import { NoteCard } from './NoteCard';
-import { NT, noteHasType } from './shared';
+import { useNT, noteHasType } from './shared';
+
+// Visual catch-all for notes whose type isn't in `NT` (or is missing
+// entirely). Surfaced in the legend + as the node fill so unclassified
+// notes are obvious rather than silently miscoloured.
+const OTHER_NOTE_COLOR = '#9CA3AF';
+const OTHER_NOTE_LABEL = 'Other';
 
 // Total character count across all text-bearing fields of a note. Used to
 // scale a note's node radius in the graph so longer notes read as bigger.
@@ -51,8 +57,9 @@ function noteShortLabel(n) {
   return body.length > 18 ? body.slice(0, 16) + '…' : body;
 }
 
-export function GraphView({ notes, books, onEdit }) {
+export function GraphView({ notes, books, onEdit, onDelete }) {
   const { C, F, themeVersion } = useTheme();
+  const NT = useNT();
   const [groupBy, setGroupBy] = useState('book'); // 'book' | 'type'
   const [previewNote, setPreviewNote] = useState(null); // tapped node → overlay card
 
@@ -67,22 +74,41 @@ export function GraphView({ notes, books, onEdit }) {
   };
 
   const gv = useMemo(() => StyleSheet.create({
-    toggleStrip: { flexDirection: 'row', gap: 8, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 6 },
-    toggle: {
-      flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1,
-      borderColor: C.border, backgroundColor: C.cream, alignItems: 'center',
+    toggleStrip: {
+      flexDirection: 'row',
+      marginHorizontal: 20, marginTop: 12, marginBottom: 4,
+      backgroundColor: C.cream,
+      borderRadius: 999, padding: 3,
+      borderWidth: 0.5, borderColor: C.border,
     },
-    toggleActive: { backgroundColor: C.ink, borderColor: C.ink },
-    toggleTxt: { fontFamily: F.serif, fontSize: 13, fontWeight: '600', color: C.inkSoft },
+    toggle: {
+      flex: 1, paddingVertical: 8, borderRadius: 999,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    toggleActive: {
+      backgroundColor: C.ink,
+      shadowColor: '#000', shadowOpacity: 0.12,
+      shadowOffset: { width: 0, height: 1 }, shadowRadius: 2, elevation: 1,
+    },
+    toggleTxt: { fontFamily: F.serif, fontSize: 13, fontWeight: '600', color: C.inkSoft, letterSpacing: 0.2 },
     toggleTxtActive: { color: C.white },
 
-    legend: {
-      flexDirection: 'row', flexWrap: 'wrap', gap: 10,
-      paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8, justifyContent: 'center',
+    legendWrap: {
+      paddingHorizontal: 16, paddingTop: 8, paddingBottom: 6,
     },
-    legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-    legendDot: { width: 9, height: 9, borderRadius: 5 },
-    legendTxt: { fontFamily: F.serif, fontSize: 10, color: C.inkMuted, fontWeight: '600' },
+    legend: {
+      flexDirection: 'row', flexWrap: 'wrap', gap: 6,
+      justifyContent: 'center',
+    },
+    legendItem: {
+      flexDirection: 'row', alignItems: 'center', gap: 5,
+      paddingHorizontal: 9, paddingVertical: 4,
+      borderRadius: 999,
+      backgroundColor: C.cream,
+      borderWidth: 0.5, borderColor: C.border,
+    },
+    legendDot: { width: 8, height: 8, borderRadius: 4 },
+    legendTxt: { fontFamily: F.serif, fontSize: 10, color: C.inkSoft, fontWeight: '600', letterSpacing: 0.2 },
 
     previewBackdrop: {
       ...StyleSheet.absoluteFillObject,
@@ -93,27 +119,39 @@ export function GraphView({ notes, books, onEdit }) {
     previewCardWrap: { maxWidth: 460, width: '100%', alignSelf: 'center' },
 
     canvasWrap: {
-      flex: 1, marginHorizontal: 12, marginTop: 4,
-      borderRadius: 14, overflow: 'hidden',
+      flex: 1, marginHorizontal: 12, marginTop: 4, marginBottom: 4,
+      borderRadius: 18, overflow: 'hidden',
       backgroundColor: C.cream,
       borderWidth: 0.5, borderColor: C.border,
+      shadowColor: '#000', shadowOpacity: 0.04,
+      shadowOffset: { width: 0, height: 1 }, shadowRadius: 4, elevation: 1,
     },
 
     hud: {
-      position: 'absolute', top: 10, right: 10,
-      backgroundColor: 'rgba(0,0,0,0.55)',
-      paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8,
+      position: 'absolute', top: 12, right: 12,
+      flexDirection: 'row', alignItems: 'center', gap: 4,
+      backgroundColor: 'rgba(20, 22, 30, 0.62)',
+      paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999,
     },
-    hudTxt: { color: C.white, fontFamily: F.serif, fontSize: 11, fontWeight: '600' },
+    hudTxt: { color: C.white, fontFamily: F.serif, fontSize: 10.5, fontWeight: '700', letterSpacing: 0.4 },
 
     resetBtn: {
-      position: 'absolute', top: 10, left: 10,
-      flexDirection: 'row', alignItems: 'center', gap: 4,
+      position: 'absolute', top: 12, left: 12,
+      flexDirection: 'row', alignItems: 'center', gap: 5,
       backgroundColor: C.white,
       paddingHorizontal: 10, paddingVertical: 5,
-      borderRadius: 8, borderWidth: 0.5, borderColor: C.border,
+      borderRadius: 999, borderWidth: 0.5, borderColor: C.border,
+      shadowColor: '#000', shadowOpacity: 0.06,
+      shadowOffset: { width: 0, height: 1 }, shadowRadius: 2, elevation: 1,
     },
-    resetTxt: { fontFamily: F.serif, fontSize: 11, color: C.ink, fontWeight: '600' },
+    resetTxt: { fontFamily: F.serif, fontSize: 11, color: C.ink, fontWeight: '600', letterSpacing: 0.2 },
+
+    hint: {
+      position: 'absolute', bottom: 10, alignSelf: 'center',
+      backgroundColor: 'rgba(20, 22, 30, 0.48)',
+      paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999,
+    },
+    hintTxt: { color: C.white, fontFamily: F.serif, fontSize: 10, fontWeight: '600', letterSpacing: 0.3 },
 
     empty: { alignItems: 'center', paddingTop: 80, paddingHorizontal: 30 },
     emptyIcon: { fontSize: 40, marginBottom: 12 },
@@ -141,16 +179,63 @@ export function GraphView({ notes, books, onEdit }) {
         if (ns.length > 0) acc.push({ id: `type:${key}`, label: `${meta.icon} ${meta.label}`, notes: ns });
         return acc;
       }, []);
+      const knownKeys = Object.keys(NT);
+      const otherNotes = notes.filter(n => !knownKeys.some(k => noteHasType(n, k)));
+      if (otherNotes.length > 0) {
+        groups.push({ id: 'type:other', label: `· ${OTHER_NOTE_LABEL}`, notes: otherNotes });
+      }
     }
     const N = [], E = [];
+    // noteId → first synthetic node id (a note may appear under multiple
+    // hubs in by_type mode; we anchor cross-note edges to the first copy).
+    const firstNodeIdByNote = new Map();
     groups.forEach(g => {
       N.push({ id: g.id, kind: 'hub', label: g.label, count: g.notes.length });
       g.notes.forEach(n => {
         const nid = `${g.id}::n:${n.id}`;
         N.push({ id: nid, kind: 'note', note: n, label: noteShortLabel(n) });
-        E.push({ s: g.id, t: nid });
+        E.push({ s: g.id, t: nid, kind: 'hub' });
+        if (!firstNodeIdByNote.has(n.id)) firstNodeIdByNote.set(n.id, nid);
       });
     });
+
+    // Note→note edges. Two sources:
+    //   1. `linkedNoteIds` — explicit connection links from Connection notes.
+    //   2. `[[wiki-link]]` mentions parsed out of body text, matched against
+    //      target note titles (case-insensitive).
+    // Edges are deduped per unordered pair so two notes that link to each
+    // other don't render as overlapping double lines.
+    const titleIndex = new Map();   // lowercased title → noteId
+    notes.forEach(n => {
+      const t = (n.title || '').trim().toLowerCase();
+      if (t && !titleIndex.has(t)) titleIndex.set(t, n.id);
+    });
+    const seen = new Set();
+    const addPairEdge = (sourceNoteId, targetNoteId) => {
+      if (!sourceNoteId || !targetNoteId || sourceNoteId === targetNoteId) return;
+      const sNid = firstNodeIdByNote.get(sourceNoteId);
+      const tNid = firstNodeIdByNote.get(targetNoteId);
+      if (!sNid || !tNid) return;
+      const key = sourceNoteId < targetNoteId
+        ? `${sourceNoteId}|${targetNoteId}`
+        : `${targetNoteId}|${sourceNoteId}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      E.push({ s: sNid, t: tNid, kind: 'link' });
+    };
+    const wikiRe = /\[\[([^\]\n]+)\]\]/g;
+    notes.forEach(n => {
+      if (Array.isArray(n.linkedNoteIds)) {
+        n.linkedNoteIds.forEach(tid => addPairEdge(n.id, tid));
+      }
+      const body = `${n.title || ''}\n${n.text || ''}`;
+      let m;
+      while ((m = wikiRe.exec(body)) !== null) {
+        const targetId = titleIndex.get(m[1].trim().toLowerCase());
+        if (targetId) addPairEdge(n.id, targetId);
+      }
+    });
+
     return { nodes: N, edges: E };
   }, [notes, books, groupBy]);
 
@@ -419,13 +504,19 @@ export function GraphView({ notes, books, onEdit }) {
         </TouchableOpacity>
       </View>
 
-      <View style={gv.legend}>
-        {Object.entries(NT).map(([k, v]) => (
-          <View key={k} style={gv.legendItem}>
-            <View style={[gv.legendDot, { backgroundColor: typeColor[k] || C.inkMuted }]} />
-            <Text style={gv.legendTxt}>{v.label}</Text>
+      <View style={gv.legendWrap}>
+        <View style={gv.legend}>
+          {Object.entries(NT).map(([k, v]) => (
+            <View key={k} style={gv.legendItem}>
+              <View style={[gv.legendDot, { backgroundColor: typeColor[k] || C.inkMuted }]} />
+              <Text style={gv.legendTxt}>{v.label}</Text>
+            </View>
+          ))}
+          <View style={gv.legendItem}>
+            <View style={[gv.legendDot, { backgroundColor: OTHER_NOTE_COLOR }]} />
+            <Text style={gv.legendTxt}>{OTHER_NOTE_LABEL}</Text>
           </View>
-        ))}
+        </View>
       </View>
 
       <View style={gv.canvasWrap} onLayout={onCanvasLayout}>
@@ -436,13 +527,18 @@ export function GraphView({ notes, books, onEdit }) {
                 {edges.map((e, i) => {
                   const a = positionsRef.current[e.s], b = positionsRef.current[e.t];
                   if (!a || !b) return null;
+                  // Note→note (linkedNoteIds + wiki-links) edges render in the
+                  // accent colour so they read as a knowledge-graph layer
+                  // sitting on top of the muted hub→note spokes.
+                  const isLink = e.kind === 'link';
                   return (
                     <Line
                       key={`e${i}`}
                       x1={a.x} y1={a.y} x2={b.x} y2={b.y}
-                      stroke={C.border}
-                      strokeWidth={edgeStroke}
-                      opacity={0.7}
+                      stroke={isLink ? C.sage : C.inkFaint}
+                      strokeWidth={isLink ? edgeStroke + 0.4 : edgeStroke}
+                      strokeLinecap="round"
+                      opacity={isLink ? 0.7 : 0.55}
                     />
                   );
                 })}
@@ -452,6 +548,8 @@ export function GraphView({ notes, books, onEdit }) {
                   if (!p) return null;
                   return (
                     <G key={h.id}>
+                      <Circle cx={p.x} cy={p.y} r={28} fill={C.ink} opacity={0.06} />
+                      <Circle cx={p.x} cy={p.y} r={22} fill={C.ink} opacity={0.09} />
                       <Circle
                         cx={p.x} cy={p.y} r={18}
                         fill={C.ink} stroke={C.paper} strokeWidth={2.5}
@@ -465,7 +563,7 @@ export function GraphView({ notes, books, onEdit }) {
                       </SvgText>
                       {showHubLabels && (
                         <SvgText
-                          x={p.x} y={p.y + 34}
+                          x={p.x} y={p.y + 36}
                           fill={C.ink} fontSize="11" fontWeight="bold"
                           textAnchor="middle"
                         >
@@ -480,18 +578,24 @@ export function GraphView({ notes, books, onEdit }) {
                   const p = positionsRef.current[n.id];
                   if (!p) return null;
                   const typeKey = (Array.isArray(n.note.types) && n.note.types[0])
-                    || n.note.type || 'insight';
-                  const fill = typeColor[typeKey] || C.inkMuted;
+                    || n.note.type;
+                  const fill = (typeKey && typeColor[typeKey]) || OTHER_NOTE_COLOR;
                   const r = noteRadius(n.note);
                   return (
                     <G key={n.id}>
+                      {n.note.starred && (
+                        <Circle
+                          cx={p.x} cy={p.y} r={r + 4}
+                          fill={fill} opacity={0.18}
+                        />
+                      )}
                       <Circle
                         cx={p.x} cy={p.y} r={r}
                         fill={fill} stroke={C.paper} strokeWidth={1.5}
                       />
                       {showNoteLabels && (
                         <SvgText
-                          x={p.x} y={p.y + r + 9}
+                          x={p.x} y={p.y + r + 10}
                           fill={C.inkSoft} fontSize="8.5"
                           textAnchor="middle"
                         >
@@ -507,12 +611,16 @@ export function GraphView({ notes, books, onEdit }) {
         </GestureDetector>
 
         <View pointerEvents="none" style={gv.hud}>
+          <Ionicons name="search-outline" size={11} color={C.white} />
           <Text style={gv.hudTxt}>{Math.round(tx.k * 100)}%</Text>
         </View>
         <TouchableOpacity style={gv.resetBtn} onPress={resetView} activeOpacity={0.85}>
           <Ionicons name="contract-outline" size={12} color={C.ink} />
           <Text style={gv.resetTxt}>Reset</Text>
         </TouchableOpacity>
+        <View pointerEvents="none" style={gv.hint}>
+          <Text style={gv.hintTxt}>Pinch · drag · tap</Text>
+        </View>
       </View>
 
       {previewNote && (
@@ -525,8 +633,14 @@ export function GraphView({ notes, books, onEdit }) {
           <View style={gv.previewCardWrap}>
             <NoteCard
               note={previewNote}
-              onEdit={() => setPreviewNote(null)}
-              onDelete={() => setPreviewNote(null)}
+              onEdit={(n) => {
+                setPreviewNote(null);
+                onEdit?.(n);
+              }}
+              onDelete={(id) => {
+                setPreviewNote(null);
+                onDelete?.(id);
+              }}
               showBook
             />
           </View>
