@@ -131,7 +131,7 @@ export function EditProfileModal({ visible, onClose }) {
     previewInitials: {
       fontFamily: F.serif,
       fontSize: 32,
-      color: C.white,
+      color: '#FFFFFF',
       letterSpacing: -0.5,
     },
 
@@ -264,7 +264,7 @@ export function EditProfileModal({ visible, onClose }) {
                 {showInitials ? (
                   <Text style={p.previewInitials}>{previewInitials}</Text>
                 ) : (
-                  <Ionicons name="person" size={40} color={C.white} />
+                  <Ionicons name="person" size={40} color="#FFFFFF" />
                 )}
               </View>
             </View>
@@ -300,7 +300,7 @@ export function EditProfileModal({ visible, onClose }) {
                   >
                     <View style={[p.swatch, { backgroundColor: c.color }]}>
                       {active && (
-                        <Ionicons name="checkmark" size={22} color={C.white} />
+                        <Ionicons name="checkmark" size={22} color="#FFFFFF" />
                       )}
                     </View>
                   </TouchableOpacity>

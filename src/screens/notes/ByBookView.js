@@ -11,10 +11,10 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { AppText as Text } from '../../components/AppText';
 import { BookCover } from '../../components/BookCover';
 import { useTheme } from '../../theme';
-import { useNT } from './shared';
+import { useNT, NotesEmptyState } from './shared';
 import { BookNotesScreen } from './BookNotesScreen';
 
-export function ByBookView({ notes, books, onStar, onDelete, navigation, onEdit }) {
+export function ByBookView({ notes, books, onStar, onDelete, navigation, onEdit, onCapture }) {
   const { C, F, themeVersion } = useTheme();
   const NT = useNT();
   const bbv = useMemo(() => StyleSheet.create({
@@ -35,10 +35,6 @@ export function ByBookView({ notes, books, onStar, onDelete, navigation, onEdit 
     typePills: { flexDirection: 'row', gap: 5, marginTop: 7, flexWrap: 'wrap' },
     typeTag: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8 },
     typeTagTxt: { fontFamily: F.serif, fontSize: 10, fontWeight: '700', color: C.ink },
-    empty: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 30 },
-    emptyIcon: { fontSize: 40, marginBottom: 12 },
-    emptyTitle: { fontFamily: F.serif, fontSize: 18, color: C.ink, marginBottom: 6 },
-    emptySub: { fontFamily: F.serif, fontSize: 13, color: C.inkMuted, textAlign: 'center', lineHeight: 20 },
   }), [themeVersion]);
 
   const [selectedBook, setSelectedBook] = useState(null);
@@ -72,6 +68,7 @@ export function ByBookView({ notes, books, onStar, onDelete, navigation, onEdit 
           onStar={onStar}
           onDelete={onDelete}
           onEdit={onEdit}
+          onCapture={onCapture}
           onBack={() => setSelectedBook(null)}
           navigation={navigation}
         />
@@ -126,13 +123,12 @@ export function ByBookView({ notes, books, onStar, onDelete, navigation, onEdit 
       keyExtractor={g => g.book.id}
       renderItem={renderGroup}
       ListEmptyComponent={
-        <View style={bbv.empty}>
-          <Text style={bbv.emptyIcon}>📚</Text>
-          <Text style={bbv.emptyTitle}>No notes yet</Text>
-          <Text style={bbv.emptySub}>
-            Tap the + button to capture your first thought.
-          </Text>
-        </View>
+        <NotesEmptyState
+          icon="📚"
+          title="No notes yet"
+          sub="Notes you capture from your books will gather here, grouped under each title."
+          onCapture={onCapture}
+        />
       }
       ListFooterComponent={<View style={{ height: 140 }} />}
       contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8 }}

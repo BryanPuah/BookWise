@@ -58,7 +58,7 @@ export function ConfirmNameScreen() {
     monogramTxt: {
       fontFamily: F.serif,
       fontSize: 18,
-      color: C.white,
+      color: '#FFFFFF',
       includeFontPadding: false,
       marginTop: 2,
     },
@@ -150,7 +150,7 @@ export function ConfirmNameScreen() {
     ctaTxt: {
       fontFamily: F.sans,
       fontSize: 15,
-      color: C.white,
+      color: '#FFFFFF',
       fontWeight: '700',
       letterSpacing: 0.3,
     },
@@ -242,7 +242,7 @@ export function ConfirmNameScreen() {
             disabled={!canContinue}
           >
             <Text style={s.ctaTxt}>Continue</Text>
-            <Ionicons name="arrow-forward" size={16} color={C.white} />
+            <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
           </TouchableOpacity>
 
           <Text style={s.hint}>You can change this later in Settings.</Text>

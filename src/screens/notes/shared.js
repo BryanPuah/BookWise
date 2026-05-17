@@ -11,7 +11,10 @@
  * old static export froze to whatever theme was loaded first.
  */
 
-import { useMemo } from 'react';
+import React, { useMemo } from 'react';
+import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { AppText as Text } from '../../components/AppText';
 import { useTheme } from '../../theme';
 
 // `buildNT(C)` is exported so non-component callers (tests, derived
@@ -54,6 +57,49 @@ export function timeAgo(dateStr) {
 export function formatDate(dateStr) {
   const d = new Date(dateStr);
   return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }).toUpperCase();
+}
+
+// ── Shared empty state with CTA ────────────────────────────────────
+// All four notes-views render the same "no notes yet" pattern, so the
+// markup lives here. Passing `onCapture` swaps the static copy for an
+// actual CTA button that opens the editor — the FAB at the bottom-right
+// of the screen is easy to miss for first-time users.
+export function NotesEmptyState({ icon, title, sub, onCapture, ctaLabel = 'Capture your first note' }) {
+  const { C, F, themeVersion } = useTheme();
+  const s = useMemo(() => StyleSheet.create({
+    wrap: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 30 },
+    icon: { fontSize: 40, marginBottom: 12 },
+    title: { fontFamily: F.serif, fontSize: 18, color: C.ink, marginBottom: 6, textAlign: 'center' },
+    sub: { fontFamily: F.serif, fontSize: 13, color: C.inkMuted, textAlign: 'center', lineHeight: 20, marginBottom: 18 },
+    cta: {
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+      backgroundColor: C.sage,
+      paddingHorizontal: 18, paddingVertical: 11,
+      borderRadius: 14,
+      shadowColor: '#000', shadowOpacity: 0.1,
+      shadowOffset: { width: 0, height: 2 }, shadowRadius: 6, elevation: 2,
+    },
+    ctaTxt: { fontFamily: F.serif, fontSize: 14, color: '#FFFFFF', fontWeight: '700', letterSpacing: 0.2 },
+  }), [themeVersion]);
+  return (
+    <View style={s.wrap}>
+      {icon ? <Text style={s.icon}>{icon}</Text> : null}
+      <Text style={s.title}>{title}</Text>
+      {sub ? <Text style={s.sub}>{sub}</Text> : null}
+      {onCapture ? (
+        <TouchableOpacity
+          style={s.cta}
+          onPress={onCapture}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={ctaLabel}
+        >
+          <Ionicons name="add" size={18} color="#FFFFFF" importantForAccessibility="no" />
+          <Text style={s.ctaTxt}>{ctaLabel}</Text>
+        </TouchableOpacity>
+      ) : null}
+    </View>
+  );
 }
 
 // Visual accent for each note type — drives the left stripe color and the

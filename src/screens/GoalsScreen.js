@@ -381,7 +381,7 @@ export function GoalsScreen({ navigation }) {
       width: 90, height: '100%',
       alignItems: 'center', justifyContent: 'center', gap: 4,
     },
-    deleteTxt: { fontFamily: F.serif, color: C.white, fontSize: 12, fontWeight: '700', letterSpacing: 0.4 },
+    deleteTxt: { fontFamily: F.serif, color: '#FFFFFF', fontSize: 12, fontWeight: '700', letterSpacing: 0.4 },
     hint: { fontFamily: F.serif, fontSize: 11, color: C.inkFaint, textAlign: 'center', marginTop: 8 },
     empty: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 30 },
     emptyIcon: { fontSize: 40, marginBottom: 12 },
@@ -424,7 +424,7 @@ export function GoalsScreen({ navigation }) {
         onPress={() => removeGoal(goal.id)}
         activeOpacity={0.85}
       >
-        <Ionicons name="trash-outline" size={20} color={C.white} />
+        <Ionicons name="trash-outline" size={20} color="#FFFFFF" />
         <Text style={s.deleteTxt}>Delete</Text>
       </TouchableOpacity>
     </View>

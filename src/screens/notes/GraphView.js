@@ -17,13 +17,19 @@ import Svg, { Circle, Line, Text as SvgText, G } from 'react-native-svg';
 import { AppText as Text } from '../../components/AppText';
 import { useTheme, NOTE_TYPE_COLORS } from '../../theme';
 import { NoteCard } from './NoteCard';
-import { useNT, noteHasType } from './shared';
+import { useNT, noteHasType, NotesEmptyState } from './shared';
 
 // Visual catch-all for notes whose type isn't in `NT` (or is missing
 // entirely). Surfaced in the legend + as the node fill so unclassified
 // notes are obvious rather than silently miscoloured.
 const OTHER_NOTE_COLOR = '#9CA3AF';
 const OTHER_NOTE_LABEL = 'Other';
+
+// Force simulation is O(N²) per tick × 220 settle iterations on layout.
+// Past this many notes the initial layout blocks the UI thread long enough
+// to feel broken on mid-tier devices. We gate the render and let the user
+// opt in with eyes open.
+const GRAPH_NOTE_LIMIT = 150;
 
 // Total character count across all text-bearing fields of a note. Used to
 // scale a note's node radius in the graph so longer notes read as bigger.
@@ -57,11 +63,17 @@ function noteShortLabel(n) {
   return body.length > 18 ? body.slice(0, 16) + '…' : body;
 }
 
-export function GraphView({ notes, books, onEdit, onDelete }) {
+export function GraphView({ notes, books, onEdit, onDelete, onStar, onCapture, onSwitchToList, groupBy = 'book' }) {
   const { C, F, themeVersion } = useTheme();
   const NT = useNT();
-  const [groupBy, setGroupBy] = useState('book'); // 'book' | 'type'
   const [previewNote, setPreviewNote] = useState(null); // tapped node → overlay card
+  // Hint fades out the first time the user interacts (tap, pan, or pinch).
+  // Persistent hints are noise once you know what they say.
+  const [hintVisible, setHintVisible] = useState(true);
+  // Per-mount opt-in for libraries past GRAPH_NOTE_LIMIT. Resets when the
+  // user leaves and returns — we'd rather re-confirm than have the user
+  // wonder why scrolling back to Graph froze the app a week from now.
+  const [forceRender, setForceRender] = useState(false);
 
   const win = Dimensions.get('window');
   const [size, setSize] = useState({ W: win.width, H: Math.max(420, win.height - 360) });
@@ -74,27 +86,8 @@ export function GraphView({ notes, books, onEdit, onDelete }) {
   };
 
   const gv = useMemo(() => StyleSheet.create({
-    toggleStrip: {
-      flexDirection: 'row',
-      marginHorizontal: 20, marginTop: 12, marginBottom: 4,
-      backgroundColor: C.cream,
-      borderRadius: 999, padding: 3,
-      borderWidth: 0.5, borderColor: C.border,
-    },
-    toggle: {
-      flex: 1, paddingVertical: 8, borderRadius: 999,
-      alignItems: 'center', justifyContent: 'center',
-    },
-    toggleActive: {
-      backgroundColor: C.ink,
-      shadowColor: '#000', shadowOpacity: 0.12,
-      shadowOffset: { width: 0, height: 1 }, shadowRadius: 2, elevation: 1,
-    },
-    toggleTxt: { fontFamily: F.serif, fontSize: 13, fontWeight: '600', color: C.inkSoft, letterSpacing: 0.2 },
-    toggleTxtActive: { color: C.white },
-
     legendWrap: {
-      paddingHorizontal: 16, paddingTop: 8, paddingBottom: 6,
+      paddingHorizontal: 16, paddingTop: 4, paddingBottom: 6,
     },
     legend: {
       flexDirection: 'row', flexWrap: 'wrap', gap: 6,
@@ -133,7 +126,10 @@ export function GraphView({ notes, books, onEdit, onDelete }) {
       backgroundColor: 'rgba(20, 22, 30, 0.62)',
       paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999,
     },
-    hudTxt: { color: C.white, fontFamily: F.serif, fontSize: 10.5, fontWeight: '700', letterSpacing: 0.4 },
+    // Overlay pills have a hardcoded dark scrim bg, so the text must stay
+    // hardcoded white — `C.white` flips to near-black in dark mode and
+    // would vanish against the scrim.
+    hudTxt: { color: '#FFFFFF', fontFamily: F.serif, fontSize: 10.5, fontWeight: '700', letterSpacing: 0.4 },
 
     resetBtn: {
       position: 'absolute', top: 12, left: 12,
@@ -151,17 +147,19 @@ export function GraphView({ notes, books, onEdit, onDelete }) {
       backgroundColor: 'rgba(20, 22, 30, 0.48)',
       paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999,
     },
-    hintTxt: { color: C.white, fontFamily: F.serif, fontSize: 10, fontWeight: '600', letterSpacing: 0.3 },
-
-    empty: { alignItems: 'center', paddingTop: 80, paddingHorizontal: 30 },
-    emptyIcon: { fontSize: 40, marginBottom: 12 },
-    emptyTitle: { fontFamily: F.serif, fontSize: 18, color: C.ink, marginBottom: 6 },
-    emptySub: { fontFamily: F.serif, fontSize: 13, color: C.inkMuted, textAlign: 'center', lineHeight: 20 },
+    hintTxt: { color: '#FFFFFF', fontFamily: F.serif, fontSize: 10, fontWeight: '600', letterSpacing: 0.3 },
   }), [themeVersion]);
 
   const typeColor = NOTE_TYPE_COLORS;
 
+  // Short-circuit the heavy graph build when the library is over the
+  // soft cap and the user hasn't opted in. The interstitial render below
+  // catches this case before paint; we also guard the memo so the
+  // simulation effects don't fire on a partially-built node list.
+  const isGated = notes.length > GRAPH_NOTE_LIMIT && !forceRender;
+
   const { nodes, edges } = useMemo(() => {
+    if (isGated) return { nodes: [], edges: [] };
     let groups;
     if (groupBy === 'book') {
       const ids = [...new Set(notes.map(n => n.bookId))];
@@ -237,16 +235,20 @@ export function GraphView({ notes, books, onEdit, onDelete }) {
     });
 
     return { nodes: N, edges: E };
-  }, [notes, books, groupBy]);
+  }, [notes, books, groupBy, isGated]);
 
   // ── Live force-directed simulation ──────────────────────────────────
   // Positions live in a ref so the rAF loop can mutate them at 60fps
   // without churning React state. A small tick counter forces re-renders
   // when something actually moved.
-  const positionsRef = useRef({});
-  const draggingRef  = useRef(null);
-  const rafRef       = useRef(0);
-  const [, setTick]  = useState(0);
+  const positionsRef    = useRef({});
+  const draggingRef     = useRef(null);
+  // Set on touch-down if the finger landed on a node — the subsequent pan
+  // (if it crosses minDistance) promotes this into an active drag. Lets us
+  // grab nodes immediately like Obsidian, without a long-press gate.
+  const pendingDragRef  = useRef(null);
+  const rafRef          = useRef(0);
+  const [, setTick]     = useState(0);
   const tickGraph = () => setTick(t => (t + 1) % 1000000);
 
   const SIM = {
@@ -366,37 +368,54 @@ export function GraphView({ notes, books, onEdit, onDelete }) {
     setTx(r); txRef.current = r; savedRef.current = r;
   }, [groupBy]);
 
-  const beginRef = useRef({ x: 0, y: 0 });
+  // Pan handles both canvas-drag and node-drag. The decision is made on
+  // touch-down (`onBegin`): if the finger landed on a node, we stash it as
+  // a pending drag; otherwise the gesture pans the canvas. The active
+  // drag is only promoted once minDistance is exceeded — short touches
+  // fall through to the tap gesture and open the preview card.
   const panG = useMemo(() => Gesture.Pan()
-    .minDistance(4)
-    .onBegin(e => { beginRef.current = { x: e.x, y: e.y }; })
-    .onStart(() => {
-      savedRef.current = txRef.current;
+    .minDistance(2)
+    .onBegin(e => {
       const t = txRef.current;
-      const bx = beginRef.current.x, by = beginRef.current.y;
-      const gx = (bx - t.x) / t.k;
-      const gy = (by - t.y) / t.k;
+      const gx = (e.x - t.x) / t.k;
+      const gy = (e.y - t.y) / t.k;
       let bestId = null, bestD = Infinity;
       for (const n of nodes) {
         const p = positionsRef.current[n.id];
         if (!p) continue;
         const d = Math.hypot(gx - p.x, gy - p.y);
         const baseR = n.kind === 'hub' ? 18 : noteRadius(n.note);
-        const hitR  = baseR + 16 / Math.max(0.4, t.k);
+        const hitR  = baseR + 14 / Math.max(0.4, t.k);
         if (d < hitR && d < bestD) { bestD = d; bestId = n.id; }
       }
       if (bestId) {
         const p = positionsRef.current[bestId];
-        draggingRef.current = { id: bestId, ox: gx - p.x, oy: gy - p.y, gx: p.x, gy: p.y };
-        wakeLoop();
+        pendingDragRef.current = { id: bestId, ox: gx - p.x, oy: gy - p.y };
       } else {
-        draggingRef.current = null;
+        pendingDragRef.current = null;
+      }
+      savedRef.current = txRef.current;
+    })
+    .onStart(() => {
+      setHintVisible(false);
+      const pending = pendingDragRef.current;
+      if (pending) {
+        const p = positionsRef.current[pending.id];
+        if (p) {
+          draggingRef.current = {
+            id: pending.id, ox: pending.ox, oy: pending.oy, gx: p.x, gy: p.y,
+          };
+          wakeLoop();
+        }
       }
     })
     .onUpdate(e => {
       const drag = draggingRef.current;
       const t = txRef.current;
       if (drag) {
+        // Translate the finger position into world space and let the
+        // simulation pin the node there. Other nodes react via the
+        // ongoing force loop, so the whole graph stays alive.
         const gx = (e.x - t.x) / t.k - drag.ox;
         const gy = (e.y - t.y) / t.k - drag.oy;
         drag.gx = gx; drag.gy = gy;
@@ -411,15 +430,18 @@ export function GraphView({ notes, books, onEdit, onDelete }) {
     })
     .onEnd(() => {
       draggingRef.current = null;
+      pendingDragRef.current = null;
       wakeLoop();
     })
     .onFinalize(() => {
       draggingRef.current = null;
+      pendingDragRef.current = null;
     }),
   [nodes]);
 
   const pinchG = useMemo(() => Gesture.Pinch()
     .onStart(e => {
+      setHintVisible(false);
       savedRef.current = txRef.current;
       focalRef.current = { x: e.focalX, y: e.focalY };
     })
@@ -435,9 +457,10 @@ export function GraphView({ notes, books, onEdit, onDelete }) {
 
   const tapG = useMemo(() => Gesture.Tap()
     .maxDuration(260)
-    .maxDistance(8)
+    .maxDistance(6)
     .onEnd((e, success) => {
       if (!success) return;
+      setHintVisible(false);
       const t = txRef.current;
       const gx = (e.x - t.x) / t.k;
       const gy = (e.y - t.y) / t.k;
@@ -455,8 +478,11 @@ export function GraphView({ notes, books, onEdit, onDelete }) {
     }),
   [nodes]);
 
+  // Tap races against movement (pan/pinch). If the user moves past the
+  // pan threshold, pan claims the gesture and tap is cancelled — so
+  // dragging a node never accidentally pops its preview card.
   const gesture = useMemo(
-    () => Gesture.Simultaneous(tapG, panG, pinchG),
+    () => Gesture.Race(tapG, Gesture.Simultaneous(panG, pinchG)),
     [tapG, panG, pinchG]
   );
 
@@ -465,24 +491,26 @@ export function GraphView({ notes, books, onEdit, onDelete }) {
     setTx(r); savedRef.current = r;
   };
 
+  if (isGated) {
+    return (
+      <GraphGateInterstitial
+        count={notes.length}
+        limit={GRAPH_NOTE_LIMIT}
+        onSwitchToList={onSwitchToList}
+        onContinue={() => setForceRender(true)}
+      />
+    );
+  }
+
   if (nodes.length === 0) {
     return (
       <View style={{ flex: 1 }}>
-        <View style={gv.toggleStrip}>
-          <TouchableOpacity style={[gv.toggle, groupBy === 'book' && gv.toggleActive]}
-            onPress={() => setGroupBy('book')} activeOpacity={0.8}>
-            <Text style={[gv.toggleTxt, groupBy === 'book' && gv.toggleTxtActive]}>By Book</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[gv.toggle, groupBy === 'type' && gv.toggleActive]}
-            onPress={() => setGroupBy('type')} activeOpacity={0.8}>
-            <Text style={[gv.toggleTxt, groupBy === 'type' && gv.toggleTxtActive]}>By Type</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={gv.empty}>
-          <Text style={gv.emptyIcon}>🌐</Text>
-          <Text style={gv.emptyTitle}>Nothing to graph yet</Text>
-          <Text style={gv.emptySub}>Capture a few notes and they'll appear here as a constellation around their books.</Text>
-        </View>
+        <NotesEmptyState
+          icon="🌐"
+          title="Nothing to graph yet"
+          sub="Capture a few notes and they'll appear here as a constellation around their books — links you make will draw the threads between them."
+          onCapture={onCapture}
+        />
       </View>
     );
   }
@@ -493,17 +521,6 @@ export function GraphView({ notes, books, onEdit, onDelete }) {
 
   return (
     <View style={{ flex: 1 }}>
-      <View style={gv.toggleStrip}>
-        <TouchableOpacity style={[gv.toggle, groupBy === 'book' && gv.toggleActive]}
-          onPress={() => setGroupBy('book')} activeOpacity={0.8}>
-          <Text style={[gv.toggleTxt, groupBy === 'book' && gv.toggleTxtActive]}>By Book</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[gv.toggle, groupBy === 'type' && gv.toggleActive]}
-          onPress={() => setGroupBy('type')} activeOpacity={0.8}>
-          <Text style={[gv.toggleTxt, groupBy === 'type' && gv.toggleTxtActive]}>By Type</Text>
-        </TouchableOpacity>
-      </View>
-
       <View style={gv.legendWrap}>
         <View style={gv.legend}>
           {Object.entries(NT).map(([k, v]) => (
@@ -611,16 +628,18 @@ export function GraphView({ notes, books, onEdit, onDelete }) {
         </GestureDetector>
 
         <View pointerEvents="none" style={gv.hud}>
-          <Ionicons name="search-outline" size={11} color={C.white} />
+          <Ionicons name="search-outline" size={11} color="#FFFFFF" />
           <Text style={gv.hudTxt}>{Math.round(tx.k * 100)}%</Text>
         </View>
         <TouchableOpacity style={gv.resetBtn} onPress={resetView} activeOpacity={0.85}>
           <Ionicons name="contract-outline" size={12} color={C.ink} />
           <Text style={gv.resetTxt}>Reset</Text>
         </TouchableOpacity>
-        <View pointerEvents="none" style={gv.hint}>
-          <Text style={gv.hintTxt}>Pinch · drag · tap</Text>
-        </View>
+        {hintVisible && (
+          <View pointerEvents="none" style={gv.hint}>
+            <Text style={gv.hintTxt}>Drag nodes · pinch · pan · tap</Text>
+          </View>
+        )}
       </View>
 
       {previewNote && (
@@ -641,11 +660,83 @@ export function GraphView({ notes, books, onEdit, onDelete }) {
                 setPreviewNote(null);
                 onDelete?.(id);
               }}
+              onStar={onStar}
               showBook
             />
           </View>
         </View>
       )}
+    </View>
+  );
+}
+
+// Interstitial shown when the library is larger than the soft note cap.
+// Two-button choice: jump to List (safe default) or render the graph anyway
+// (user accepts the layout pause). Reset is per-mount, not persisted —
+// re-confirming costs one tap and avoids "why is the graph frozen" surprise
+// next session.
+function GraphGateInterstitial({ count, limit, onSwitchToList, onContinue }) {
+  const { C, F, themeVersion } = useTheme();
+  const s = useMemo(() => StyleSheet.create({
+    wrap: {
+      flex: 1, alignItems: 'center', justifyContent: 'center',
+      paddingHorizontal: 30, gap: 14,
+    },
+    icon: { fontSize: 40, marginBottom: 4 },
+    title: {
+      fontFamily: F.serif, fontSize: 18, color: C.ink, textAlign: 'center',
+    },
+    sub: {
+      fontFamily: F.serif, fontSize: 13, color: C.inkMuted,
+      textAlign: 'center', lineHeight: 20,
+    },
+    primary: {
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+      backgroundColor: C.sage,
+      paddingHorizontal: 18, paddingVertical: 11,
+      borderRadius: 14,
+      shadowColor: '#000', shadowOpacity: 0.1,
+      shadowOffset: { width: 0, height: 2 }, shadowRadius: 6, elevation: 2,
+    },
+    primaryTxt: {
+      fontFamily: F.serif, fontSize: 14, color: '#FFFFFF',
+      fontWeight: '700', letterSpacing: 0.2,
+    },
+    secondary: { paddingHorizontal: 14, paddingVertical: 8 },
+    secondaryTxt: {
+      fontFamily: F.serif, fontSize: 13, color: C.inkSoft, fontWeight: '600',
+    },
+  }), [themeVersion]);
+
+  return (
+    <View style={s.wrap}>
+      <Text style={s.icon}>🌐</Text>
+      <Text style={s.title}>Graph paused at {count} notes</Text>
+      <Text style={s.sub}>
+        Rendering the constellation past {limit} notes can briefly hang the app
+        while the layout settles. List view is faster and easier to scan.
+      </Text>
+      {onSwitchToList && (
+        <TouchableOpacity
+          style={s.primary}
+          onPress={onSwitchToList}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="Switch to list view"
+        >
+          <Ionicons name="list" size={16} color="#FFFFFF" importantForAccessibility="no" />
+          <Text style={s.primaryTxt}>Switch to list</Text>
+        </TouchableOpacity>
+      )}
+      <TouchableOpacity
+        style={s.secondary}
+        onPress={onContinue}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel="Render the graph anyway"
+      >
+        <Text style={s.secondaryTxt}>Render anyway</Text>
+      </TouchableOpacity>
     </View>
   );
 }

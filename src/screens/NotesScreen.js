@@ -1,24 +1,31 @@
 /**
  * NotesScreen — Knowledge Base.
  *
- * Four-view architecture:
- *  1. EXPLORE  — flat browse, search + tag filter
- *  2. BY BOOK  — notes grouped under their book, drills into BookNotesScreen
- *  3. BY TYPE  — notes grouped by type (quote / insight / question / …)
- *  4. GRAPH    — Obsidian-style force-directed graph
+ * Two-axis navigation:
+ *   • Lens   — List | Graph     (how the notes are visualised)
+ *   • Group  — All · Book · Type (how they're pivoted within the lens)
  *
- * The four views live in their own files under ./notes/. This file is just
- * the tab strip + the new/edit RichNoteEditor wiring + the store glue.
+ * The old 4-tab strip (Explore / By Book / Note Type / Graph) collapsed
+ * one organisational pivot (Book / Type) with one visualisation choice
+ * (Graph), which forced GraphView to render its own duplicate grouping
+ * toggle. Splitting them removes the duplication and lets the user
+ * combine a lens with any grouping independently.
  *
- * The "+ Add Note" FAB lives in App.js — no in-screen add button.
+ * Children:
+ *   List + group=all  → ExploreView   (flat, filter + sort)
+ *   List + group=book → ByBookView    (hub list, drill into BookNotesScreen)
+ *   List + group=type → ByTypeView    (hub list, drill into TypeNotesScreen)
+ *   Graph + group=*   → GraphView     (group decides hub clustering)
+ *
+ * The "+ Add Note" FAB lives in App.js — no in-screen add button. Empty
+ * states pass `onCapture` so their CTA can open the editor directly.
  */
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppText as Text } from '../components/AppText';
-import { useStore, todayKey } from '../store';
-import { genId } from '../schema';
+import { useStore } from '../store';
 import { AppHeader } from '../components/AppHeader';
 import { RichNoteEditor } from '../components/RichNoteEditor';
 import { useTheme } from '../theme';
@@ -31,53 +38,106 @@ import { GraphView } from './notes/GraphView';
 // imported it from NotesScreen keep working.
 export { NoteCard } from './notes/NoteCard';
 
-export function NotesScreen({ navigation, route }) {
+// ── Segmented control ────────────────────────────────────────────────
+// Pill-style segmented selector used for both Lens (List | Graph) and
+// Group (All · Book · Type). Single shared component keeps the two
+// controls visually consistent.
+function Segmented({ value, onChange, options, ariaLabel }) {
   const { C, F, themeVersion } = useTheme();
   const s = useMemo(() => StyleSheet.create({
-    safe: { flex: 1, backgroundColor: C.paper },
-    tabStrip: {
+    strip: {
       flexDirection: 'row',
-      gap: 28,
-      paddingHorizontal: 20,
-      borderBottomWidth: 0.5,
-      borderBottomColor: C.border,
-      marginBottom: 8,
+      backgroundColor: C.cream,
+      borderRadius: 999,
+      padding: 3,
+      borderWidth: 0.5, borderColor: C.border,
     },
-    tab: { paddingBottom: 12, paddingTop: 4 },
-    tabTxt: { fontFamily: F.serif, fontSize: 14, color: C.inkMuted, fontWeight: '500' },
-    tabTxtActive: { fontFamily: F.serif, color: C.ink, fontWeight: '700' },
-    tabUnderline: {
-      position: 'absolute', bottom: 0, left: 0, right: 0,
-      height: 2, backgroundColor: C.ink, borderRadius: 1,
+    seg: {
+      flex: 1,
+      paddingVertical: 7,
+      borderRadius: 999,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    // Active pill picks up the user's chosen accent so the main view
+    // controls echo the settings palette. Accent contrast is tuned to
+    // clear AA against fixed white in both modes.
+    segActive: {
+      backgroundColor: C.sage,
+      shadowColor: '#000',
+      shadowOpacity: 0.12,
+      shadowOffset: { width: 0, height: 1 },
+      shadowRadius: 2,
+      elevation: 1,
+    },
+    segTxt: {
+      fontFamily: F.serif, fontSize: 13, color: C.inkMuted,
+      fontWeight: '600', letterSpacing: 0.1,
+    },
+    // Fixed white — `C.white` is a surface token that collapses to a
+    // near-black in dark mode, which would make the label invisible on
+    // the accent fill.
+    segTxtActive: { color: '#FFFFFF', fontWeight: '700' },
+  }), [themeVersion]);
+
+  return (
+    <View
+      style={s.strip}
+      accessibilityRole="tablist"
+      accessibilityLabel={ariaLabel}
+    >
+      {options.map(opt => {
+        const active = value === opt.key;
+        return (
+          <TouchableOpacity
+            key={opt.key}
+            style={[s.seg, active && s.segActive]}
+            onPress={() => onChange(opt.key)}
+            activeOpacity={0.7}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: active }}
+            accessibilityLabel={opt.label}
+          >
+            <Text style={[s.segTxt, active && s.segTxtActive]}>{opt.label}</Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
+export function NotesScreen({ navigation, route }) {
+  const { C, themeVersion } = useTheme();
+  const s = useMemo(() => StyleSheet.create({
+    safe: { flex: 1, backgroundColor: C.paper },
+    controls: {
+      paddingHorizontal: 20,
+      paddingBottom: 10,
+      gap: 8,
     },
   }), [themeVersion]);
 
-  const { notes, books, addNote, deleteNote, updateNote } = useStore();
-  const [view, setView]                   = useState('explore');
+  const { notes, books, addNote, deleteNoteWithUndo, updateNote } = useStore();
+
+  const [lens,  setLens]  = useState('list');  // 'list' | 'graph'
+  const [group, setGroup] = useState('all');   // 'all' | 'book' | 'type'
+
   const [showModal, setShowModal]         = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editNote, setEditNote]           = useState(null);
 
-  const handleSave = (data) => {
-    addNote({
-      id:            genId('n'),
-      bookId:        data.bookId,
-      bookTitle:     data.bookTitle,
-      title:         data.title || '',
-      blocks:        data.blocks || [],
-      types:         data.types || [data.type || 'insight'],
-      type:          data.type,
-      text:          data.text,
-      thinking:      data.thinking || '',
-      page:          data.page || '',
-      chapter:       data.chapter || '',
-      tags:          Array.isArray(data.tags) ? data.tags : [],
-      linkedNoteIds: Array.isArray(data.linkedNoteIds) ? data.linkedNoteIds : [],
-      isQuote:       data.type === 'quote',
-      starred:       false,
-      date:          todayKey(),
-    });
-  };
+  // Graph doesn't have a meaningful 'all' mode (no hubs to cluster
+  // around) — when switching to the Graph lens with group=all, default
+  // to Book clustering. Switching back to List restores the user's
+  // intent, but if they came in via group=all we keep them on book
+  // since that's where the graph put them.
+  useEffect(() => {
+    if (lens === 'graph' && group === 'all') setGroup('book');
+  }, [lens]);
+
+  const openCapture = () => setShowModal(true);
+
+  const handleSave = (data) => { addNote(data); };
 
   const handleEdit = (note) => {
     setEditNote(note);
@@ -86,30 +146,14 @@ export function NotesScreen({ navigation, route }) {
 
   const handleSaveEdit = (data) => {
     if (!editNote) { setEditNote(null); return; }
-    const patch = {
-      title:         data.title || '',
-      blocks:        data.blocks || [],
-      types:         data.types || [data.type || 'insight'],
-      type:          data.type,
-      text:          data.text,
-      thinking:      data.thinking || '',
-      page:          data.page || '',
-      chapter:       data.chapter || '',
-      tags:          Array.isArray(data.tags) ? data.tags : [],
-      linkedNoteIds: Array.isArray(data.linkedNoteIds) ? data.linkedNoteIds : [],
-      isQuote:       data.type === 'quote',
-    };
     // Guard against "deleted mid-edit" — if the underlying note is gone,
     // re-add it from the edit state rather than silently dropping the save.
+    // addNote preserves the original id/date when present on the payload.
     const stillExists = notes.some(n => n.id === editNote.id);
     if (stillExists) {
-      updateNote(editNote.id, patch);
+      updateNote(editNote.id, data);
     } else {
-      addNote({
-        ...editNote,
-        ...patch,
-        starred: editNote.starred || false,
-      });
+      addNote({ ...editNote, ...data });
     }
     setEditNote(null);
   };
@@ -119,7 +163,7 @@ export function NotesScreen({ navigation, route }) {
     if (note) updateNote(id, { starred: !note.starred });
   };
 
-  const handleDelete = (id) => deleteNote(id);
+  const handleDelete = (id) => deleteNoteWithUndo(id);
 
   // Honour `editNoteId` route param — set when a note is tapped from the
   // global search modal. Opens that note in the editor. The `_t`
@@ -140,18 +184,29 @@ export function NotesScreen({ navigation, route }) {
     navigation.setParams({ editNoteId: undefined, _t: undefined });
   }, [route?.params?.editNoteId, route?.params?._t]);
 
-  const VIEWS = [
-    { key: 'explore',  label: 'Explore' },
-    { key: 'by_book',  label: 'By Book' },
-    { key: 'by_type',  label: 'Note Type' },
-    { key: 'graph',    label: 'Graph' },
+  const LENS_OPTIONS = [
+    { key: 'list',  label: 'List' },
+    { key: 'graph', label: 'Graph' },
   ];
+
+  // Graph mode only offers Book/Type — 'All' has no meaning without hubs.
+  const GROUP_OPTIONS = lens === 'graph'
+    ? [
+        { key: 'book', label: 'By Book' },
+        { key: 'type', label: 'By Type' },
+      ]
+    : [
+        { key: 'all',  label: 'All' },
+        { key: 'book', label: 'By Book' },
+        { key: 'type', label: 'By Type' },
+      ];
 
   const sharedProps = {
     notes, books,
     onStar: handleStar,
     onDelete: handleDelete,
     onEdit: handleEdit,
+    onCapture: openCapture,
   };
 
   return (
@@ -179,32 +234,45 @@ export function NotesScreen({ navigation, route }) {
         }}
       />
 
-      {/* Top app bar */}
-      <AppHeader onAvatarPress={() => navigation.navigate('Profile')} />
+      {/* Top app bar — Profile lives on the parent Tab.Navigator, not on
+          this screen's local nav, so we hop up via getParent regardless of
+          which stack this screen is nested under. */}
+      <AppHeader
+        onAvatarPress={() => navigation.getParent('MainTabs')?.navigate('Profile')}
+      />
 
-      {/* Tab strip */}
-      <View style={s.tabStrip}>
-        {VIEWS.map(v => {
-          const isActive = view === v.key;
-          return (
-            <TouchableOpacity
-              key={v.key}
-              style={s.tab}
-              onPress={() => setView(v.key)}
-              activeOpacity={0.6}
-            >
-              <Text style={[s.tabTxt, isActive && s.tabTxtActive]}>{v.label}</Text>
-              {isActive && <View style={s.tabUnderline} />}
-            </TouchableOpacity>
-          );
-        })}
+      {/* Lens + Group controls */}
+      <View style={s.controls}>
+        <Segmented
+          value={lens}
+          onChange={setLens}
+          options={LENS_OPTIONS}
+          ariaLabel="View as"
+        />
+        <Segmented
+          value={group}
+          onChange={setGroup}
+          options={GROUP_OPTIONS}
+          ariaLabel="Group by"
+        />
       </View>
 
       {/* Views */}
-      {view === 'explore' && <ExploreView {...sharedProps} />}
-      {view === 'by_book' && <ByBookView {...sharedProps} navigation={navigation} />}
-      {view === 'by_type' && <ByTypeView notes={notes} onDelete={handleDelete} onEdit={handleEdit} />}
-      {view === 'graph'   && <GraphView notes={notes} books={books} onEdit={handleEdit} onDelete={handleDelete} />}
+      {lens === 'list' && group === 'all'  && <ExploreView {...sharedProps} />}
+      {lens === 'list' && group === 'book' && <ByBookView {...sharedProps} navigation={navigation} />}
+      {lens === 'list' && group === 'type' && <ByTypeView notes={notes} onDelete={handleDelete} onEdit={handleEdit} onStar={handleStar} onCapture={openCapture} />}
+      {lens === 'graph' && (
+        <GraphView
+          notes={notes}
+          books={books}
+          groupBy={group === 'type' ? 'type' : 'book'}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          onStar={handleStar}
+          onCapture={openCapture}
+          onSwitchToList={() => setLens('list')}
+        />
+      )}
 
     </SafeAreaView>
   );

@@ -247,7 +247,7 @@ export function ProfileScreen() {
     avatarInitials: {
       fontFamily: F.serif,
       fontSize: 34,
-      color: C.white,
+      color: '#FFFFFF',
       letterSpacing: -0.6,
     },
     editBadge: {

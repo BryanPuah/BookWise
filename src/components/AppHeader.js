@@ -63,7 +63,7 @@ export function AppHeader({ onAvatarPress, brand = 'Modern Library', avatarUri }
       fontFamily: F.serif,
       fontSize: 13,
       fontWeight: '700',
-      color: C.white,
+      color: '#FFFFFF',
       letterSpacing: -0.2,
     },
   }), [themeVersion]);
@@ -71,7 +71,12 @@ export function AppHeader({ onAvatarPress, brand = 'Modern Library', avatarUri }
   return (
     <View style={s.bar}>
       <View style={s.left}>
-        <Text style={s.brand} numberOfLines={1} ellipsizeMode="tail">{brand}</Text>
+        <Text
+          style={s.brand}
+          numberOfLines={1}
+          ellipsizeMode="tail"
+          accessibilityRole="header"
+        >{brand}</Text>
       </View>
 
       <View style={s.right}>
@@ -80,8 +85,11 @@ export function AppHeader({ onAvatarPress, brand = 'Modern Library', avatarUri }
           onPress={() => setSearchOpen(true)}
           activeOpacity={0.75}
           hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+          accessibilityRole="button"
+          accessibilityLabel="Search"
+          accessibilityHint="Opens search across books and notes"
         >
-          <Ionicons name="search" size={22} color={C.ink} />
+          <Ionicons name="search" size={22} color={C.ink} importantForAccessibility="no" />
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -89,17 +97,21 @@ export function AppHeader({ onAvatarPress, brand = 'Modern Library', avatarUri }
           onPress={onAvatarPress}
           activeOpacity={0.75}
           hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+          accessibilityRole="button"
+          accessibilityLabel={hasName ? `Profile, ${user.name}` : 'Profile'}
+          accessibilityHint="Opens profile and settings"
         >
           {avatarUri && !imgError ? (
             <Image
               source={{ uri: avatarUri }}
               style={s.avatarImg}
               onError={() => setImgError(true)}
+              accessible={false}
             />
           ) : showInitials ? (
-            <Text style={s.avatarInitials}>{initials}</Text>
+            <Text style={s.avatarInitials} importantForAccessibility="no">{initials}</Text>
           ) : (
-            <Ionicons name="person" size={16} color={C.white} />
+            <Ionicons name="person" size={16} color={C.white} importantForAccessibility="no" />
           )}
         </TouchableOpacity>
       </View>

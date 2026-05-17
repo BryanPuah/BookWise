@@ -33,8 +33,8 @@ function DayPill({ day, isToday, isFuture, data, onPress }) {
     pill:         { width: DAY_WIDTH, paddingVertical: 5, borderRadius: 12, alignItems: 'center', gap: 1, overflow: 'hidden', backgroundColor: C.cream, borderWidth: 1, borderColor: C.border },
     pillToday:    { borderWidth: 0, shadowColor: C.amber, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.45, shadowRadius: 8, elevation: 6 },
     dayNameToday: { fontFamily: F.serif, fontSize: 8, fontWeight: '800', color: 'rgba(255,255,255,0.9)', letterSpacing: 0.3 },
-    dateNumToday: { fontFamily: F.serif, fontSize: 15, fontWeight: '900', color: C.white },
-    todayDot:     { width: 4, height: 4, borderRadius: 2, backgroundColor: C.white, opacity: 0.8 },
+    dateNumToday: { fontFamily: F.serif, fontSize: 15, fontWeight: '900', color: '#FFFFFF' },
+    todayDot:     { width: 4, height: 4, borderRadius: 2, backgroundColor: '#FFFFFF', opacity: 0.8 },
     monthLblToday:{ fontFamily: F.serif, fontSize: 7, color: 'rgba(255,255,255,0.75)', fontWeight: '700', letterSpacing: 0.3, height: 11, textAlign: 'center' },
     dayName:      { fontFamily: F.serif, fontSize: 8, fontWeight: '800', color: C.inkSoft, letterSpacing: 0.3 },
     dayNameWknd:  { fontFamily: F.serif, color: C.inkMuted },
@@ -96,7 +96,7 @@ export function ReadingTimeline({ notes, books, onManageGoals, openDateKey, onDa
     },
     goalsPillTxt: {
       fontFamily: F.serif, fontSize: 12, fontWeight: '700',
-      color: C.white, letterSpacing: -0.1,
+      color: '#FFFFFF', letterSpacing: -0.1,
     },
   }), [themeVersion]);
   const scrollRef       = useRef(null);
@@ -215,7 +215,7 @@ export function ReadingTimeline({ notes, books, onManageGoals, openDateKey, onDa
           activeOpacity={0.85}
           hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
         >
-          <Ionicons name="add" size={14} color={C.white} />
+          <Ionicons name="add" size={14} color="#FFFFFF" />
           <Text style={t.goalsPillTxt}>Goals</Text>
         </TouchableOpacity>
       </View>

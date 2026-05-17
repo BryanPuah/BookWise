@@ -10,7 +10,7 @@
  * Swipeable left-edge gesture surfaces a Delete action.
  */
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View, TouchableOpacity, Image, StyleSheet,
 } from 'react-native';
@@ -22,10 +22,14 @@ import { MarkdownText } from '../../components/MarkdownText';
 import { useTheme } from '../../theme';
 import { useNT, typeAccent, timeAgo } from './shared';
 
-export function NoteCard({ note, onDelete, onEdit, showBook = false }) {
+export function NoteCard({ note, onDelete, onEdit, onStar, showBook = false }) {
   const { C, F, themeVersion } = useTheme();
   const NT = useNT();
-  const { notes: allNotes } = useStore();
+  const { noteById, backlinkIndex } = useStore();
+  // Thumbnails point at file:// URIs that can disappear if the OS evicts the
+  // image cache (legacy notes) or the user clears app storage. Track failure
+  // per-card so the broken white box is replaced with a placeholder instead.
+  const [thumbBroken, setThumbBroken] = useState(false);
 
   const hasBlocks = Array.isArray(note.blocks) && note.blocks.length > 0;
 
@@ -36,11 +40,9 @@ export function NoteCard({ note, onDelete, onEdit, showBook = false }) {
 
   const primaryType = typesList[0];
   const isQuote = primaryType === 'quote' || note.isQuote;
-  const accent = typeAccent(primaryType, C);
 
   const nc = useMemo(() => StyleSheet.create({
     card: {
-      flexDirection: 'row',
       backgroundColor: C.white,
       borderRadius: 16,
       marginBottom: 14,
@@ -53,8 +55,7 @@ export function NoteCard({ note, onDelete, onEdit, showBook = false }) {
       shadowRadius: 3,
       elevation: 1,
     },
-    accentStripe: { width: 4, backgroundColor: accent.stripe },
-    body: { flex: 1, padding: 16 },
+    body: { padding: 16 },
 
     header: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -69,11 +70,15 @@ export function NoteCard({ note, onDelete, onEdit, showBook = false }) {
     chipTxt: {
       fontFamily: F.serif, fontSize: 10, fontWeight: '700', letterSpacing: 0.6,
     },
-    chipMore: { backgroundColor: C.cream },
+    chipMore: { backgroundColor: C.cream, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999 },
     chipMoreTxt: {
       fontFamily: F.serif, fontSize: 10, fontWeight: '700',
       color: C.inkMuted, letterSpacing: 0.4,
-      paddingHorizontal: 9, paddingVertical: 4,
+    },
+    headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    starBtn: {
+      width: 28, height: 28, borderRadius: 14,
+      alignItems: 'center', justifyContent: 'center',
     },
     date: {
       fontFamily: F.sans, fontSize: 10, color: C.inkFaint,
@@ -93,6 +98,13 @@ export function NoteCard({ note, onDelete, onEdit, showBook = false }) {
       width: '100%', height: 160, borderRadius: 10,
       backgroundColor: C.cream, marginTop: 6, marginBottom: 8,
     },
+    thumbnailBroken: {
+      width: '100%', height: 160, borderRadius: 10,
+      backgroundColor: C.cream, marginTop: 6, marginBottom: 8,
+      borderWidth: 1, borderColor: C.border, borderStyle: 'dashed',
+      alignItems: 'center', justifyContent: 'center', gap: 6,
+    },
+    thumbnailBrokenTxt: { fontFamily: F.serif, fontSize: 11, color: C.inkFaint },
 
     bodyTxt: {
       fontFamily: F.serif, fontSize: 14, color: C.inkSoft, lineHeight: 22,
@@ -149,10 +161,10 @@ export function NoteCard({ note, onDelete, onEdit, showBook = false }) {
       alignItems: 'center', justifyContent: 'center', gap: 4,
     },
     deleteTxt: {
-      fontFamily: F.serif, color: C.white, fontSize: 12,
+      fontFamily: F.serif, color: '#FFFFFF', fontSize: 12,
       fontWeight: '700', letterSpacing: 0.4,
     },
-  }), [themeVersion, accent.stripe]);
+  }), [themeVersion]);
 
   // Find first image block (if any) — used to show a thumbnail on the card
   const firstImageBlock = hasBlocks
@@ -189,12 +201,24 @@ export function NoteCard({ note, onDelete, onEdit, showBook = false }) {
         style={nc.deleteBtn}
         onPress={() => onDelete(note.id)}
         activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityLabel="Delete note"
       >
-        <Ionicons name="trash-outline" size={20} color={C.white} />
-        <Text style={nc.deleteTxt}>Delete</Text>
+        <Ionicons name="trash-outline" size={20} color="#FFFFFF" importantForAccessibility="no" />
+        <Text style={nc.deleteTxt} importantForAccessibility="no">Delete</Text>
       </TouchableOpacity>
     </View>
   );
+
+  // Screen-reader summary — swiping isn't reachable via AT, so we surface
+  // delete as an explicit `accessibilityActions` entry that the user can
+  // trigger from VoiceOver's actions rotor / TalkBack's local context menu.
+  const a11yCardLabel = (() => {
+    const head = note.title?.trim() || bodyText.split('\n')[0]?.slice(0, 80) || 'Untitled note';
+    const typeLabel = (NT[primaryType] || NT.insight).label;
+    const bookSuffix = showBook && note.bookTitle ? `, from ${note.bookTitle}` : '';
+    return `${typeLabel} note: ${head}${bookSuffix}`;
+  })();
 
   return (
     <Swipeable
@@ -207,12 +231,16 @@ export function NoteCard({ note, onDelete, onEdit, showBook = false }) {
         style={nc.card}
         onPress={() => onEdit && onEdit(note)}
         activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityLabel={a11yCardLabel}
+        accessibilityHint="Opens the note. Use the actions rotor to delete."
+        accessibilityActions={[{ name: 'delete', label: 'Delete note' }]}
+        onAccessibilityAction={(e) => {
+          if (e.nativeEvent.actionName === 'delete') onDelete(note.id);
+        }}
       >
-        {/* Left accent stripe — color-codes the card by primary note type */}
-        <View style={nc.accentStripe} />
-
         <View style={nc.body}>
-          {/* Header — type chips with icons, right-aligned date */}
+          {/* Header — type chips with icons, right-aligned star + date */}
           <View style={nc.header}>
             <View style={nc.chipsRow}>
               {typesList.slice(0, 2).map(typeKey => {
@@ -233,7 +261,27 @@ export function NoteCard({ note, onDelete, onEdit, showBook = false }) {
                 </View>
               )}
             </View>
-            <Text style={nc.date}>{timeAgo(note.date).toUpperCase()}</Text>
+            <View style={nc.headerRight}>
+              {onStar ? (
+                <TouchableOpacity
+                  onPress={(e) => { e.stopPropagation?.(); onStar(note.id); }}
+                  style={nc.starBtn}
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                  activeOpacity={0.6}
+                  accessibilityRole="button"
+                  accessibilityLabel={note.starred ? 'Unstar note' : 'Star note'}
+                  accessibilityState={{ selected: !!note.starred }}
+                >
+                  <Ionicons
+                    name={note.starred ? 'star' : 'star-outline'}
+                    size={16}
+                    color={note.starred ? C.amber : C.inkFaint}
+                    importantForAccessibility="no"
+                  />
+                </TouchableOpacity>
+              ) : null}
+              <Text style={nc.date}>{timeAgo(note.date).toUpperCase()}</Text>
+            </View>
           </View>
 
           {cardTitle ? (
@@ -246,11 +294,19 @@ export function NoteCard({ note, onDelete, onEdit, showBook = false }) {
           ) : null}
 
           {firstImageBlock ? (
-            <Image
-              source={{ uri: firstImageBlock.uri }}
-              style={nc.thumbnail}
-              resizeMode="cover"
-            />
+            thumbBroken ? (
+              <View style={nc.thumbnailBroken}>
+                <Ionicons name="image-outline" size={22} color={C.inkFaint} />
+                <Text style={nc.thumbnailBrokenTxt}>Image unavailable</Text>
+              </View>
+            ) : (
+              <Image
+                source={{ uri: firstImageBlock.uri }}
+                style={nc.thumbnail}
+                resizeMode="cover"
+                onError={() => setThumbBroken(true)}
+              />
+            )
           ) : null}
 
           {cardBody ? (
@@ -262,34 +318,52 @@ export function NoteCard({ note, onDelete, onEdit, showBook = false }) {
             </MarkdownText>
           ) : null}
 
-          {((Array.isArray(note.tags) && note.tags.length > 0) ||
-            (Array.isArray(note.linkedNoteIds) && note.linkedNoteIds.length > 0)) && (
-            <View style={nc.metaRow}>
-              {(note.tags || []).slice(0, 6).map((t, i) => (
-                <View key={`t-${i}`} style={nc.tagChip}>
-                  <Text style={nc.tagChipTxt}>#{t}</Text>
-                </View>
-              ))}
-              {(note.linkedNoteIds || []).slice(0, 4).map(id => {
-                const linked = allNotes.find(n => n.id === id);
-                if (!linked) return null;
-                const label = (linked.title?.trim()
-                  || linked.text?.split('\n')[0]?.slice(0, 40)
-                  || 'Untitled');
-                return (
-                  <TouchableOpacity
-                    key={`l-${id}`}
-                    style={nc.linkChip}
-                    activeOpacity={0.7}
-                    onPress={() => onEdit && onEdit(linked)}
-                  >
-                    <Ionicons name="link" size={10} color={C.ink} />
-                    <Text style={nc.linkChipTxt} numberOfLines={1}>{label}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          )}
+          {(() => {
+            // Combined chip cap — tags first, then links, max 5 total.
+            // Anything past the cap collapses into a single "+N" pill so
+            // a note with 12 tags + 8 links doesn't push 20 chips per card.
+            const tags = Array.isArray(note.tags) ? note.tags : [];
+            const linkIds = Array.isArray(note.linkedNoteIds) ? note.linkedNoteIds : [];
+            const totalCount = tags.length + linkIds.length;
+            if (totalCount === 0) return null;
+            const MAX = 5;
+            const tagsShown = tags.slice(0, MAX);
+            const linksBudget = Math.max(0, MAX - tagsShown.length);
+            const linksShown = linkIds.slice(0, linksBudget);
+            const overflow = totalCount - tagsShown.length - linksShown.length;
+            return (
+              <View style={nc.metaRow}>
+                {tagsShown.map((t, i) => (
+                  <View key={`t-${i}`} style={nc.tagChip}>
+                    <Text style={nc.tagChipTxt}>#{t}</Text>
+                  </View>
+                ))}
+                {linksShown.map(id => {
+                  const linked = noteById.get(id);
+                  if (!linked) return null;
+                  const label = (linked.title?.trim()
+                    || linked.text?.split('\n')[0]?.slice(0, 40)
+                    || 'Untitled');
+                  return (
+                    <TouchableOpacity
+                      key={`l-${id}`}
+                      style={nc.linkChip}
+                      activeOpacity={0.7}
+                      onPress={() => onEdit && onEdit(linked)}
+                    >
+                      <Ionicons name="link" size={10} color={C.ink} />
+                      <Text style={nc.linkChipTxt} numberOfLines={1}>{label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+                {overflow > 0 && (
+                  <View style={nc.chipMore}>
+                    <Text style={nc.chipMoreTxt}>+{overflow}</Text>
+                  </View>
+                )}
+              </View>
+            );
+          })()}
 
           {showBook && (
             <View style={nc.footer}>
@@ -306,15 +380,19 @@ export function NoteCard({ note, onDelete, onEdit, showBook = false }) {
 
           {/* Referenced-by backlinks — every note that mentions this one
               via [[Title]] surfaces as a small chip the user can tap to
-              jump to the source. Resolved in-memory at render time. */}
+              jump to the source. Lookup is O(1) against the store's
+              memoized `backlinkIndex` (titleLower → Set<noteId>). */}
           {(() => {
-            if (!note.title?.trim() || !allNotes.length) return null;
-            const targetTitle = note.title.trim().toLowerCase();
-            const backlinks = allNotes.filter(other => {
-              if (other.id === note.id) return false;
-              const hay = `${other.title || ''} ${other.text || ''}`.toLowerCase();
-              return hay.includes(`[[${targetTitle}]]`);
-            });
+            const targetTitle = note.title?.trim().toLowerCase();
+            if (!targetTitle) return null;
+            const ids = backlinkIndex.get(targetTitle);
+            if (!ids || ids.size === 0) return null;
+            const backlinks = [];
+            for (const id of ids) {
+              if (id === note.id) continue;
+              const b = noteById.get(id);
+              if (b) backlinks.push(b);
+            }
             if (backlinks.length === 0) return null;
             return (
               <View style={nc.backlinkWrap}>

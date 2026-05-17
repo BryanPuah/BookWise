@@ -21,10 +21,12 @@ import {
 } from './hooks';
 
 // ── Year + Month picker — two vertical scroll columns, taps to confirm ──
+const PICKER_PAD_TOP = 12;
+
 function YearMonthPicker({ selectedYear, selectedMonth, onPickYear, onPickMonth, onCenterChange, height }) {
   const { C, F, themeVersion } = useTheme();
   const ymp = useMemo(() => StyleSheet.create({
-    wrap: { paddingHorizontal: 20, paddingTop: 12, position: 'relative' },
+    wrap: { paddingHorizontal: 20, paddingTop: PICKER_PAD_TOP, position: 'relative' },
     columns: { flexDirection: 'row', alignItems: 'center', gap: 0 },
     column: { flex: 1 },
     row: { alignItems: 'center', justifyContent: 'center' },
@@ -147,9 +149,11 @@ function YearMonthPicker({ selectedYear, selectedMonth, onPickYear, onPickMonth,
         </ScrollView>
       </View>
 
-      {/* Centre indicator — two thin horizontal lines bracketing the centred row. */}
-      <View style={[ymp.centreLine, { top: PICKER_HEIGHT / 2 - ROW_HEIGHT / 2 }]} pointerEvents="none" />
-      <View style={[ymp.centreLine, { top: PICKER_HEIGHT / 2 + ROW_HEIGHT / 2 }]} pointerEvents="none" />
+      {/* Centre indicator — two thin horizontal lines bracketing the centred row.
+          Offsets include PICKER_PAD_TOP because the lines are absolutely positioned
+          relative to the wrap's padding box, while the ScrollView rows sit *inside* the paddingTop. */}
+      <View style={[ymp.centreLine, { top: PICKER_PAD_TOP + PICKER_HEIGHT / 2 - ROW_HEIGHT / 2 }]} pointerEvents="none" />
+      <View style={[ymp.centreLine, { top: PICKER_PAD_TOP + PICKER_HEIGHT / 2 + ROW_HEIGHT / 2 }]} pointerEvents="none" />
     </View>
   );
 }

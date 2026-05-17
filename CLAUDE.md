@@ -14,13 +14,19 @@ No test runner, linter, or type checker is configured. To sanity-check syntax on
 
 ## Architecture
 
-Expo SDK 54 / React Native 0.81 / React 19. Single-user reading + notetaking app. No persistence — all state lives in React useState (resets on every reload). No real auth (LoginScreen just stamps a name into the store). This is by design for the current design/refinement phase.
+Expo SDK 54 / React Native 0.81 / React 19. Single-user reading + notetaking app. Local persistence via AsyncStorage (see [Persistence](#persistence) below). No real auth (LoginScreen just stamps a name into the store). No sync — single device only.
 
 ### Navigation (`App.js`)
 Root is a `Tab.Navigator` ("MainTabs") with four tabs: Library, Add (Discover), Notes, Profile. Library/Discover/Profile each wrap a `Stack.Navigator`. A floating `CaptureFAB` overlays the tabs and opens `RichNoteEditor` globally. `StreakTracker` calls `markDayActive()` once on mount. Auth gate: if `user.name` is empty, `<LoginScreen />` replaces `<Tabs />`.
 
 ### Global store (`src/store.js`)
-Single React context (`StoreContext`) holding `books`, `notes`, `goals`, `goalCompletions`, `activeDays`, `reflections`, `user`. All mutations are local `setState` updaters — there is no reducer, no middleware, no async layer.
+Single React context (`StoreContext`) holding `books`, `notes`, `goals`, `goalCompletions`, `activeDays`, `reflections`, `user`. All mutations are local `setState` updaters — there is no reducer, no middleware. Each persisted slice has a debounced (~250ms) write-through to AsyncStorage.
+
+#### Persistence
+- Keys are versioned (`bw.v1.<slice>`) so schema changes can migrate cleanly.
+- Persisted slices: `notes`, `books`, `goals`, `goalCompletions`, `reflections`, `activeDays`, `user`. Toasts are ephemeral.
+- `hydrated` flag exposed via `useStore()` — `App.js` shows a spinner until hydration completes, then routes to LoginScreen / Tabs. Anything that runs side effects on first mount (e.g. `StreakTracker`'s `markDayActive`) must wait for `hydrated` so it doesn't clobber loaded state.
+- Note-attachment images: `RichNoteEditor` copies picked/captured assets from the ImagePicker cache to `${Paths.document}/note-images/` via `expo-file-system`, so the URI on the block survives cache eviction. `NoteCard` and `ImageBlock` each render an "Image unavailable" placeholder on `Image.onError` for legacy notes whose cache URI is now broken.
 
 Domain shapes are not formally typed; `App.js` `handleSave` shows the note shape (id, bookId, blocks[], types[], thinking, tags, linkedNoteIds, isQuote, starred, date). Goals support four recurrence modes: `daily | weekly | monthly | once` — filtering for a date happens in `goalsForDate()`. Streak logic in `currentStreak` allows a one-day grace period (counts from yesterday if today not marked).
 

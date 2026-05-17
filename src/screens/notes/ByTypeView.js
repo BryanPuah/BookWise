@@ -14,9 +14,9 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { AppText as Text } from '../../components/AppText';
 import { useTheme } from '../../theme';
 import { NoteCard } from './NoteCard';
-import { useNT, noteHasType } from './shared';
+import { useNT, noteHasType, NotesEmptyState } from './shared';
 
-function TypeNotesScreen({ typeKey, typeMeta, notes, onDelete, onEdit, onBack }) {
+function TypeNotesScreen({ typeKey, typeMeta, notes, onDelete, onEdit, onStar, onBack, onCapture }) {
   const { C, F, themeVersion } = useTheme();
   const tns = useMemo(() => StyleSheet.create({
     header: { backgroundColor: C.white, borderBottomWidth: 0.5, borderBottomColor: C.border, paddingBottom: 18 },
@@ -33,10 +33,6 @@ function TypeNotesScreen({ typeKey, typeMeta, notes, onDelete, onEdit, onBack })
     countRow: { flexDirection: 'row', gap: 10, marginTop: 6 },
     noteCount: { fontFamily: F.serif, fontSize: 11, color: C.inkMuted },
     starCount: { fontFamily: F.serif, fontSize: 11, color: C.amber, fontWeight: '600' },
-    empty: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 30 },
-    emptyIcon: { fontSize: 40, marginBottom: 12 },
-    emptyTitle: { fontFamily: F.serif, fontSize: 18, color: C.ink, marginBottom: 6 },
-    emptySub: { fontFamily: F.serif, fontSize: 13, color: C.inkMuted, textAlign: 'center', lineHeight: 20 },
   }), [themeVersion]);
 
   const starred = notes.filter(n => n.starred).length;
@@ -67,14 +63,15 @@ function TypeNotesScreen({ typeKey, typeMeta, notes, onDelete, onEdit, onBack })
         data={sorted}
         keyExtractor={n => n.id}
         renderItem={({ item }) => (
-          <NoteCard note={item} onDelete={onDelete} onEdit={onEdit} showBook />
+          <NoteCard note={item} onDelete={onDelete} onEdit={onEdit} onStar={onStar} showBook />
         )}
         ListEmptyComponent={
-          <View style={tns.empty}>
-            <Text style={tns.emptyIcon}>{typeMeta.icon}</Text>
-            <Text style={tns.emptyTitle}>No {typeMeta.label.toLowerCase()} notes yet</Text>
-            <Text style={tns.emptySub}>Tap the + button to capture your first thought.</Text>
-          </View>
+          <NotesEmptyState
+            icon={typeMeta.icon}
+            title={`No ${typeMeta.label.toLowerCase()} notes yet`}
+            sub={typeMeta.desc}
+            onCapture={onCapture}
+          />
         }
         contentContainerStyle={{ padding: 20, paddingBottom: 140 }}
         showsVerticalScrollIndicator={false}
@@ -87,7 +84,7 @@ function TypeNotesScreen({ typeKey, typeMeta, notes, onDelete, onEdit, onBack })
   );
 }
 
-export function ByTypeView({ notes, onDelete, onEdit }) {
+export function ByTypeView({ notes, onDelete, onEdit, onStar, onCapture }) {
   const { C, F, themeVersion } = useTheme();
   const NT = useNT();
   const btv = useMemo(() => StyleSheet.create({
@@ -110,10 +107,6 @@ export function ByTypeView({ notes, onDelete, onEdit }) {
     countRow: { flexDirection: 'row', gap: 10, marginTop: 5 },
     noteCount: { fontFamily: F.serif, fontSize: 11, color: C.inkMuted },
     starCount: { fontFamily: F.serif, fontSize: 11, color: C.amber, fontWeight: '600' },
-    empty: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 30 },
-    emptyIcon: { fontSize: 40, marginBottom: 12 },
-    emptyTitle: { fontFamily: F.serif, fontSize: 18, color: C.ink, marginBottom: 6 },
-    emptySub: { fontFamily: F.serif, fontSize: 13, color: C.inkMuted, textAlign: 'center', lineHeight: 20 },
   }), [themeVersion]);
 
   const [selectedType, setSelectedType] = useState(null);
@@ -138,6 +131,8 @@ export function ByTypeView({ notes, onDelete, onEdit }) {
           notes={group.notes}
           onDelete={onDelete}
           onEdit={onEdit}
+          onStar={onStar}
+          onCapture={onCapture}
           onBack={() => setSelectedType(null)}
         />
       );
@@ -177,13 +172,12 @@ export function ByTypeView({ notes, onDelete, onEdit }) {
       keyExtractor={g => g.key}
       renderItem={renderType}
       ListEmptyComponent={
-        <View style={btv.empty}>
-          <Text style={btv.emptyIcon}>📝</Text>
-          <Text style={btv.emptyTitle}>No notes yet</Text>
-          <Text style={btv.emptySub}>
-            Tap the + button to capture your first thought.
-          </Text>
-        </View>
+        <NotesEmptyState
+          icon="📝"
+          title="No notes yet"
+          sub="Capture a few notes and they'll group themselves here by type — quotes, insights, questions, and more."
+          onCapture={onCapture}
+        />
       }
       ListFooterComponent={<View style={{ height: 140 }} />}
       contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8 }}

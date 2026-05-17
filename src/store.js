@@ -1,7 +1,37 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { genId } from './schema';
 
 const StoreContext = createContext(null);
+
+// ── Persistence ──────────────────────────────────────────────────────
+// Hydrate from AsyncStorage on mount, debounced write-through on every
+// mutation. Keys are versioned so a future schema change can migrate
+// rather than silently break.
+//
+// Scope (chosen 2026-05-17): notes, books, goals, goalCompletions,
+// reflections, activeDays, user. Tags are nested inside notes so they
+// piggyback on the notes key. Toasts are ephemeral — not persisted.
+const STORAGE_KEYS = {
+  notes:           'bw.v1.notes',
+  books:           'bw.v1.books',
+  goals:           'bw.v1.goals',
+  goalCompletions: 'bw.v1.goalCompletions',
+  reflections:     'bw.v1.reflections',
+  activeDays:      'bw.v1.activeDays',
+  user:            'bw.v1.user',
+};
+
+async function loadJSON(key, fallback) {
+  try {
+    const raw = await AsyncStorage.getItem(key);
+    if (raw == null) return fallback;
+    return JSON.parse(raw);
+  } catch (e) {
+    console.warn(`[store] failed to load ${key}`, e);
+    return fallback;
+  }
+}
 
 // Goal recurrence types:
 //   'daily'   — show every day
@@ -44,6 +74,58 @@ export function StoreProvider({ children }) {
   const [activeDays, setActiveDays] = useState([]);
   const [reflections, setReflections] = useState([]);
   const [user, setUser] = useState(DEFAULT_USER);
+  const [toasts, setToasts] = useState([]);
+
+  // `hydrated` flips true once the on-disk slices have been loaded into
+  // state. Consumers (App.js) gate first paint on this so the empty default
+  // state doesn't flash, and write-through effects key off it so the
+  // initial defaults can't overwrite saved data before hydration finishes.
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const [n, b, g, gc, r, ad, u] = await Promise.all([
+        loadJSON(STORAGE_KEYS.notes,           []),
+        loadJSON(STORAGE_KEYS.books,           []),
+        loadJSON(STORAGE_KEYS.goals,           []),
+        loadJSON(STORAGE_KEYS.goalCompletions, []),
+        loadJSON(STORAGE_KEYS.reflections,     []),
+        loadJSON(STORAGE_KEYS.activeDays,      []),
+        loadJSON(STORAGE_KEYS.user,            DEFAULT_USER),
+      ]);
+      if (cancelled) return;
+      setNotes(Array.isArray(n) ? n : []);
+      setBooks(Array.isArray(b) ? b : []);
+      setGoals(Array.isArray(g) ? g : []);
+      setGoalCompletions(Array.isArray(gc) ? gc : []);
+      setReflections(Array.isArray(r) ? r : []);
+      setActiveDays(Array.isArray(ad) ? ad : []);
+      setUser(u && typeof u === 'object' ? { ...DEFAULT_USER, ...u } : DEFAULT_USER);
+      setHydrated(true);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Debounced write-through. One timer per key — coalesces rapid mutations
+  // (e.g. typing in the editor) into a single AsyncStorage write.
+  const writeTimersRef = useRef({});
+  const writeJSON = (key, value) => {
+    clearTimeout(writeTimersRef.current[key]);
+    writeTimersRef.current[key] = setTimeout(() => {
+      AsyncStorage.setItem(key, JSON.stringify(value)).catch(e => {
+        console.warn(`[store] failed to write ${key}`, e);
+      });
+    }, 250);
+  };
+
+  useEffect(() => { if (hydrated) writeJSON(STORAGE_KEYS.notes,           notes);           }, [notes,           hydrated]);
+  useEffect(() => { if (hydrated) writeJSON(STORAGE_KEYS.books,           books);           }, [books,           hydrated]);
+  useEffect(() => { if (hydrated) writeJSON(STORAGE_KEYS.goals,           goals);           }, [goals,           hydrated]);
+  useEffect(() => { if (hydrated) writeJSON(STORAGE_KEYS.goalCompletions, goalCompletions); }, [goalCompletions, hydrated]);
+  useEffect(() => { if (hydrated) writeJSON(STORAGE_KEYS.reflections,     reflections);     }, [reflections,     hydrated]);
+  useEffect(() => { if (hydrated) writeJSON(STORAGE_KEYS.activeDays,      activeDays);      }, [activeDays,      hydrated]);
+  useEffect(() => { if (hydrated) writeJSON(STORAGE_KEYS.user,            user);            }, [user,            hydrated]);
 
   // ── Books ────────────────────────────────────────────────────────
   const addBook    = (book)  => setBooks(b => [book, ...b]);
@@ -51,9 +133,94 @@ export function StoreProvider({ children }) {
   const removeBook = (id)    => setBooks(b => b.filter(x => x.id!==id));
 
   // ── Notes ────────────────────────────────────────────────────────
-  const addNote    = (note)  => setNotes(n => [note, ...n]);
+  // `addNote` normalizes the payload — fills in id/date/starred, derives the
+  // primary `type` and `isQuote` from `types[]`, and defends array fields.
+  // Callers (FAB, NotesScreen, BookDetailScreen) used to do this inline and
+  // had drifted; centralizing here keeps the on-disk shape consistent.
+  // Existing id/date are preserved so an "edit-of-deleted-note" re-add keeps
+  // the original identity.
+  const addNote = (data) => {
+    const types = data.types?.length
+      ? data.types
+      : (data.type ? [data.type] : ['insight']);
+    const primaryType = data.type || types[0];
+    const note = {
+      id:            data.id   || genId('n'),
+      date:          data.date || todayKey(),
+      bookId:        data.bookId,
+      bookTitle:     data.bookTitle,
+      title:         data.title || '',
+      blocks:        data.blocks || [],
+      types,
+      type:          primaryType,
+      text:          data.text || '',
+      thinking:      data.thinking || '',
+      page:          data.page || '',
+      chapter:       data.chapter || '',
+      tags:          Array.isArray(data.tags) ? data.tags : [],
+      linkedNoteIds: Array.isArray(data.linkedNoteIds) ? data.linkedNoteIds : [],
+      isQuote:       primaryType === 'quote',
+      starred:       data.starred ?? false,
+    };
+    setNotes(n => [note, ...n]);
+  };
   const updateNote = (id, patch) => setNotes(n => n.map(x => x.id===id ? {...x,...patch} : x));
   const deleteNote = (id)    => setNotes(n => n.filter(x => x.id!==id));
+
+  // Delete-with-undo. Captures the note + its original index so the toast's
+  // Undo restores both the data and its position in the array. `notes` is
+  // read from the StoreProvider closure (current render snapshot), which is
+  // why this lives in the store and not inside a setNotes callback — we need
+  // the captured value synchronously before queueing the toast.
+  const deleteNoteWithUndo = (id) => {
+    const idx = notes.findIndex(n => n.id === id);
+    if (idx === -1) return;
+    const removed = notes[idx];
+    setNotes(n => n.filter(x => x.id !== id));
+    showToast({
+      message: 'Note deleted',
+      action: {
+        label: 'Undo',
+        onPress: () => {
+          setNotes(n => {
+            const next = [...n];
+            next.splice(Math.min(idx, next.length), 0, removed);
+            return next;
+          });
+        },
+      },
+    });
+  };
+
+  // ── Notes — derived indexes ──────────────────────────────────────
+  // `noteById` and `backlinkIndex` are memoized off `notes` so NoteCard can
+  // resolve references without scanning the whole array per render. The
+  // backlink scan walks each note once and records every `[[title]]` mention,
+  // so a render that touches K visible cards drops from O(K·N²) to O(K·1)
+  // lookups against a precomputed Map.
+  const noteById = useMemo(() => {
+    const m = new Map();
+    for (const n of notes) m.set(n.id, n);
+    return m;
+  }, [notes]);
+
+  const backlinkIndex = useMemo(() => {
+    const m = new Map();
+    const WIKI = /\[\[([^\]]+)\]\]/g;
+    for (const n of notes) {
+      const hay = `${n.title || ''} ${n.text || ''}`;
+      WIKI.lastIndex = 0;
+      let match;
+      while ((match = WIKI.exec(hay)) !== null) {
+        const title = match[1].trim().toLowerCase();
+        if (!title) continue;
+        let set = m.get(title);
+        if (!set) { set = new Set(); m.set(title, set); }
+        set.add(n.id);
+      }
+    }
+    return m;
+  }, [notes]);
 
   // ── Goals (templates) ────────────────────────────────────────────
   const addGoal    = (goal)  => setGoals(g => [goal, ...g]);
@@ -199,6 +366,23 @@ export function StoreProvider({ children }) {
     setReflections(rs => rs.filter(r => r.date !== date));
   };
 
+  // ── Toasts ───────────────────────────────────────────────────────
+  // Lightweight notification queue. `showToast` returns the id so callers
+  // can dismiss early; auto-dismiss fires after `duration`. Multiple toasts
+  // stack — the host renders only the most recent so they don't pile up.
+  const showToast = ({ message, action, duration = 4500 } = {}) => {
+    if (!message) return null;
+    const id = genId('t');
+    setToasts(t => [...t, { id, message, action }]);
+    setTimeout(() => {
+      setToasts(t => t.filter(x => x.id !== id));
+    }, duration);
+    return id;
+  };
+  const dismissToast = (id) => {
+    setToasts(t => t.filter(x => x.id !== id));
+  };
+
   // ── User profile + auth ──────────────────────────────────────────
   // Patch the user object (e.g. updateUser({ name: 'Julian' }))
   const updateUser = (patch) => setUser(u => ({ ...u, ...patch }));
@@ -210,12 +394,15 @@ export function StoreProvider({ children }) {
 
   return (
     <StoreContext.Provider value={{
+      hydrated,
       books, notes, goals, goalCompletions, reflections,
       activeDays, currentStreak,
       currentBook, readingBooks,
       user, updateUser, logout,
       addBook, updateBook, removeBook,
-      addNote, updateNote, deleteNote,
+      addNote, updateNote, deleteNote, deleteNoteWithUndo,
+      noteById, backlinkIndex,
+      toasts, showToast, dismissToast,
       addGoal, updateGoal, removeGoal,
       toggleGoalCompletion, isGoalCompletedOn, goalCompletionsOn,
       goalsForDate, markDayActive,

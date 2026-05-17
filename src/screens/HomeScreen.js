@@ -1,7 +1,7 @@
-import React, { useRef, useState, useMemo, useEffect } from 'react';
+import React, { useRef, useState, useMemo, useEffect, useCallback } from 'react';
 import {
-  View, ScrollView, FlatList, TouchableOpacity, StyleSheet, Dimensions,
-  Modal,
+  View, FlatList, TouchableOpacity, StyleSheet, Dimensions,
+  Modal, I18nManager,
 } from 'react-native';
 import { AppText as Text } from '../components/AppText';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,6 +13,22 @@ import { AppHeader } from '../components/AppHeader';
 import { ReflectionPage } from '../components/ReflectionPage';
 import { StreakActivityModal } from '../components/StreakActivityModal';
 import { useTheme } from '../theme';
+
+// RTL-aware forward chevron — picks the glyph that points "into the page".
+const FORWARD_CHEVRON = I18nManager.isRTL ? 'chevron-back' : 'chevron-forward';
+
+// Single-shot navigation guard. Wraps navigation.navigate so 10 rapid taps
+// push exactly one screen onto the stack instead of ten. The 600ms window
+// matches typical stack push animation; the ref resets after that.
+function useGuardedNavigate(navigation) {
+  const lockRef = useRef(false);
+  return useCallback((...args) => {
+    if (lockRef.current) return;
+    lockRef.current = true;
+    navigation.navigate(...args);
+    setTimeout(() => { lockRef.current = false; }, 600);
+  }, [navigation]);
+}
 
 const { width: SW } = Dimensions.get('window');
 const HERO_W = SW - 16;
@@ -83,7 +99,7 @@ function RangePickerModal({ visible, currentRange, onSelect, onClose }) {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingHorizontal: 16, paddingVertical: 13,
+      paddingHorizontal: 16, paddingVertical: 12,
     },
     rowActive: {
       backgroundColor: C.amberPale,
@@ -111,11 +127,16 @@ function RangePickerModal({ visible, currentRange, onSelect, onClose }) {
                 style={[rp.row, active && rp.rowActive]}
                 onPress={() => { onSelect(range); onClose(); }}
                 activeOpacity={0.65}
+                accessibilityRole="button"
+                accessibilityLabel={RANGE_META[range].shortLabel}
+                accessibilityState={{ selected: active }}
               >
                 <Text style={[rp.rowTxt, active && rp.rowTxtActive]}>
                   {RANGE_META[range].shortLabel}
                 </Text>
-                {active && <Ionicons name="checkmark" size={18} color={C.amber} />}
+                {active && (
+                  <Ionicons name="checkmark" size={18} color={C.amber} importantForAccessibility="no" />
+                )}
               </TouchableOpacity>
             );
           })}
@@ -125,32 +146,26 @@ function RangePickerModal({ visible, currentRange, onSelect, onClose }) {
   );
 }
 
-// ── Goal card ──────────────────────────────────────────────────────────
-function GoalCard({ baseLabel, current, range, onChangeRange, align = 'center' }) {
+// ── StatCard ───────────────────────────────────────────────────────────
+// Shared presentation for the three stats-row tiles (Books, Notes, Streak).
+// Numerals use C.ink so the 40pt display number clears WCAG AA against
+// every paper background — the icon stays accent-colored and is decorative
+// (its meaning is repeated in the label below).
+function StatCard({ icon, iconColor, value, label, onPress, align = 'flex-start' }) {
   const { C, F, themeVersion } = useTheme();
-  const meta = RANGE_META[range];
-  const [pickerOpen, setPickerOpen] = useState(false);
-
   const s = useMemo(() => StyleSheet.create({
-    goalStat: {
-      flex: 1,
-      alignItems: align,
-    },
-    goalMedal: {
-      marginBottom: 10,
-    },
-    goalCountNum: {
+    stat: { flex: 1, alignItems: align },
+    medal: { marginBottom: 10 },
+    num: {
       fontFamily: F.serif,
-      fontSize: 40,
-      color: C.amber,
+      fontSize: 40, lineHeight: 46,
+      color: C.ink,
       letterSpacing: -1,
-      lineHeight: 46,
       marginBottom: 6,
     },
-    goalLabel: {
+    label: {
       fontFamily: F.serif,
-      fontSize: 13,
-      lineHeight: 17,
+      fontSize: 13, lineHeight: 17,
       color: C.inkSoft,
       fontWeight: '400',
       textAlign: align === 'flex-start' ? 'left' : align === 'flex-end' ? 'right' : 'center',
@@ -158,19 +173,31 @@ function GoalCard({ baseLabel, current, range, onChangeRange, align = 'center' }
   }), [themeVersion, align]);
 
   return (
-    <>
-      <TouchableOpacity
-        style={s.goalStat}
-        onPress={() => setPickerOpen(true)}
-        activeOpacity={0.6}
-      >
-        <Ionicons name="ribbon" size={20} color={C.amber} style={s.goalMedal} />
-        <Text style={s.goalCountNum} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{current}</Text>
-        <Text style={s.goalLabel} numberOfLines={2} ellipsizeMode="tail">
-          {baseLabel} {meta.label}
-        </Text>
-      </TouchableOpacity>
+    <TouchableOpacity style={s.stat} onPress={onPress} activeOpacity={0.7}>
+      <Ionicons name={icon} size={20} color={iconColor} style={s.medal} importantForAccessibility="no" />
+      <Text style={s.num} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{value}</Text>
+      <Text style={s.label} numberOfLines={2} ellipsizeMode="tail">{label}</Text>
+    </TouchableOpacity>
+  );
+}
 
+// ── Goal card ──────────────────────────────────────────────────────────
+// Wraps StatCard with a range picker (today / this week / this month / year).
+function GoalCard({ baseLabel, current, range, onChangeRange, align = 'flex-start' }) {
+  const { C } = useTheme();
+  const meta = RANGE_META[range];
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  return (
+    <>
+      <StatCard
+        icon="ribbon"
+        iconColor={C.amber}
+        value={current}
+        label={`${baseLabel} ${meta.label}`}
+        onPress={() => setPickerOpen(true)}
+        align={align}
+      />
       <RangePickerModal
         visible={pickerOpen}
         currentRange={range}
@@ -181,52 +208,98 @@ function GoalCard({ baseLabel, current, range, onChangeRange, align = 'center' }
   );
 }
 
-// ── Streak card ────────────────────────────────────────────────────────
-// Shows the current consecutive-active-day streak with a flame icon.
-// "Active" = the app was opened that day (tracked in store.activeDays).
-// Zero state ("—") shown when streak is 0, so the visual layout doesn't
-// jump around.
-function StreakCard({ streak, onPress, align = 'center' }) {
-  const { C, F, themeVersion } = useTheme();
-  const s = useMemo(() => StyleSheet.create({
-    goalStat: {
-      flex: 1,
-      alignItems: align,
-    },
-    goalMedal: {
-      marginBottom: 10,
-    },
-    goalCountNum: {
-      fontFamily: F.serif,
-      fontSize: 40,
-      color: C.amber,
-      letterSpacing: -1,
-      lineHeight: 46,
-      marginBottom: 6,
-    },
-    goalLabel: {
-      fontFamily: F.serif,
-      fontSize: 13,
-      lineHeight: 17,
-      color: C.inkSoft,
-      fontWeight: '400',
-      textAlign: align === 'flex-start' ? 'left' : align === 'flex-end' ? 'right' : 'center',
-    },
-  }), [themeVersion, align]);
+// ── Hero book card ─────────────────────────────────────────────────────
+// One slide of the currently-reading carousel. Pulled out so the parent
+// FlatList can virtualize — only the visible page + a small windowSize
+// of neighbours stays mounted, instead of all N reading books at once.
+function HeroBookCard({ book, noteCount, onOpen, onAddNote, styles }) {
+  const { C } = useTheme();
+  const hasPages = book.pageCount > 0;
+  const pct = hasPages
+    ? Math.min(100, Math.max(0, Math.round((book.currentPage / book.pageCount) * 100)))
+    : 0;
+  const tag = book.genres?.[0] || book.format || 'Reading';
 
   return (
     <TouchableOpacity
-      style={s.goalStat}
-      onPress={onPress}
-      activeOpacity={0.85}
+      activeOpacity={0.92}
+      onPress={onOpen}
+      style={{ width: HERO_W }}
+      accessibilityRole="button"
+      accessibilityLabel={`${book.title}${book.author ? `, by ${book.author}` : ''}${
+        hasPages ? `, ${pct}% read` : ', in progress'
+      }`}
+      accessibilityHint="Opens book details"
     >
-      <Ionicons name="flame" size={20} color={C.rose} style={s.goalMedal} />
-      <Text style={[s.goalCountNum, { color: C.rose }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-        {streak > 0 ? streak : '—'}
-      </Text>
-      <Text style={s.goalLabel} numberOfLines={2} ellipsizeMode="tail">
-        Active Day Streak
-      </Text>
+      <View style={styles.heroInner}>
+        <View style={styles.heroCoverCol}>
+          <BookCover
+            title={book.title}
+            author={book.author}
+            cover={book.cover}
+            coverId={book.coverId}
+            width={118}
+            height={168}
+          />
+        </View>
+
+        <View style={styles.heroInfoCol}>
+          <View style={styles.heroTagPill}>
+            <Text style={styles.heroTagPillTxt} numberOfLines={1}>
+              {String(tag).toUpperCase()}
+            </Text>
+          </View>
+
+          <Text style={styles.heroTitle} numberOfLines={2}>{book.title}</Text>
+          <Text style={styles.heroAuthor} numberOfLines={1}>{book.author}</Text>
+
+          <View style={styles.heroProgressRow}>
+            <Text style={styles.heroProgressLbl}>
+              {hasPages ? `Reading Progress: ${pct}%` : 'In progress'}
+            </Text>
+            {hasPages && (
+              <Text style={styles.heroProgressPages}>
+                {book.currentPage} / {book.pageCount} pages
+              </Text>
+            )}
+          </View>
+          {hasPages && (
+            <View style={styles.heroTrack}>
+              <View style={[styles.heroFill, { width: `${pct}%` }]} />
+            </View>
+          )}
+
+          <View style={styles.heroActions}>
+            <TouchableOpacity
+              style={styles.heroPrimaryBtn}
+              onPress={onAddNote}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Add note"
+            >
+              <Ionicons name="create-outline" size={14} color="#FFFFFF" importantForAccessibility="no" />
+              <Text style={styles.heroPrimaryTxt}>Add Note</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.heroSecondaryBtn}
+              onPress={onOpen}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={hasPages ? `Reading progress ${pct} percent` : 'Open book'}
+            >
+              <Text style={styles.heroSecondaryTxt}>
+                {hasPages ? `Reading Progress: ${pct}%` : 'Open book'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {noteCount > 0 && (
+            <Text style={styles.heroNoteCount}>
+              {noteCount} note{noteCount !== 1 ? 's' : ''} captured
+            </Text>
+          )}
+        </View>
+      </View>
     </TouchableOpacity>
   );
 }
@@ -279,8 +352,19 @@ export function HomeScreen({ navigation, route }) {
     }
   }, [route?.params?.reflectionDate, route?.params?._t]);
 
-  const finished   = books.filter(b => b.status === 'finished');
-  const wantToRead = books.filter(b => b.status === 'want_to_read');
+  // Single pass through books to avoid two .filter() calls per render and
+  // — more importantly — to keep the array identities stable across renders
+  // when the source array hasn't changed, so the `collectionBooks` memo
+  // below actually hits its cache.
+  const { finished, wantToRead } = useMemo(() => {
+    const f = [];
+    const w = [];
+    for (const b of books) {
+      if (b.status === 'finished') f.push(b);
+      else if (b.status === 'want_to_read') w.push(b);
+    }
+    return { finished: f, wantToRead: w };
+  }, [books]);
 
   // First-time gate: zero books, zero notes, zero reflections. Drives the
   // "Get Started" card that replaces the currently-reading hero on first
@@ -295,6 +379,26 @@ export function HomeScreen({ navigation, route }) {
     if (activeCollection === 'want_to_read') return wantToRead;
     return [];
   }, [activeCollection, finished, wantToRead]);
+
+  // Sorted once per change to `reflections`. Without the memo, the sort
+  // was running on every parent render — O(n log n) per keystroke on
+  // adjacent unrelated state.
+  const sortedReflections = useMemo(
+    () => [...reflections].sort((a, b) => b.date.localeCompare(a.date)),
+    [reflections],
+  );
+
+  // Note counts grouped by bookId — built once per `notes` change instead
+  // of doing N filter passes inside the hero carousel render.
+  const noteCountByBook = useMemo(() => {
+    const m = new Map();
+    for (const n of notes) {
+      if (n.bookId) m.set(n.bookId, (m.get(n.bookId) || 0) + 1);
+    }
+    return m;
+  }, [notes]);
+
+  const guardedNavigate = useGuardedNavigate(navigation);
 
   // Range-aware counts
   const booksInRange = useMemo(() => {
@@ -348,11 +452,11 @@ export function HomeScreen({ navigation, route }) {
     },
     heroInner: {
       flexDirection: 'row',
-      padding: 18,
+      padding: 16,
       gap: 16,
       alignItems: 'flex-start',
       height: 260,
-      paddingBottom: 30,
+      paddingBottom: 32,
     },
     heroCoverCol: {
       shadowColor: C.shadow,
@@ -367,8 +471,8 @@ export function HomeScreen({ navigation, route }) {
       alignSelf: 'flex-start',
       backgroundColor: C.amberPale,
       paddingHorizontal: 12,
-      paddingVertical: 5,
-      borderRadius: 14,
+      paddingVertical: 4,
+      borderRadius: 12,
       marginBottom: 8,
     },
     heroTagPillTxt: {
@@ -424,16 +528,16 @@ export function HomeScreen({ navigation, route }) {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      gap: 5,
+      gap: 4,
       backgroundColor: C.sage,
       paddingHorizontal: 12,
-      paddingVertical: 9,
+      paddingVertical: 8,
       borderRadius: 8,
     },
     heroPrimaryTxt: {
       fontFamily: F.serif,
       fontSize: 11,
-      color: C.white,
+      color: '#FFFFFF',
       fontWeight: '700',
     },
     heroSecondaryBtn: {
@@ -441,8 +545,8 @@ export function HomeScreen({ navigation, route }) {
       backgroundColor: C.white,
       borderWidth: 1,
       borderColor: C.border,
-      paddingHorizontal: 10,
-      paddingVertical: 9,
+      paddingHorizontal: 8,
+      paddingVertical: 8,
       borderRadius: 8,
       alignItems: 'center',
       justifyContent: 'center',
@@ -478,7 +582,7 @@ export function HomeScreen({ navigation, route }) {
     emptyHeroIcon:   { fontSize: 36, marginBottom: 12 },
     emptyHeroTitle:  { fontFamily: F.serif, fontSize: 20, color: C.ink, textAlign: 'center', marginBottom: 6 },
     emptyHeroSub:    { fontFamily: F.serif, fontSize: 13, color: C.inkMuted, textAlign: 'center', lineHeight: 20, marginBottom: 20 },
-    emptyHeroBtn:    { backgroundColor: C.ink, paddingHorizontal: 18, paddingVertical: 12, borderRadius: 14 },
+    emptyHeroBtn:    { backgroundColor: C.ink, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12 },
     emptyHeroBtnTxt: { fontFamily: F.sans, color: C.white, fontSize: 15, fontWeight: '700' },
 
     // Get Started card — shown only on the all-zero first launch (no
@@ -549,36 +653,14 @@ export function HomeScreen({ navigation, route }) {
       lineHeight: 17,
     },
 
-    // Goals
-    // Stats row — three big numerals evenly spaced across the row
+    // Stats row — wraps three StatCards (Books / Notes / Streak).
+    // StatCard owns its own internal styles; this is just layout.
     goalsWrap: {
       flexDirection: 'row',
       paddingHorizontal: 16,
       paddingTop: 12,
-      paddingBottom: 14,
+      paddingBottom: 16,
       justifyContent: 'space-between',
-    },
-    goalStat: {
-      flex: 1,
-      alignItems: 'flex-start',
-    },
-    goalMedal: {
-      marginBottom: 10,
-    },
-    goalCountNum: {
-      fontFamily: F.serif,
-      fontSize: 44,
-      color: C.amber,
-      letterSpacing: -1.5,
-      lineHeight: 48,
-      marginBottom: 6,
-    },
-    goalLabel: {
-      fontFamily: F.serif,
-      fontSize: 14,
-      color: C.inkSoft,
-      fontWeight: '400',
-      letterSpacing: -0.1,
     },
 
     // ── Collection tabs (Finished / Want to Read / Reflections) ─────
@@ -732,7 +814,7 @@ export function HomeScreen({ navigation, route }) {
         <ReadingTimeline
           notes={notes}
           books={books}
-          onManageGoals={() => navigation.navigate('Goals')}
+          onManageGoals={() => guardedNavigate('Goals')}
         />
 
         {/* ── CURRENTLY READING HERO ─ or ─ Get Started card ────── */}
@@ -746,7 +828,7 @@ export function HomeScreen({ navigation, route }) {
 
             <TouchableOpacity
               style={s.welcomeStep}
-              onPress={() => navigation.navigate('Add')}
+              onPress={() => guardedNavigate('Add')}
               activeOpacity={0.7}
             >
               <Text style={s.welcomeStepIcon}>📚</Text>
@@ -756,7 +838,7 @@ export function HomeScreen({ navigation, route }) {
                   Search OpenLibrary, or add a book, article, or PDF by hand.
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={16} color={C.inkFaint} />
+              <Ionicons name={FORWARD_CHEVRON} size={16} color={C.inkFaint} />
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -771,7 +853,7 @@ export function HomeScreen({ navigation, route }) {
                   A line or two about what you read, thought, or noticed today.
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={16} color={C.inkFaint} />
+              <Ionicons name={FORWARD_CHEVRON} size={16} color={C.inkFaint} />
             </TouchableOpacity>
           </View>
         ) : readingBooks.length > 0 ? (() => {
@@ -781,104 +863,43 @@ export function HomeScreen({ navigation, route }) {
           const safeActiveIdx = Math.min(activeIdx, readingBooks.length - 1);
           return (
           <View style={s.heroCard}>
-            <ScrollView
+            <FlatList
               ref={heroScrollRef}
+              data={readingBooks}
+              keyExtractor={b => b.id}
               horizontal
               pagingEnabled
               showsHorizontalScrollIndicator={false}
               decelerationRate="fast"
+              snapToInterval={HERO_W}
+              snapToAlignment="start"
+              disableIntervalMomentum
               style={{ height: 260 }}
+              // Virtualization windows — most users have 1–3 currently-reading
+              // books, but this caps memory if someone keeps a long shelf.
+              initialNumToRender={1}
+              maxToRenderPerBatch={2}
+              windowSize={3}
+              removeClippedSubviews
+              getItemLayout={(_, index) => ({
+                length: HERO_W,
+                offset: HERO_W * index,
+                index,
+              })}
               onMomentumScrollEnd={e => {
                 const idx = Math.round(e.nativeEvent.contentOffset.x / HERO_W);
                 setActiveIdx(Math.min(idx, readingBooks.length - 1));
               }}
-            >
-              {readingBooks.map((book) => {
-                const bNotes = notes.filter(n => n.bookId === book.id);
-                // Books with no page count (articles, podcasts, manually
-                // added items) can't have a meaningful percentage. Show an
-                // unquantified "In progress" state instead of "500% — 5/0".
-                const hasPages = book.pageCount > 0;
-                const pct = hasPages
-                  ? Math.min(100, Math.max(0, Math.round((book.currentPage / book.pageCount) * 100)))
-                  : 0;
-                const tag    = book.genres?.[0] || book.format || 'Reading';
-                return (
-                  <TouchableOpacity
-                    key={book.id}
-                    activeOpacity={0.92}
-                    onPress={() => navigation.navigate('BookDetail', { bookId: book.id, tab: 'notes' })}
-                    style={{ width: HERO_W }}
-                  >
-                    <View style={s.heroInner}>
-                      {/* Book cover — left, same dimensions as before */}
-                      <View style={s.heroCoverCol}>
-                        <BookCover title={book.title} author={book.author}
-                          cover={book.cover} coverId={book.coverId} width={118} height={168} />
-                      </View>
-
-                      {/* Info — right column */}
-                      <View style={s.heroInfoCol}>
-                        {/* Tag pill */}
-                        <View style={s.heroTagPill}>
-                          <Text style={s.heroTagPillTxt} numberOfLines={1}>
-                            {String(tag).toUpperCase()}
-                          </Text>
-                        </View>
-
-                        {/* Title + author */}
-                        <Text style={s.heroTitle} numberOfLines={2}>{book.title}</Text>
-                        <Text style={s.heroAuthor} numberOfLines={1}>{book.author}</Text>
-
-                        {/* Progress label + pages */}
-                        <View style={s.heroProgressRow}>
-                          <Text style={s.heroProgressLbl}>
-                            {hasPages ? `Reading Progress: ${pct}%` : 'In progress'}
-                          </Text>
-                          {hasPages && (
-                            <Text style={s.heroProgressPages}>
-                              {book.currentPage} / {book.pageCount} pages
-                            </Text>
-                          )}
-                        </View>
-                        {hasPages && (
-                          <View style={s.heroTrack}>
-                            <View style={[s.heroFill, { width: `${pct}%` }]} />
-                          </View>
-                        )}
-
-                        {/* Action buttons */}
-                        <View style={s.heroActions}>
-                          <TouchableOpacity
-                            style={s.heroPrimaryBtn}
-                            onPress={() => navigation.navigate('BookDetail', { bookId: book.id, tab: 'notes' })}
-                            activeOpacity={0.85}
-                          >
-                            <Ionicons name="create-outline" size={14} color={C.white} />
-                            <Text style={s.heroPrimaryTxt}>Add Note</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            style={s.heroSecondaryBtn}
-                            onPress={() => navigation.navigate('BookDetail', { bookId: book.id })}
-                            activeOpacity={0.7}
-                          >
-                            <Text style={s.heroSecondaryTxt}>
-                              {hasPages ? `Reading Progress: ${pct}%` : 'Open book'}
-                            </Text>
-                          </TouchableOpacity>
-                        </View>
-
-                        {bNotes.length > 0 && (
-                          <Text style={s.heroNoteCount}>
-                            {bNotes.length} note{bNotes.length !== 1 ? 's' : ''} captured
-                          </Text>
-                        )}
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
+              renderItem={({ item: book }) => (
+                <HeroBookCard
+                  book={book}
+                  noteCount={noteCountByBook.get(book.id) || 0}
+                  onOpen={() => guardedNavigate('BookDetail', { bookId: book.id, tab: 'notes' })}
+                  onAddNote={() => guardedNavigate('BookDetail', { bookId: book.id, tab: 'notes' })}
+                  styles={s}
+                />
+              )}
+            />
 
             {/* Dots — preserved exactly */}
             {readingBooks.length > 1 && (() => {
@@ -920,7 +941,7 @@ export function HomeScreen({ navigation, route }) {
         })() : (
           <TouchableOpacity
             style={s.emptyHero}
-            onPress={() => navigation.navigate('Add')}
+            onPress={() => guardedNavigate('Add')}
             activeOpacity={0.8}
           >
             <Text style={s.emptyHeroIcon}>📖</Text>
@@ -943,8 +964,11 @@ export function HomeScreen({ navigation, route }) {
               onChangeRange={g.onChangeRange}
             />
           ))}
-          <StreakCard
-            streak={currentStreak}
+          <StatCard
+            icon="flame"
+            iconColor={C.rose}
+            value={currentStreak > 0 ? currentStreak : '—'}
+            label="Active Day Streak"
             onPress={() => setStreakModalOpen(true)}
           />
         </View>
@@ -959,6 +983,13 @@ export function HomeScreen({ navigation, route }) {
                 style={s.collectionTab}
                 onPress={() => setActiveCollection(tab.id)}
                 activeOpacity={0.6}
+                // Expand effective tap target to ≥48pt vertical without
+                // changing the visual padding — keeps the dense tab strip
+                // but clears WCAG 2.2 target-size (44×44 iOS / 48×48 dp).
+                hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
+                accessibilityRole="tab"
+                accessibilityLabel={tab.label}
+                accessibilityState={{ selected: active }}
               >
                 <Text style={[s.collectionTabTxt, active && s.collectionTabTxtActive]}>
                   {tab.label}
@@ -973,73 +1004,77 @@ export function HomeScreen({ navigation, route }) {
             render path. The grid below virtualises through FlatList. */}
         {activeCollection === 'reflections' && (
           <View style={s.reflectionsList}>
-            {reflections.length === 0 ? (
+            {sortedReflections.length === 0 ? (
               <View style={s.collectionEmpty}>
                 <Text style={s.collectionEmptyTxt}>
                   No reflections yet. Tap a date on the calendar above to write your first.
                 </Text>
               </View>
             ) : (
-              [...reflections]
-                .sort((a, b) => b.date.localeCompare(a.date))
-                .map(r => {
-                  const firstLine = (r.text || '').split('\n').find(l => l.trim()) || '';
-                  const [y, m, d] = r.date.split('-').map(Number);
-                  const date = new Date(y, m - 1, d);
-                  const dayLabel = date.toLocaleDateString('en-US', {
-                    weekday: 'short', month: 'short', day: 'numeric',
-                  });
-                  return (
-                    <TouchableOpacity
-                      key={r.id}
-                      style={s.reflectionRow}
-                      onPress={() => setReflectionDate(r.date)}
-                      activeOpacity={0.85}
-                    >
-                      <View style={s.reflectionRowIcon}>
-                        <Ionicons name="create" size={16} color={C.amber} />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={s.reflectionRowDate}>{dayLabel}</Text>
-                        <Text style={s.reflectionRowBody} numberOfLines={2}>
-                          {firstLine}
-                        </Text>
-                      </View>
-                      <Ionicons name="chevron-forward" size={14} color={C.inkFaint} />
-                    </TouchableOpacity>
-                  );
-                })
+              sortedReflections.map(r => {
+                const firstLine = (r.text || '').split('\n').find(l => l.trim()) || '';
+                const [y, m, d] = r.date.split('-').map(Number);
+                const date = new Date(y, m - 1, d);
+                const dayLabel = date.toLocaleDateString('en-US', {
+                  weekday: 'short', month: 'short', day: 'numeric',
+                });
+                return (
+                  <TouchableOpacity
+                    key={r.id}
+                    style={s.reflectionRow}
+                    onPress={() => setReflectionDate(r.date)}
+                    activeOpacity={0.85}
+                  >
+                    <View style={s.reflectionRowIcon}>
+                      <Ionicons name="create" size={16} color={C.amber} importantForAccessibility="no" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.reflectionRowDate}>{dayLabel}</Text>
+                      <Text style={s.reflectionRowBody} numberOfLines={2}>
+                        {firstLine}
+                      </Text>
+                    </View>
+                    <Ionicons name={FORWARD_CHEVRON} size={14} color={C.inkFaint} importantForAccessibility="no" />
+                  </TouchableOpacity>
+                );
+              })
             )}
           </View>
         )}
     </>
   );
 
-  const renderTile = ({ item: b }) => (
-    <TouchableOpacity
-      style={[s.tile, { marginBottom: TILE_GUTTER }]}
-      onPress={() => navigation.navigate('BookDetail', { bookId: b.id })}
-      activeOpacity={0.85}
-    >
-      <View style={s.tileCover}>
-        <BookCover
-          title={b.title}
-          author={b.author}
-          cover={b.cover}
-          coverId={b.coverId}
-          width={TILE_W}
-          height={TILE_H}
-        />
-        {b.status === 'finished' && (
-          <View style={s.tileCheck}>
-            <Ionicons name="checkmark" size={11} color={C.white} />
-          </View>
-        )}
-      </View>
-      <Text style={s.tileTitle} numberOfLines={2}>{b.title}</Text>
-      <Text style={s.tileAuthor} numberOfLines={1}>{b.author}</Text>
-    </TouchableOpacity>
-  );
+  const renderTile = ({ item: b }) => {
+    const statusSuffix = b.status === 'finished' ? ', finished' : '';
+    return (
+      <TouchableOpacity
+        style={[s.tile, { marginBottom: TILE_GUTTER }]}
+        onPress={() => guardedNavigate('BookDetail', { bookId: b.id })}
+        activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityLabel={`${b.title}${b.author ? `, by ${b.author}` : ''}${statusSuffix}`}
+        accessibilityHint="Opens book details"
+      >
+        <View style={s.tileCover}>
+          <BookCover
+            title={b.title}
+            author={b.author}
+            cover={b.cover}
+            coverId={b.coverId}
+            width={TILE_W}
+            height={TILE_H}
+          />
+          {b.status === 'finished' && (
+            <View style={s.tileCheck} importantForAccessibility="no-hide-descendants">
+              <Ionicons name="checkmark" size={11} color={C.white} />
+            </View>
+          )}
+        </View>
+        <Text style={s.tileTitle} numberOfLines={2} importantForAccessibility="no">{b.title}</Text>
+        <Text style={s.tileAuthor} numberOfLines={1} importantForAccessibility="no">{b.author}</Text>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <SafeAreaView style={s.safe} edges={['top']}>
@@ -1059,7 +1094,7 @@ export function HomeScreen({ navigation, route }) {
           showGrid ? (
             <TouchableOpacity
               style={[s.collectionEmpty, { paddingHorizontal: 20 }]}
-              onPress={() => navigation.navigate('Add')}
+              onPress={() => guardedNavigate('Add')}
               activeOpacity={0.7}
             >
               <Text style={s.collectionEmptyTxt}>

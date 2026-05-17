@@ -731,7 +731,7 @@ export function DayPanel({ visible, day, data, onClose, onManageGoals }) {
             onPress={() => setEditorOpen(true)}
             activeOpacity={0.85}
           >
-            <Ionicons name="add" size={26} color={C.white} />
+            <Ionicons name="add" size={26} color="#FFFFFF" />
           </TouchableOpacity>
         </Animated.View>
       </View>

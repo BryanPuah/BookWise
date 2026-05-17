@@ -80,7 +80,7 @@ export function LoginScreen() {
     monogramTxt: {
       fontFamily: F.serif,
       fontSize: 19,
-      color: C.white,
+      color: '#FFFFFF',
       includeFontPadding: false,
       marginTop: 2,
     },
@@ -241,7 +241,7 @@ export function LoginScreen() {
     ctaTxt: {
       fontFamily: F.sans,
       fontSize: 15,
-      color: C.white,
+      color: '#FFFFFF',
       fontWeight: '700',
       letterSpacing: 0.3,
     },
@@ -598,7 +598,7 @@ export function LoginScreen() {
                   disabled={!canContinue}
                 >
                   <Text style={s.ctaTxt}>Continue</Text>
-                  <Ionicons name="arrow-forward" size={16} color={C.white} />
+                  <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
                 </TouchableOpacity>
 
                 <TouchableOpacity

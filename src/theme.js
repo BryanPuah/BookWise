@@ -111,11 +111,14 @@ export const NOTE_TYPE_COLORS = {
 // Two ink palettes — light (dark ink on paper) and dark (light ink on
 // near-black surfaces). The active mode is chosen by `_mode` and applied
 // in `buildPalette()`.
+// Ink ramps are tuned for WCAG AA contrast on the paper backgrounds.
+// `inkMuted` clears 4.5:1 on every BACKGROUNDS swatch (body text).
+// `inkFaint` clears 3:1 (UI / large text / hints only — never body copy).
 const LIGHT_INK = {
   ink:        '#1A1E3A',
   inkSoft:    '#3A3E5A',
-  inkMuted:   '#6E7188',
-  inkFaint:   '#A4A7B8',
+  inkMuted:   '#5C5F76',
+  inkFaint:   '#878A9E',
 
   forest:     '#065F46',
   rose:       '#BE3B3B',
@@ -127,8 +130,8 @@ const LIGHT_INK = {
 const DARK_INK = {
   ink:        '#ECEDF5',
   inkSoft:    '#C3C6D8',
-  inkMuted:   '#9094AC',
-  inkFaint:   '#5C5F76',
+  inkMuted:   '#A8ACC4',
+  inkFaint:   '#8A8FA8',
 
   forest:     '#34D399',
   rose:       '#F87171',
@@ -242,15 +245,22 @@ export const THEMES = {
   },
   orange: {
     label: 'Orange',
+    // swatch stays vibrant for the picker; `accent` is darkened so accent-coloured
+    // text/icons on paper clear WCAG AA (4.5:1). Was #D97706 → 2.94:1.
+    // `accentDeep` re-darkened to stay below `accent` — book covers gradient
+    // [accent → accentDeep], and an inverted pair flips the gradient.
     swatch: '#D97706',
-    accent: '#D97706', accentPale: '#FCE4C7', accentDeep: '#8C4A04',
+    accent: '#A55400', accentPale: '#FCE4C7', accentDeep: '#5C2E00',
     highlight: '#7A8B5E', highlightPale: '#E8EDD9', highlightLight: '#A8B584',
     heroTop: '#3A2410', heroBot: '#1F1408',
   },
   yellow: {
     label: 'Yellow',
+    // `accent` darkened from #C7A53A (2.14:1 on paper, fails everything) → 5.5:1.
+    // `accentDeep` re-darkened past the new accent so cover gradients keep their
+    // light → dark direction.
     swatch: '#C7A53A',
-    accent: '#C7A53A', accentPale: '#F4ECC8', accentDeep: '#866C1F',
+    accent: '#7A5F18', accentPale: '#F4ECC8', accentDeep: '#4D3C10',
     highlight: '#7A8B5E', highlightPale: '#E8EDD9', highlightLight: '#A8B584',
     heroTop: '#2E2818', heroBot: '#181408',
   },

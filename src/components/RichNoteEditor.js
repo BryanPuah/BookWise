@@ -30,6 +30,7 @@ import {
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as ImagePicker from 'expo-image-picker';
+import { File, Directory, Paths } from 'expo-file-system';
 import { AppText as Text, AppTextInput as TextInput } from './AppText';
 import { LinkedNotesPicker } from './LinkedNotesPicker';
 import { useTheme } from '../theme';
@@ -45,10 +46,32 @@ import { HeadingBlock } from './editor/blocks/HeadingBlock';
 import { BulletBlock } from './editor/blocks/BulletBlock';
 import { ImageBlock } from './editor/blocks/ImageBlock';
 
+// Copy a picked/captured image from the ImagePicker cache directory into
+// the app's documents directory so the URI survives the OS evicting the
+// cache. Returns the persisted file:// URI, or falls back to the original
+// (cache) URI if the copy fails — the block still renders, it just won't
+// outlive aggressive cache pressure.
+function persistImageAsset(asset) {
+  try {
+    const src = new File(asset.uri);
+    if (!src.exists) return asset.uri;
+    const dir = new Directory(Paths.document, 'note-images');
+    if (!dir.exists) dir.create({ intermediates: true, idempotent: true });
+    const ext = src.extension || '.jpg';
+    const fname = `img_${Date.now()}_${Math.random().toString(36).slice(2, 8)}${ext}`;
+    const dest = new File(dir, fname);
+    src.copy(dest);
+    return dest.uri;
+  } catch (e) {
+    console.warn('[image] persist failed, using source URI', e);
+    return asset.uri;
+  }
+}
+
 // ── Main editor screen (step 2) ───────────────────────────────────────
 function EditorScreen({ book, initialData, onSave, onCancel, onChangeBook, registerCancelGuard }) {
   const { C, F, themeVersion } = useTheme();
-  const { notes: allNotes, books: allBooks } = useStore();
+  const { notes: allNotes, books: allBooks, showToast } = useStore();
   const ed = useMemo(() => StyleSheet.create({
     safe: { flex: 1, backgroundColor: C.paper },
     appBar: {
@@ -184,7 +207,11 @@ function EditorScreen({ book, initialData, onSave, onCancel, onChangeBook, regis
   const insertImageBlocks = (assets) => {
     if (!assets || assets.length === 0) return;
     const newImageBlocks = assets.map(a =>
-      newBlock('image', { uri: a.uri, width: a.width || 0, height: a.height || 0 })
+      newBlock('image', {
+        uri: persistImageAsset(a),
+        width: a.width || 0,
+        height: a.height || 0,
+      })
     );
     setBlocks(bs => [...bs, ...newImageBlocks]);
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
@@ -300,7 +327,14 @@ function EditorScreen({ book, initialData, onSave, onCancel, onChangeBook, regis
       if (b.type === 'image') return !!b.uri;
       return b.text.trim() || b.attribution?.trim();
     });
-    if (cleanBlocks.length === 0) return;
+    if (cleanBlocks.length === 0) {
+      // Defensive — canSave usually prevents reaching this branch, but a
+      // race (delete after canSave evaluated) could still land here. A
+      // silent no-op was the original bug; surface a toast so the user
+      // knows why the tap appeared to do nothing.
+      showToast?.({ message: 'Add some text or an image before saving' });
+      return;
+    }
 
     const flatText = blocksToText(cleanBlocks);
 
@@ -324,7 +358,14 @@ function EditorScreen({ book, initialData, onSave, onCancel, onChangeBook, regis
     });
   };
 
-  const canSave = blocks.some(b => b.text.trim());
+  // Mirror the `cleanBlocks` filter in handleSave — image blocks count as
+  // content even with no caption, and a quote with just an attribution is
+  // also valid. The old `b.text.trim()` check disabled Save for image-only
+  // notes, making the camera/gallery toolbar buttons functionally dead-end.
+  const canSave = blocks.some(b => {
+    if (b.type === 'image') return !!b.uri;
+    return (b.text || '').trim() || (b.attribution || '').trim();
+  });
 
   return (
     <SafeAreaView style={ed.safe} edges={['top']}>
@@ -338,19 +379,25 @@ function EditorScreen({ book, initialData, onSave, onCancel, onChangeBook, regis
               onPress={confirmCancel}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               style={ed.backBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Close editor"
+              accessibilityHint="Discards or cancels the note and returns to the previous screen"
             >
-              <Ionicons name="chevron-back" size={22} color={C.ink} />
+              <Ionicons name="chevron-back" size={22} color={C.ink} importantForAccessibility="no" />
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handleSave}
               disabled={!canSave}
               activeOpacity={0.85}
               style={[ed.savePill, !canSave && { opacity: 0.4 }]}
+              accessibilityRole="button"
+              accessibilityLabel="Save note"
+              accessibilityState={{ disabled: !canSave }}
             >
               <Text style={ed.savePillTxt}>Save</Text>
             </TouchableOpacity>
           </View>
-          <Text style={ed.appBarTitle}>
+          <Text style={ed.appBarTitle} accessibilityRole="header">
             Note on {book.title}
           </Text>
           {onChangeBook && (
@@ -359,6 +406,9 @@ function EditorScreen({ book, initialData, onSave, onCancel, onChangeBook, regis
               activeOpacity={0.7}
               hitSlop={{ top: 6, bottom: 6, left: 4, right: 8 }}
               style={ed.changeBookPill}
+              accessibilityRole="button"
+              accessibilityLabel="Change book"
+              accessibilityHint="Picks a different book for this note"
             >
               <Text style={ed.changeBookTxt}>Change book</Text>
             </TouchableOpacity>

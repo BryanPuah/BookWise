@@ -94,7 +94,7 @@ function ResultRow({ book, added, onPress }) {
     row:          { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, borderBottomWidth: 0.5, borderBottomColor: C.border },
     rowCover:     { position: 'relative' },
     rowAddedDot:  { position: 'absolute', top: -4, right: -4, width: 18, height: 18, borderRadius: 9, backgroundColor: C.amber, alignItems: 'center', justifyContent: 'center' },
-    rowAddedDotTxt: { fontFamily: F.serif, color: C.white, fontSize: 9, fontWeight: '800' },
+    rowAddedDotTxt: { fontFamily: F.serif, color: '#FFFFFF', fontSize: 9, fontWeight: '800' },
     rowInfo:      { flex: 1 },
     rowTitle:     { fontFamily: F.serif, fontSize: 14, fontWeight: '600', color: C.ink, lineHeight: 20, marginBottom: 3 },
     rowAuthor:    { fontFamily: F.serif, fontSize: 12, color: C.inkMuted, marginBottom: 3 },
@@ -154,7 +154,7 @@ function GenreSheet({ onSelect, onClose, activeGenres = [] }) {
     genreItem:          { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: C.cream, borderWidth: 1, borderColor: C.border },
     genreItemTxt:       { fontFamily: F.serif, fontSize: 13, fontWeight: '500', color: C.ink },
     genreItemActive:    { backgroundColor: C.sage, borderColor: C.sage },
-    genreItemTxtActive: { fontFamily: F.serif, color: C.white, fontWeight: '700' },
+    genreItemTxtActive: { fontFamily: F.serif, color: '#FFFFFF', fontWeight: '700' },
   }), [themeVersion, sheetMaxHeight]);
 
   const translateY = useRef(new Animated.Value(700)).current;
@@ -1003,7 +1003,7 @@ export function DiscoverScreen() {
       borderRadius: 16,
       backgroundColor: C.sage,
     },
-    addOwnPillTxt: { fontFamily: F.serif, fontSize: 12, fontWeight: '700', color: C.white, letterSpacing: 0.2 },
+    addOwnPillTxt: { fontFamily: F.serif, fontSize: 12, fontWeight: '700', color: '#FFFFFF', letterSpacing: 0.2 },
 
     promptWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 80, paddingHorizontal: 40 },
     promptIcon: { fontSize: 40, marginBottom: 14 },
@@ -1069,7 +1069,7 @@ export function DiscoverScreen() {
     categoryTileTxt: {
       fontFamily: F.serif,
       fontSize: 20,
-      color: C.white,
+      color: '#FFFFFF',
       textAlign: 'center',
       letterSpacing: -0.3,
     },

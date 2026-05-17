@@ -30,8 +30,7 @@ import {
 import { AppText as Text, AppTextInput as TextInput } from '../components/AppText';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useStore, todayKey } from '../store';
-import { genId } from '../schema';
+import { useStore } from '../store';
 import { BookCover } from '../components/BookCover';
 import { RichNoteEditor } from '../components/RichNoteEditor';
 import { NoteCard } from './notes/NoteCard';
@@ -376,7 +375,7 @@ export function BookDetailScreen({ route, navigation }) {
     addNotePillTxt: {
       fontFamily: F.serif,
       fontSize: 14,
-      color: C.white,
+      color: '#FFFFFF',
       fontWeight: '700',
       letterSpacing: -0.2,
     },
@@ -398,9 +397,13 @@ export function BookDetailScreen({ route, navigation }) {
   const { bookId } = route.params;
   const {
     books, updateBook, removeBook,
-    addNote, deleteNote, updateNote,
+    addNote, deleteNoteWithUndo, updateNote,
     bookNotes,
   } = useStore();
+  const handleStarNote = (id) => {
+    const n = bookNotes(bookId).find(x => x.id === id);
+    if (n) updateNote(id, { starred: !n.starred });
+  };
   const book = books.find(b => b.id === bookId);
 
   const [pageInput, setPageInput] = useState(book?.currentPage?.toString() || '');
@@ -492,14 +495,7 @@ export function BookDetailScreen({ route, navigation }) {
       updateNote(editingNote.id, data);
       setEditingNote(null);
     } else {
-      addNote({
-        id: genId('n'),
-        bookId,
-        bookTitle: book.title,
-        ...data,
-        starred: data.starred || false,
-        date: todayKey(),
-      });
+      addNote({ bookId, bookTitle: book.title, ...data });
     }
     setEditorOpen(false);
   };
@@ -674,7 +670,7 @@ export function BookDetailScreen({ route, navigation }) {
                             disabled={!pendingValid}
                             hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                           >
-                            <Ionicons name="checkmark" size={18} color={C.white} />
+                            <Ionicons name="checkmark" size={18} color="#FFFFFF" />
                           </TouchableOpacity>
                         </View>
                       </View>
@@ -726,7 +722,7 @@ export function BookDetailScreen({ route, navigation }) {
                 onPress={openNewNote}
                 activeOpacity={0.85}
               >
-                <Ionicons name="add" size={16} color={C.white} />
+                <Ionicons name="add" size={16} color="#FFFFFF" />
                 <Text style={s.addNotePillTxt}>Add Note</Text>
               </TouchableOpacity>
             </View>
@@ -745,8 +741,9 @@ export function BookDetailScreen({ route, navigation }) {
                   <NoteCard
                     key={n.id}
                     note={n}
-                    onDelete={deleteNote}
+                    onDelete={deleteNoteWithUndo}
                     onEdit={openEditNote}
+                    onStar={handleStarNote}
                     showBook={false}
                   />
                 ))}

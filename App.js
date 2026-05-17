@@ -3,17 +3,18 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import {
-  View, StyleSheet, ActivityIndicator, TouchableOpacity,
+  View, StyleSheet, ActivityIndicator, TouchableOpacity, AppState,
 } from 'react-native';
 import { AppText as Text } from './src/components/AppText';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import {
   useFonts,
   DMSerifDisplay_400Regular,
   DMSerifDisplay_400Regular_Italic,
 } from '@expo-google-fonts/dm-serif-display';
-import { StoreProvider, useStore, todayKey } from './src/store';
+import { StoreProvider, useStore } from './src/store';
 import { HomeScreen }          from './src/screens/HomeScreen';
 import { FinishedBooksScreen } from './src/screens/FinishedBooksScreen';
 import { BookDetailScreen }    from './src/screens/BookDetailScreen';
@@ -26,7 +27,6 @@ import { LoginScreen }         from './src/screens/LoginScreen';
 import { ConfirmNameScreen }   from './src/screens/onboarding/ConfirmNameScreen';
 import { RichNoteEditor }      from './src/components/RichNoteEditor';
 import { useTheme, F } from './src/theme';
-import { genId } from './src/schema';
 
 const Tab   = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -92,21 +92,107 @@ function TabItem({ name, nameActive, label, active }) {
   const iconColor = active ? C.ink : C.inkMuted;
 
   return (
-    <View style={[ti.item, active && ti.itemActive]}>
-      <Ionicons name={iconName} size={20} color={iconColor} />
-      <Text style={[ti.label, active && ti.labelActive]}>{label}</Text>
+    <View
+      style={[ti.item, active && ti.itemActive]}
+      accessible
+      accessibilityRole="tab"
+      accessibilityLabel={label}
+      accessibilityState={{ selected: !!active }}
+    >
+      <Ionicons name={iconName} size={20} color={iconColor} importantForAccessibility="no" />
+      <Text style={[ti.label, active && ti.labelActive]} importantForAccessibility="no">{label}</Text>
+    </View>
+  );
+}
+
+// ── ToastHost ─────────────────────────────────────────────────────────
+// Renders the most recent toast above the tab bar. Toast queue lives in
+// the store; this component is a pure consumer so any screen can fire one
+// via `showToast({ message, action })` without prop-drilling.
+function ToastHost() {
+  const { toasts, dismissToast } = useStore();
+  const { C, themeVersion } = useTheme();
+  const insets = useSafeAreaInsets();
+  const s = useMemo(() => StyleSheet.create({
+    wrap: {
+      position: 'absolute',
+      left: 16, right: 86, // leave room for the FAB at the right
+      alignItems: 'center',
+    },
+    toast: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: C.ink,
+      borderRadius: 12,
+      paddingLeft: 16, paddingRight: 6,
+      paddingVertical: 6,
+      minHeight: 44,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.22,
+      shadowRadius: 12,
+      elevation: 10,
+      maxWidth: 420,
+    },
+    msg: {
+      flex: 1,
+      color: '#FFFFFF',
+      fontFamily: F.serif,
+      fontSize: 13,
+      letterSpacing: -0.1,
+      paddingRight: 10,
+    },
+    actionBtn: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+    },
+    actionTxt: {
+      color: '#FFFFFF',
+      fontFamily: F.serif,
+      fontSize: 13,
+      fontWeight: '700',
+      letterSpacing: 0.2,
+    },
+  }), [themeVersion]);
+
+  if (toasts.length === 0) return null;
+  const t = toasts[toasts.length - 1];
+  return (
+    <View
+      style={[s.wrap, { bottom: 86 + insets.bottom + 8 }]}
+      pointerEvents="box-none"
+      accessibilityLiveRegion="polite"
+    >
+      <View style={s.toast} pointerEvents="auto" accessibilityRole="alert">
+        <Text style={s.msg} numberOfLines={2}>{t.message}</Text>
+        {t.action ? (
+          <TouchableOpacity
+            style={s.actionBtn}
+            onPress={() => { t.action.onPress?.(); dismissToast(t.id); }}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={t.action.label}
+          >
+            <Text style={s.actionTxt}>{t.action.label}</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
     </View>
   );
 }
 
 // ── Floating "+" FAB ──────────────────────────────────────────────────
+// Tab bar is 78 tall + paddingBottom 14, but iOS adds the home-indicator
+// inset on top of that. We clear the tab bar (≈ 78) and lift further by the
+// device's bottom inset so the FAB never overlaps the indicator.
 function CaptureFAB({ onPress }) {
   const { C, themeVersion } = useTheme();
+  const insets = useSafeAreaInsets();
   const fab = useMemo(() => StyleSheet.create({
     btn: {
       position: 'absolute',
       right: 20,
-      bottom: 96, // sits above the tab bar
+      bottom: 86 + insets.bottom,
       width: 56, height: 56,
       borderRadius: 14, // rounded-square per Figma
       backgroundColor: C.sage,
@@ -117,24 +203,38 @@ function CaptureFAB({ onPress }) {
       shadowRadius: 12,
       elevation: 10,
     },
-  }), [themeVersion]);
+  }), [themeVersion, insets.bottom]);
 
   return (
     <TouchableOpacity
       style={fab.btn}
       onPress={onPress}
       activeOpacity={0.85}
+      accessibilityRole="button"
+      accessibilityLabel="New note"
+      accessibilityHint="Opens the note editor"
     >
-      <Ionicons name="add" size={28} color={C.white} />
+      <Ionicons name="add" size={28} color="#FFFFFF" importantForAccessibility="no" />
     </TouchableOpacity>
   );
 }
 
 // ── Tab navigator ──────────────────────────────────────────────────────
 function Tabs() {
-  const { books, addNote, user, currentBook } = useStore();
+  const { books, addNote, user, currentBook, hydrated } = useStore();
   const { C } = useTheme();
   const [showCapture, setShowCapture] = useState(false);
+
+  // Hydration gate — wait for AsyncStorage to populate state before deciding
+  // whether to show the login screen. Without this, a returning user gets a
+  // flash of LoginScreen for the ~50-200ms between mount and hydration.
+  if (!hydrated) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.paper }}>
+        <ActivityIndicator size="small" color={C.ink} />
+      </View>
+    );
+  }
 
   // Auth + onboarding gate. Three states:
   //   no name              → LoginScreen (fresh install or post-logout)
@@ -147,26 +247,7 @@ function Tabs() {
     return <ConfirmNameScreen />;
   }
 
-  const handleSave = (data) => {
-    addNote({
-      id:            genId('n'),
-      bookId:        data.bookId,
-      bookTitle:     data.bookTitle,
-      title:         data.title || '',
-      blocks:        data.blocks || [],
-      types:         data.types || [data.type || 'insight'],
-      type:          data.type,
-      text:          data.text,
-      thinking:      data.thinking || '',
-      page:          data.page || '',
-      chapter:       data.chapter || '',
-      tags:          Array.isArray(data.tags) ? data.tags : [],
-      linkedNoteIds: Array.isArray(data.linkedNoteIds) ? data.linkedNoteIds : [],
-      isQuote:       data.type === 'quote',
-      starred:       false,
-      date:          todayKey(),
-    });
-  };
+  const handleSave = (data) => { addNote(data); };
 
   return (
     <View style={{ flex: 1 }}>
@@ -229,6 +310,7 @@ function Tabs() {
       </Tab.Navigator>
 
       <CaptureFAB onPress={() => setShowCapture(true)} />
+      <ToastHost />
 
       <RichNoteEditor
         visible={showCapture}
@@ -244,17 +326,47 @@ function Tabs() {
 
 // ── StreakTracker ──────────────────────────────────────────────────────
 // Lives inside StoreProvider so it can call markDayActive from the store.
-// Marks today as an active day on every app launch — this drives the
-// "🔥 streak" counter shown on the home screen.
+// Marks today as an active day on:
+//   • hydration complete (every cold launch, once saved data has loaded)
+//   • app foreground (AppState 'active') — catches day rollover while the
+//     device was locked or the app was backgrounded
+//   • scheduled tick at the next local midnight — catches the foregrounded
+//     past-midnight case (long reading session, app left open)
 //
-// NOTE: until persistent storage is wired up, activeDays resets each
-// reload. The streak you see in development reflects the demo seed in
-// store.js plus today.
+// Gated on `hydrated` — running before hydration would race the loaded
+// activeDays slice and clobber it with `[today]` only.
 function StreakTracker() {
-  const { markDayActive } = useStore();
+  const { markDayActive, hydrated } = useStore();
   useEffect(() => {
+    if (!hydrated) return;
     markDayActive();
-  }, []); // run once on mount
+
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') markDayActive();
+    });
+
+    // Schedule a tick just after the next local midnight, then re-schedule
+    // itself. setTimeout is fine here — the OS pauses timers in background,
+    // but the AppState listener above catches resume.
+    let timer;
+    const scheduleNextMidnight = () => {
+      const now = new Date();
+      const next = new Date(
+        now.getFullYear(), now.getMonth(), now.getDate() + 1,
+        0, 0, 5, // 5s past midnight so the new date key is unambiguous
+      );
+      timer = setTimeout(() => {
+        markDayActive();
+        scheduleNextMidnight();
+      }, next.getTime() - now.getTime());
+    };
+    scheduleNextMidnight();
+
+    return () => {
+      sub.remove();
+      clearTimeout(timer);
+    };
+  }, [hydrated]);
   return null;
 }
 
@@ -276,12 +388,14 @@ export default function App() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <StoreProvider>
-        <StreakTracker />
-        <NavigationContainer>
-          <Tabs />
-        </NavigationContainer>
-      </StoreProvider>
+      <SafeAreaProvider>
+        <StoreProvider>
+          <StreakTracker />
+          <NavigationContainer>
+            <Tabs />
+          </NavigationContainer>
+        </StoreProvider>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }

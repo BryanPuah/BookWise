@@ -11,9 +11,9 @@ import { AppText as Text } from '../../components/AppText';
 import { BookCover } from '../../components/BookCover';
 import { useTheme } from '../../theme';
 import { NoteCard } from './NoteCard';
-import { useNT, noteHasType } from './shared';
+import { useNT, noteHasType, NotesEmptyState } from './shared';
 
-export function BookNotesScreen({ book, notes, onStar, onDelete, onEdit, onBack, navigation }) {
+export function BookNotesScreen({ book, notes, onStar, onDelete, onEdit, onBack, navigation, onCapture }) {
   const { C, F, themeVersion } = useTheme();
   const NT = useNT();
   const bns = useMemo(() => StyleSheet.create({
@@ -31,10 +31,6 @@ export function BookNotesScreen({ book, notes, onStar, onDelete, onEdit, onBack,
     typeTagTxt: { fontFamily: F.serif, fontSize: 11, fontWeight: '700', color: C.ink },
     openBtn: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, backgroundColor: C.ink },
     openBtnTxt: { fontFamily: F.serif, fontSize: 12, color: C.white, fontWeight: '700' },
-    empty: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 30 },
-    emptyIcon: { fontSize: 40, marginBottom: 12 },
-    emptyTitle: { fontFamily: F.serif, fontSize: 18, color: C.ink, marginBottom: 6 },
-    emptySub: { fontFamily: F.serif, fontSize: 13, color: C.inkMuted, textAlign: 'center', lineHeight: 20 },
   }), [themeVersion]);
 
   const starred = notes.filter(n => n.starred).length;
@@ -87,14 +83,15 @@ export function BookNotesScreen({ book, notes, onStar, onDelete, onEdit, onBack,
         data={sorted}
         keyExtractor={n => n.id}
         renderItem={({ item }) => (
-          <NoteCard note={item} onDelete={onDelete} onEdit={onEdit} />
+          <NoteCard note={item} onDelete={onDelete} onEdit={onEdit} onStar={onStar} />
         )}
         ListEmptyComponent={
-          <View style={bns.empty}>
-            <Text style={bns.emptyIcon}>📝</Text>
-            <Text style={bns.emptyTitle}>No notes yet</Text>
-            <Text style={bns.emptySub}>Tap the + button to capture your first thought.</Text>
-          </View>
+          <NotesEmptyState
+            icon="📝"
+            title="No notes for this book yet"
+            sub={`Capture your first thought from "${book.title}".`}
+            onCapture={onCapture}
+          />
         }
         contentContainerStyle={{ padding: 20, paddingBottom: 140 }}
         showsVerticalScrollIndicator={false}

@@ -4,7 +4,7 @@
  * when dimensions aren't known.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Image, TouchableOpacity } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { AppText as Text, AppTextInput as TextInput } from '../../AppText';
@@ -16,15 +16,24 @@ export function ImageBlock({ block, onChange, onRemove }) {
   const blk = useBlkStyles();
   // Aspect ratio: fall back to 4:3 if dimensions unknown
   const aspect = (block.width && block.height) ? (block.width / block.height) : (4 / 3);
+  // Track load failure so the "Image unavailable" placeholder kicks in even
+  // when uri is set — same fallback already used for the no-uri case.
+  const [broken, setBroken] = useState(false);
+  const showImage = block.uri && !broken;
 
   return (
     <View style={blk.imageWrap}>
-      {block.uri ? (
+      {showImage ? (
         <View style={[blk.imageFrame, { aspectRatio: aspect }]}>
-          <Image source={{ uri: block.uri }} style={blk.image} resizeMode="cover" />
+          <Image
+            source={{ uri: block.uri }}
+            style={blk.image}
+            resizeMode="cover"
+            onError={() => setBroken(true)}
+          />
           {onRemove && (
             <TouchableOpacity onPress={onRemove} style={blk.imageRemoveBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Ionicons name="close" size={14} color={C.white} />
+              <Ionicons name="close" size={14} color="#FFFFFF" />
             </TouchableOpacity>
           )}
         </View>
@@ -34,7 +43,7 @@ export function ImageBlock({ block, onChange, onRemove }) {
           <Text style={blk.imagePlaceholderTxt}>Image unavailable</Text>
           {onRemove && (
             <TouchableOpacity onPress={onRemove} style={blk.imageRemoveBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Ionicons name="close" size={14} color={C.white} />
+              <Ionicons name="close" size={14} color="#FFFFFF" />
             </TouchableOpacity>
           )}
         </View>
