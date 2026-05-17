@@ -66,8 +66,19 @@ const daysAgoKey = (n) => {
 // it so a new account on the same device walks through onboarding again.
 const DEFAULT_USER = { name: '', email: '', avatarSeed: '', hasOnboarded: false };
 
+// ── Trash ────────────────────────────────────────────────────────────
+// Soft-delete window in milliseconds. A note that has been trashed for
+// longer than this is auto-purged the next time the store hydrates.
+// Surfaced as a constant so the Trash view can echo the same number in
+// its hint copy without drift.
+export const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+
 export function StoreProvider({ children }) {
   const [books, setBooks] = useState([]);
+  // Internal `notes` state holds the full list including trashed items;
+  // consumers read `notes` from context which is the live (non-trashed)
+  // subset. This keeps the persisted shape identical for trashed +
+  // active notes and lets retention purging happen with a single filter.
   const [notes, setNotes] = useState([]);
   const [goals, setGoals] = useState([]);
   const [goalCompletions, setGoalCompletions] = useState([]);
@@ -95,7 +106,20 @@ export function StoreProvider({ children }) {
         loadJSON(STORAGE_KEYS.user,            DEFAULT_USER),
       ]);
       if (cancelled) return;
-      setNotes(Array.isArray(n) ? n : []);
+      // Hydration-time purge: drop any trashed notes whose deletedAt
+      // timestamp is older than the retention window. Notes without a
+      // valid timestamp (legacy or corrupted entries) are kept as-is
+      // so a missing field can't accidentally evict data — they'd be
+      // visible in the Trash view and the user can purge them by hand.
+      const loadedNotes = Array.isArray(n) ? n : [];
+      const cutoff = Date.now() - TRASH_RETENTION_MS;
+      const survivors = loadedNotes.filter(x => {
+        if (!x?.trashed) return true;
+        const t = Date.parse(x.deletedAt || '');
+        if (Number.isNaN(t)) return true;
+        return t >= cutoff;
+      });
+      setNotes(survivors);
       setBooks(Array.isArray(b) ? b : []);
       setGoals(Array.isArray(g) ? g : []);
       setGoalCompletions(Array.isArray(gc) ? gc : []);
@@ -161,53 +185,84 @@ export function StoreProvider({ children }) {
       linkedNoteIds: Array.isArray(data.linkedNoteIds) ? data.linkedNoteIds : [],
       isQuote:       primaryType === 'quote',
       starred:       data.starred ?? false,
+      // Defensive: re-adds from edit-mid-purge flows might spread an old
+      // note object that still carries `trashed`/`deletedAt`. Explicitly
+      // clear so a re-added note never lands invisible in the trash slice.
+      trashed:       false,
+      deletedAt:     undefined,
     };
     setNotes(n => [note, ...n]);
   };
   const updateNote = (id, patch) => setNotes(n => n.map(x => x.id===id ? {...x,...patch} : x));
-  const deleteNote = (id)    => setNotes(n => n.filter(x => x.id!==id));
 
-  // Delete-with-undo. Captures the note + its original index so the toast's
-  // Undo restores both the data and its position in the array. `notes` is
-  // read from the StoreProvider closure (current render snapshot), which is
-  // why this lives in the store and not inside a setNotes callback — we need
-  // the captured value synchronously before queueing the toast.
+  // Soft-delete. Sets `trashed: true` + a timestamp so the auto-purge on
+  // the next hydration can drop the entry after the retention window.
+  // Hard-deletion is intentionally separate (`purgeNote`) so the swipe
+  // gesture can keep firing this without surprising the user.
+  const deleteNote = (id) => setNotes(n => n.map(x => (
+    x.id === id ? { ...x, trashed: true, deletedAt: new Date().toISOString() } : x
+  )));
+
+  // Restore a trashed note. Clears the trashed flag and timestamp so it
+  // re-appears in the active list. No-op if the note doesn't exist.
+  const restoreNote = (id) => setNotes(n => n.map(x => (
+    x.id === id ? { ...x, trashed: false, deletedAt: undefined } : x
+  )));
+
+  // Hard-delete (skip trash). Used by the Trash view's "Delete forever"
+  // affordance and the future auto-purge timer.
+  const purgeNote = (id) => setNotes(n => n.filter(x => x.id !== id));
+
+  // Hard-delete every trashed note. Surfaced via the Trash view's
+  // "Empty Trash" affordance.
+  const purgeAllTrashed = () => setNotes(n => n.filter(x => !x.trashed));
+
+  // Delete-with-undo. Now routes through the soft-delete path: the note
+  // stays in storage with `trashed: true`, and Undo just clears the
+  // flag. Toast copy and gesture stay identical to the old hard-delete
+  // flow so the user-facing contract is unchanged.
   const deleteNoteWithUndo = (id) => {
-    const idx = notes.findIndex(n => n.id === id);
-    if (idx === -1) return;
-    const removed = notes[idx];
-    setNotes(n => n.filter(x => x.id !== id));
+    const exists = notes.some(n => n.id === id);
+    if (!exists) return;
+    deleteNote(id);
     showToast({
-      message: 'Note deleted',
+      message: 'Note moved to Trash',
       action: {
         label: 'Undo',
-        onPress: () => {
-          setNotes(n => {
-            const next = [...n];
-            next.splice(Math.min(idx, next.length), 0, removed);
-            return next;
-          });
-        },
+        onPress: () => restoreNote(id),
       },
     });
   };
 
+  // ── Notes — live + trashed views ─────────────────────────────────
+  // `liveNotes` is what every screen renders; `trashedNotes` powers the
+  // Trash pivot. The underlying state holds both so a single AsyncStorage
+  // write keeps both subsets persistent.
+  const liveNotes = useMemo(() => notes.filter(n => !n.trashed), [notes]);
+  const trashedNotes = useMemo(
+    () => notes
+      .filter(n => n.trashed)
+      .sort((a, b) => (Date.parse(b.deletedAt || '') || 0) - (Date.parse(a.deletedAt || '') || 0)),
+    [notes],
+  );
+
   // ── Notes — derived indexes ──────────────────────────────────────
-  // `noteById` and `backlinkIndex` are memoized off `notes` so NoteCard can
-  // resolve references without scanning the whole array per render. The
+  // `noteById` and `backlinkIndex` are memoized off `liveNotes` so NoteCard
+  // can resolve references without scanning the whole array per render. The
   // backlink scan walks each note once and records every `[[title]]` mention,
   // so a render that touches K visible cards drops from O(K·N²) to O(K·1)
-  // lookups against a precomputed Map.
+  // lookups against a precomputed Map. Trashed notes are intentionally
+  // excluded so a recovered link doesn't point at a deleted note.
   const noteById = useMemo(() => {
     const m = new Map();
-    for (const n of notes) m.set(n.id, n);
+    for (const n of liveNotes) m.set(n.id, n);
     return m;
-  }, [notes]);
+  }, [liveNotes]);
 
   const backlinkIndex = useMemo(() => {
     const m = new Map();
     const WIKI = /\[\[([^\]]+)\]\]/g;
-    for (const n of notes) {
+    for (const n of liveNotes) {
       const hay = `${n.title || ''} ${n.text || ''}`;
       WIKI.lastIndex = 0;
       let match;
@@ -220,7 +275,7 @@ export function StoreProvider({ children }) {
       }
     }
     return m;
-  }, [notes]);
+  }, [liveNotes]);
 
   // ── Goals (templates) ────────────────────────────────────────────
   const addGoal    = (goal)  => setGoals(g => [goal, ...g]);
@@ -284,7 +339,9 @@ export function StoreProvider({ children }) {
   };
 
   // ── Derived ──────────────────────────────────────────────────────
-  const bookNotes    = (bookId) => notes.filter(n => n.bookId===bookId);
+  // Trashed notes are excluded so book detail screens don't surface them
+  // until they're restored.
+  const bookNotes    = (bookId) => liveNotes.filter(n => n.bookId===bookId);
   const readingBooks = books.filter(b => b.status==='reading');
   const currentBook  = readingBooks[0] || null;
 
@@ -395,12 +452,19 @@ export function StoreProvider({ children }) {
   return (
     <StoreContext.Provider value={{
       hydrated,
-      books, notes, goals, goalCompletions, reflections,
+      books,
+      // `notes` is intentionally the live (non-trashed) subset so every
+      // existing consumer keeps reading the same shape it always has.
+      // Callers that want the trash explicitly use `trashedNotes` and
+      // the trash mutations below.
+      notes: liveNotes, trashedNotes,
+      goals, goalCompletions, reflections,
       activeDays, currentStreak,
       currentBook, readingBooks,
       user, updateUser, logout,
       addBook, updateBook, removeBook,
       addNote, updateNote, deleteNote, deleteNoteWithUndo,
+      restoreNote, purgeNote, purgeAllTrashed,
       noteById, backlinkIndex,
       toasts, showToast, dismissToast,
       addGoal, updateGoal, removeGoal,

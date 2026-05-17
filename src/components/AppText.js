@@ -37,18 +37,46 @@ function containsCJK(value) {
   return false;
 }
 
+// Dynamic Type: allow the OS-level font-size preference (iOS Settings →
+// Display & Text Size, Android system font scale) to scale our copy.
+// React Native's `allowFontScaling` defaults to true on Text/TextInput,
+// but we set it explicitly so the contract is visible at the call site
+// and a future global flip can override it here. Capped at 1.5× so
+// huge accessibility scales don't blow card layouts past 1-line counts;
+// individual call sites can override either prop if they need different
+// behaviour (e.g. fixed chrome labels).
+const MAX_FONT_SCALE = 1.5;
+
 // Read F.serif at render time (not module-load time) so font swaps via
 // setFont() propagate to every text node on the next render pass.
-export function AppText({ style, ...rest }) {
+export function AppText({ style, allowFontScaling = true, maxFontSizeMultiplier = MAX_FONT_SCALE, ...rest }) {
   const fontFamily = containsCJK(rest.children) ? F.sans : F.serif;
-  return <RNText {...rest} style={[{ fontFamily }, style]} />;
+  return (
+    <RNText
+      {...rest}
+      allowFontScaling={allowFontScaling}
+      maxFontSizeMultiplier={maxFontSizeMultiplier}
+      style={[{ fontFamily }, style]}
+    />
+  );
 }
 
 // forwardRef so callers can programmatically focus the input — used by
 // the tap-target wrappers in LoginScreen / ConfirmNameScreen and by the
 // next-field chain in EditProfileModal.
-export const AppTextInput = forwardRef(function AppTextInput({ style, ...rest }, ref) {
+export const AppTextInput = forwardRef(function AppTextInput(
+  { style, allowFontScaling = true, maxFontSizeMultiplier = MAX_FONT_SCALE, ...rest },
+  ref,
+) {
   const sample = rest.value != null ? rest.value : rest.defaultValue;
   const fontFamily = containsCJK(sample) ? F.sans : F.serif;
-  return <RNTextInput ref={ref} {...rest} style={[{ fontFamily }, style]} />;
+  return (
+    <RNTextInput
+      ref={ref}
+      {...rest}
+      allowFontScaling={allowFontScaling}
+      maxFontSizeMultiplier={maxFontSizeMultiplier}
+      style={[{ fontFamily }, style]}
+    />
+  );
 });

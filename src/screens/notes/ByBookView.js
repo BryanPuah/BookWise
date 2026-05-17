@@ -11,7 +11,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { AppText as Text } from '../../components/AppText';
 import { BookCover } from '../../components/BookCover';
 import { useTheme } from '../../theme';
-import { useNT, NotesEmptyState } from './shared';
+import { useNT, noteHasType, NotesEmptyState } from './shared';
 import { BookNotesScreen } from './BookNotesScreen';
 
 export function ByBookView({ notes, books, onStar, onDelete, navigation, onEdit, onCapture }) {
@@ -79,8 +79,11 @@ export function ByBookView({ notes, books, onStar, onDelete, navigation, onEdit,
   const renderGroup = ({ item }) => {
     const { book, notes: bn, isOrphan } = item;
     const starred = bn.filter(n => n.starred).length;
+    // Count via noteHasType so multi-typed notes contribute to every type
+    // they carry — keeps ByBookView counts consistent with ExploreView /
+    // BookNotesScreen instead of only counting the legacy primary type.
     const typeCounts = Object.entries(NT).reduce((a, [k]) => {
-      const c = bn.filter(n => n.type === k).length;
+      const c = bn.filter(n => noteHasType(n, k)).length;
       if (c > 0) a.push({ key: k, count: c, ...NT[k] });
       return a;
     }, []);

@@ -44,6 +44,59 @@ export function blocksToText(blocks) {
     .join('\n\n');
 }
 
+// Serialize a note to GitHub-flavoured markdown for export / share.
+// Title becomes the H1; blocks render with their block-type semantics
+// (heading → ##, bullet → -, quote → > with attribution, etc.). Tags
+// and the source book appear at the foot so the export round-trips
+// the metadata a reader would expect from a shared note.
+export function noteToMarkdown(note) {
+  const lines = [];
+  const title = (note.title || '').trim();
+  if (title) lines.push(`# ${title}`, '');
+
+  const blocks = Array.isArray(note.blocks) && note.blocks.length
+    ? note.blocks
+    : (note.text ? [{ type: 'paragraph', text: note.text }] : []);
+
+  blocks.forEach(b => {
+    if (!b) return;
+    const t = (b.text || '').trim();
+    if (b.type === 'heading') {
+      if (t) lines.push(`## ${t}`, '');
+    } else if (b.type === 'bullet') {
+      if (t) lines.push(`- ${t}`);
+    } else if (b.type === 'quote') {
+      if (t) {
+        lines.push(`> ${t.split('\n').join('\n> ')}`);
+        if (b.attribution) lines.push(`> — ${b.attribution}`);
+        lines.push('');
+      } else if (b.attribution) {
+        lines.push(`> — ${b.attribution}`, '');
+      }
+    } else if (b.type === 'thought') {
+      if (t) lines.push(`> 💭 ${t}`, '');
+    } else if (b.type === 'image') {
+      if (b.uri) lines.push(`![${(b.text || 'image').trim()}](${b.uri})`, '');
+      else if (t) lines.push(t, '');
+    } else {
+      if (t) lines.push(t, '');
+    }
+  });
+
+  const tags = Array.isArray(note.tags) ? note.tags.filter(Boolean) : [];
+  if (tags.length) lines.push('', `Tags: ${tags.map(t => `#${t}`).join(' ')}`);
+
+  const bookTitle = (note.bookTitle || '').trim();
+  if (bookTitle) {
+    const ref = [bookTitle];
+    if (note.chapter) ref.push(`Ch. ${note.chapter}`);
+    if (note.page)    ref.push(`p. ${note.page}`);
+    lines.push('', `— from ${ref.join(', ')}`);
+  }
+
+  return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
 // Markdown wrap helpers — used by both inline format and the block components
 export const FORMAT_DELIMS = {
   bold:      { prefix: '**',  suffix: '**'  },

@@ -33,6 +33,7 @@ import { ExploreView } from './notes/ExploreView';
 import { ByBookView } from './notes/ByBookView';
 import { ByTypeView } from './notes/ByTypeView';
 import { GraphView } from './notes/GraphView';
+import { TrashView } from './notes/TrashView';
 
 // Re-export NoteCard so callers like BookDetailScreen that historically
 // imported it from NotesScreen keep working.
@@ -60,8 +61,10 @@ function Segmented({ value, onChange, options, ariaLabel }) {
       justifyContent: 'center',
     },
     // Active pill picks up the user's chosen accent so the main view
-    // controls echo the settings palette. Accent contrast is tuned to
-    // clear AA against fixed white in both modes.
+    // controls echo the settings palette. `C.sage` is the legacy public-
+    // API name for the active accent token (see theme.js / CLAUDE.md) —
+    // it is NOT a hardcoded sage-green. Contrast against fixed white is
+    // tuned for AA across every accent.
     segActive: {
       backgroundColor: C.sage,
       shadowColor: '#000',
@@ -117,7 +120,7 @@ export function NotesScreen({ navigation, route }) {
     },
   }), [themeVersion]);
 
-  const { notes, books, addNote, deleteNoteWithUndo, updateNote } = useStore();
+  const { notes, books, trashedNotes, addNote, deleteNoteWithUndo, updateNote, restoreNote } = useStore();
 
   const [lens,  setLens]  = useState('list');  // 'list' | 'graph'
   const [group, setGroup] = useState('all');   // 'all' | 'book' | 'type'
@@ -130,9 +133,10 @@ export function NotesScreen({ navigation, route }) {
   // around) — when switching to the Graph lens with group=all, default
   // to Book clustering. Switching back to List restores the user's
   // intent, but if they came in via group=all we keep them on book
-  // since that's where the graph put them.
+  // since that's where the graph put them. Trash is a list-only pivot:
+  // switching to Graph from Trash drops back to Book clustering.
   useEffect(() => {
-    if (lens === 'graph' && group === 'all') setGroup('book');
+    if (lens === 'graph' && (group === 'all' || group === 'trash')) setGroup('book');
   }, [lens]);
 
   const openCapture = () => setShowModal(true);
@@ -146,11 +150,15 @@ export function NotesScreen({ navigation, route }) {
 
   const handleSaveEdit = (data) => {
     if (!editNote) { setEditNote(null); return; }
-    // Guard against "deleted mid-edit" — if the underlying note is gone,
-    // re-add it from the edit state rather than silently dropping the save.
-    // addNote preserves the original id/date when present on the payload.
+    // Guard against "deleted mid-edit". Three states for the underlying note:
+    //   • still live          → patch in place.
+    //   • trashed mid-edit    → restore it (clears the trashed flag) and patch.
+    //   • truly purged        → re-add as new, preserving the original id/date.
     const stillExists = notes.some(n => n.id === editNote.id);
     if (stillExists) {
+      updateNote(editNote.id, data);
+    } else if (trashedNotes.some(n => n.id === editNote.id)) {
+      restoreNote(editNote.id);
       updateNote(editNote.id, data);
     } else {
       addNote({ ...editNote, ...data });
@@ -189,16 +197,20 @@ export function NotesScreen({ navigation, route }) {
     { key: 'graph', label: 'Graph' },
   ];
 
-  // Graph mode only offers Book/Type — 'All' has no meaning without hubs.
+  // Graph mode only offers Book/Type — 'All' has no meaning without hubs,
+  // and 'Trash' is list-only. List mode also exposes the Trash pivot with
+  // a count chip so users can see how much is waiting to be auto-purged.
+  const trashLabel = trashedNotes.length > 0 ? `Trash · ${trashedNotes.length}` : 'Trash';
   const GROUP_OPTIONS = lens === 'graph'
     ? [
         { key: 'book', label: 'By Book' },
         { key: 'type', label: 'By Type' },
       ]
     : [
-        { key: 'all',  label: 'All' },
-        { key: 'book', label: 'By Book' },
-        { key: 'type', label: 'By Type' },
+        { key: 'all',   label: 'All' },
+        { key: 'book',  label: 'By Book' },
+        { key: 'type',  label: 'By Type' },
+        { key: 'trash', label: trashLabel },
       ];
 
   const sharedProps = {
@@ -258,9 +270,10 @@ export function NotesScreen({ navigation, route }) {
       </View>
 
       {/* Views */}
-      {lens === 'list' && group === 'all'  && <ExploreView {...sharedProps} />}
-      {lens === 'list' && group === 'book' && <ByBookView {...sharedProps} navigation={navigation} />}
-      {lens === 'list' && group === 'type' && <ByTypeView notes={notes} onDelete={handleDelete} onEdit={handleEdit} onStar={handleStar} onCapture={openCapture} />}
+      {lens === 'list' && group === 'all'   && <ExploreView {...sharedProps} />}
+      {lens === 'list' && group === 'book'  && <ByBookView {...sharedProps} navigation={navigation} />}
+      {lens === 'list' && group === 'type'  && <ByTypeView notes={notes} onDelete={handleDelete} onEdit={handleEdit} onStar={handleStar} onCapture={openCapture} />}
+      {lens === 'list' && group === 'trash' && <TrashView />}
       {lens === 'graph' && (
         <GraphView
           notes={notes}

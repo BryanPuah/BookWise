@@ -128,14 +128,37 @@ export function GlobalSearchModal({ visible, onClose }) {
   const q = query.trim().toLowerCase();
   const hasQuery = q.length > 0;
 
-  // Build search results. Each haystack is computed on the fly — for the
-  // current dataset (<10k items) this is fine; if it ever gets slow, memo
-  // the haystacks per item rather than rebuilding on every keystroke.
+  // Per-note / per-book / per-reflection haystacks are memoised against
+  // their owning entity object. A keystroke now runs a flat `includes`
+  // against precomputed strings; only an actual item edit invalidates
+  // the cached haystack and forces a rebuild. A WeakMap keyed on the
+  // entity object lets the JS engine drop the cache row when the entity
+  // is replaced or evicted.
+  const haystackCacheRef = useRef({
+    notes:       new WeakMap(),
+    books:       new WeakMap(),
+    reflections: new WeakMap(),
+  });
+  const cachedHaystack = (cache, item, build) => {
+    const hit = cache.get(item);
+    if (hit !== undefined) return hit;
+    const h = build(item);
+    cache.set(item, h);
+    return h;
+  };
+
   const results = useMemo(() => {
     if (!hasQuery) return { notes: [], books: [], reflections: [] };
-    const nHits = notes.filter(n => noteHaystack(n).includes(q)).slice(0, 20);
-    const bHits = books.filter(b => bookHaystack(b).includes(q)).slice(0, 20);
-    const rHits = reflections.filter(r => reflectionHaystack(r).includes(q)).slice(0, 20);
+    const cache = haystackCacheRef.current;
+    const nHits = notes
+      .filter(n => cachedHaystack(cache.notes, n, noteHaystack).includes(q))
+      .slice(0, 20);
+    const bHits = books
+      .filter(b => cachedHaystack(cache.books, b, bookHaystack).includes(q))
+      .slice(0, 20);
+    const rHits = reflections
+      .filter(r => cachedHaystack(cache.reflections, r, reflectionHaystack).includes(q))
+      .slice(0, 20);
     return { notes: nHits, books: bHits, reflections: rHits };
   }, [q, hasQuery, notes, books, reflections]);
 

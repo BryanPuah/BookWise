@@ -9,7 +9,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
-  View, TouchableOpacity, StyleSheet, Dimensions,
+  View, TouchableOpacity, StyleSheet, Dimensions, AccessibilityInfo,
 } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -67,6 +67,18 @@ export function GraphView({ notes, books, onEdit, onDelete, onStar, onCapture, o
   const { C, F, themeVersion } = useTheme();
   const NT = useNT();
   const [previewNote, setPreviewNote] = useState(null); // tapped node → overlay card
+  // Screen-reader detection. The SVG canvas is unreachable via VoiceOver/
+  // TalkBack — pan/pinch/tap gestures don't map to a11y actions — so when
+  // a reader is on, swap the visualization for a structured list grouped
+  // by hub. AccessibilityInfo emits change events while the app is open,
+  // so we react to toggle-on-the-fly.
+  const [srEnabled, setSrEnabled] = useState(false);
+  useEffect(() => {
+    let mounted = true;
+    AccessibilityInfo.isScreenReaderEnabled?.().then(v => { if (mounted) setSrEnabled(!!v); }).catch(() => {});
+    const sub = AccessibilityInfo.addEventListener?.('screenReaderChanged', v => setSrEnabled(!!v));
+    return () => { mounted = false; sub?.remove?.(); };
+  }, []);
   // Hint fades out the first time the user interacts (tap, pan, or pinch).
   // Persistent hints are noise once you know what they say.
   const [hintVisible, setHintVisible] = useState(true);
@@ -519,6 +531,24 @@ export function GraphView({ notes, books, onEdit, onDelete, onStar, onCapture, o
   const showNoteLabels = tx.k >= 0.9;
   const showHubLabels  = tx.k >= 0.55;
 
+  // Screen-reader fallback. Pan/pinch/tap on an SVG canvas aren't reachable
+  // via VoiceOver/TalkBack, so when a reader is active we render a flat,
+  // hub-grouped list of every note in the graph. Same node set, same tap
+  // → preview behaviour, just navigable linearly.
+  if (srEnabled) {
+    return (
+      <GraphAccessibleList
+        nodes={nodes}
+        edges={edges}
+        notes={notes}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        onStar={onStar}
+        onSwitchToList={onSwitchToList}
+      />
+    );
+  }
+
   return (
     <View style={{ flex: 1 }}>
       <View style={gv.legendWrap}>
@@ -536,7 +566,12 @@ export function GraphView({ notes, books, onEdit, onDelete, onStar, onCapture, o
         </View>
       </View>
 
-      <View style={gv.canvasWrap} onLayout={onCanvasLayout}>
+      <View
+        style={gv.canvasWrap}
+        onLayout={onCanvasLayout}
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+      >
         <GestureDetector gesture={gesture}>
           <View style={{ width: size.W, height: size.H }} collapsable={false}>
             <Svg width={size.W} height={size.H}>
@@ -666,6 +701,126 @@ export function GraphView({ notes, books, onEdit, onDelete, onStar, onCapture, o
           </View>
         </View>
       )}
+    </View>
+  );
+}
+
+// ── Accessible fallback ────────────────────────────────────────────────
+// Plain hub→notes list rendered when a screen reader is active. Each hub
+// (book or type) becomes a section header; tapping a note row routes to
+// the same `onEdit` handler the graph node tap would use, so the reader
+// gets the full editing flow without ever touching the SVG canvas.
+function GraphAccessibleList({ nodes, edges, notes, onEdit, onDelete, onStar, onSwitchToList }) {
+  const { C, F, themeVersion } = useTheme();
+  const s = useMemo(() => StyleSheet.create({
+    wrap: { flex: 1, backgroundColor: C.paper },
+    banner: {
+      paddingHorizontal: 16, paddingTop: 10, paddingBottom: 6,
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+      borderBottomWidth: 0.5, borderBottomColor: C.border,
+    },
+    bannerTxt: {
+      flex: 1, fontFamily: F.serif, fontSize: 12, color: C.inkMuted,
+      lineHeight: 18,
+    },
+    switchBtn: {
+      paddingHorizontal: 10, paddingVertical: 6,
+      borderRadius: 999, backgroundColor: C.cream,
+      borderWidth: 0.5, borderColor: C.border,
+    },
+    switchTxt: { fontFamily: F.serif, fontSize: 12, color: C.ink, fontWeight: '600' },
+    section: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 6 },
+    hubLabel: {
+      fontFamily: F.sans, fontSize: 11, fontWeight: '700',
+      color: C.inkMuted, letterSpacing: 1.2,
+    },
+    hubCount: {
+      fontFamily: F.sans, fontSize: 11, fontWeight: '700',
+      color: C.inkFaint, letterSpacing: 0.6, marginTop: 2,
+    },
+    row: {
+      paddingHorizontal: 16, paddingVertical: 12,
+      borderBottomWidth: 0.5, borderBottomColor: C.border,
+    },
+    rowTitle: { fontFamily: F.serif, fontSize: 15, color: C.ink, letterSpacing: -0.2 },
+    rowSub: { fontFamily: F.serif, fontSize: 12, color: C.inkMuted, marginTop: 3 },
+  }), [themeVersion]);
+
+  // Group note nodes by their hub edge (kind:'hub').
+  const groups = useMemo(() => {
+    const hubs = nodes.filter(n => n.kind === 'hub');
+    const childMap = {};
+    edges.forEach(e => {
+      if (e.kind === 'hub') (childMap[e.s] = childMap[e.s] || []).push(e.t);
+    });
+    return hubs.map(h => {
+      const childIds = childMap[h.id] || [];
+      const items = childIds
+        .map(cid => nodes.find(n => n.id === cid))
+        .filter(n => n && n.kind === 'note');
+      return { hub: h, items };
+    }).filter(g => g.items.length > 0);
+  }, [nodes, edges]);
+
+  return (
+    <View style={s.wrap}>
+      <View style={s.banner} accessibilityLiveRegion="polite">
+        <Text style={s.bannerTxt}>
+          Graph is shown as a list while a screen reader is active.
+        </Text>
+        {onSwitchToList ? (
+          <TouchableOpacity
+            style={s.switchBtn}
+            onPress={onSwitchToList}
+            accessibilityRole="button"
+            accessibilityLabel="Switch to the list view"
+            activeOpacity={0.7}
+          >
+            <Text style={s.switchTxt}>List view</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+      <View
+        style={{ flex: 1 }}
+        accessibilityRole="list"
+        accessibilityLabel="Notes grouped by hub"
+      >
+        {groups.map(g => (
+          <View key={g.hub.id}>
+            <View
+              style={s.section}
+              accessibilityRole="header"
+              accessibilityLabel={`${g.hub.label}, ${g.items.length} note${g.items.length === 1 ? '' : 's'}`}
+            >
+              <Text style={s.hubLabel}>{g.hub.label.toUpperCase()}</Text>
+              <Text style={s.hubCount}>{g.items.length} note{g.items.length === 1 ? '' : 's'}</Text>
+            </View>
+            {g.items.map(item => {
+              const n = item.note;
+              const head = (n.title?.trim()) || (n.text || '').split('\n')[0]?.slice(0, 80) || 'Untitled';
+              const sub = [n.bookTitle, n.chapter ? `Ch. ${n.chapter}` : null].filter(Boolean).join(' · ');
+              return (
+                <TouchableOpacity
+                  key={item.id}
+                  style={s.row}
+                  activeOpacity={0.7}
+                  onPress={() => onEdit?.(n)}
+                  accessibilityRole="button"
+                  accessibilityLabel={head + (sub ? `, ${sub}` : '')}
+                  accessibilityHint="Opens the note"
+                  accessibilityActions={[{ name: 'delete', label: 'Delete note' }]}
+                  onAccessibilityAction={(e) => {
+                    if (e.nativeEvent.actionName === 'delete') onDelete?.(n.id);
+                  }}
+                >
+                  <Text style={s.rowTitle} numberOfLines={2}>{head}</Text>
+                  {sub ? <Text style={s.rowSub} numberOfLines={1}>{sub}</Text> : null}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ))}
+      </View>
     </View>
   );
 }

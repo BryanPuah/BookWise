@@ -25,8 +25,9 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View, ScrollView, TouchableOpacity, Pressable,
-  StyleSheet, Modal, KeyboardAvoidingView, Platform, Alert,
+  StyleSheet, Modal, KeyboardAvoidingView, Platform, Alert, Share,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as ImagePicker from 'expo-image-picker';
@@ -35,7 +36,7 @@ import { AppText as Text, AppTextInput as TextInput } from './AppText';
 import { LinkedNotesPicker } from './LinkedNotesPicker';
 import { useTheme } from '../theme';
 import { useStore } from '../store';
-import { newBlock, blocksToText } from './editor/shared';
+import { newBlock, blocksToText, noteToMarkdown } from './editor/shared';
 import { Toolbar } from './editor/Toolbar';
 import { TagRow } from './editor/TagRow';
 import { BookPicker } from './editor/BookPicker';
@@ -45,6 +46,55 @@ import { ThoughtBlock } from './editor/blocks/ThoughtBlock';
 import { HeadingBlock } from './editor/blocks/HeadingBlock';
 import { BulletBlock } from './editor/blocks/BulletBlock';
 import { ImageBlock } from './editor/blocks/ImageBlock';
+
+// ── Autosave / draft recovery ─────────────────────────────────────────
+// Single-slot draft stored in AsyncStorage. Only fresh (no-initialData)
+// edits write here — editing an existing note shouldn't fork into a
+// "draft" copy. On modal open we read the slot; if it's non-empty we
+// offer to restore. Save clears the slot; explicit Discard clears it
+// too. Keep the schema explicit so a future version can either migrate
+// or drop unknown drafts on hydration.
+export const DRAFT_KEY = 'bw.v1.draft';
+
+function draftHasContent(d) {
+  if (!d) return false;
+  if ((d.title || '').trim()) return true;
+  if (Array.isArray(d.tags) && d.tags.length) return true;
+  if (Array.isArray(d.linkedNoteIds) && d.linkedNoteIds.length) return true;
+  return Array.isArray(d.blocks) && d.blocks.some(b => {
+    if (b.type === 'image') return !!b.uri;
+    return (b.text || '').trim() || (b.attribution || '').trim();
+  });
+}
+
+async function readDraft() {
+  try {
+    const raw = await AsyncStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!draftHasContent(parsed)) return null;
+    return parsed;
+  } catch (e) {
+    console.warn('[draft] read failed', e);
+    return null;
+  }
+}
+
+async function writeDraft(payload) {
+  try {
+    await AsyncStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
+  } catch (e) {
+    console.warn('[draft] write failed', e);
+  }
+}
+
+async function clearDraft() {
+  try {
+    await AsyncStorage.removeItem(DRAFT_KEY);
+  } catch (e) {
+    console.warn('[draft] clear failed', e);
+  }
+}
 
 // Copy a picked/captured image from the ImagePicker cache directory into
 // the app's documents directory so the URI survives the OS evicting the
@@ -90,6 +140,14 @@ function EditorScreen({ book, initialData, onSave, onCancel, onChangeBook, regis
       alignItems: 'center', justifyContent: 'center',
       marginLeft: -8,
     },
+    appBarRight: {
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+    },
+    iconBtn: {
+      width: 36, height: 36,
+      alignItems: 'center', justifyContent: 'center',
+      borderRadius: 18,
+    },
     savePill: {
       backgroundColor: C.ink,
       paddingHorizontal: 18, paddingVertical: 8,
@@ -119,6 +177,17 @@ function EditorScreen({ book, initialData, onSave, onCancel, onChangeBook, regis
       color: C.inkMuted, fontWeight: '600', letterSpacing: 0.2,
     },
     toolbarWrap: { marginBottom: 10 },
+    titleWrap: {
+      paddingHorizontal: 20,
+      paddingTop: 4,
+      paddingBottom: 6,
+    },
+    titleInput: {
+      fontFamily: F.serif, fontSize: 22, lineHeight: 28,
+      color: C.ink, letterSpacing: -0.3,
+      padding: 0,
+      minHeight: 30,
+    },
     // Fills the empty space at the bottom of the editor so users can tap
     // anywhere below the last block to add or focus a paragraph.
     tailZone: { minHeight: 240 },
@@ -154,10 +223,12 @@ function EditorScreen({ book, initialData, onSave, onCancel, onChangeBook, regis
     addLinkTxt: { fontFamily: F.serif, fontSize: 12, color: C.inkSoft, fontWeight: '600' },
   }), [themeVersion]);
 
-  // initialData provided when editing an existing note. Title isn't user-
-  // editable in this editor (no title field) — preserve whatever was on
-  // the original note so an edit round-trip doesn't blank it out.
+  // initialData provided when editing an existing note. Title is user-
+  // editable via the slim TitleInput above the blocks. Falls back to
+  // empty for new notes — the schema treats title as optional and
+  // NoteCard derives one from the first paragraph when missing.
   const initialTitle = initialData?.title || '';
+  const [title, setTitle] = useState(initialTitle);
   const [blocks, setBlocks]  = useState(
     initialData?.blocks?.length
       ? initialData.blocks
@@ -202,6 +273,32 @@ function EditorScreen({ book, initialData, onSave, onCancel, onChangeBook, regis
   const insertBlock = (type) => {
     setBlocks(bs => [...bs, newBlock(type)]);
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80);
+  };
+
+  // Inline formatting dispatch. Routes a toolbar tap (bold/italic/under-
+  // line/highlight) to the currently-focused block's imperative
+  // applyFormat handle. Falls back to the last text-bearing block when
+  // nothing is focused yet — otherwise the very first toolbar tap (when
+  // the user hasn't tapped into the editor) would silently no-op.
+  const handleFormat = (kind) => {
+    const tryApply = (id) => {
+      const handle = id ? blockRefs.current[id] : null;
+      if (handle?.applyFormat) {
+        handle.applyFormat(kind);
+        return true;
+      }
+      return false;
+    };
+    if (tryApply(focusedBlockId.current)) return;
+    for (let i = blocks.length - 1; i >= 0; i--) {
+      const b = blocks[i];
+      if (b.type === 'image') continue;
+      if (tryApply(b.id)) {
+        focusedBlockId.current = b.id;
+        blockRefs.current[b.id]?.focus?.();
+        return;
+      }
+    }
   };
 
   const insertImageBlocks = (assets) => {
@@ -273,7 +370,7 @@ function EditorScreen({ book, initialData, onSave, onCancel, onChangeBook, regis
     });
     if (!initialData) {
       const nonDefaultTypes = !(types.length === 1 && types[0] === 'insight');
-      return hasBlockContent || tags.length > 0 || linkedNoteIds.length > 0 || nonDefaultTypes;
+      return hasBlockContent || title.trim().length > 0 || tags.length > 0 || linkedNoteIds.length > 0 || nonDefaultTypes;
     }
     const initBlocks = initialData.blocks || [];
     const blocksChanged = blocks.length !== initBlocks.length
@@ -291,8 +388,9 @@ function EditorScreen({ book, initialData, onSave, onCancel, onChangeBook, regis
     const typesChanged = types.join('|') !== initTypes.join('|');
     const tagsChanged  = tags.join('|') !== (initialData.tags || []).join('|');
     const linksChanged = linkedNoteIds.join('|') !== (initialData.linkedNoteIds || []).join('|');
-    return blocksChanged || typesChanged || tagsChanged || linksChanged;
-  }, [blocks, types, tags, linkedNoteIds, initialData]);
+    const titleChanged = (title || '').trim() !== (initialData.title || '').trim();
+    return blocksChanged || typesChanged || tagsChanged || linksChanged || titleChanged;
+  }, [blocks, title, types, tags, linkedNoteIds, initialData]);
 
   const confirmCancel = () => {
     if (!isDirty) { onCancel(); return; }
@@ -301,10 +399,41 @@ function EditorScreen({ book, initialData, onSave, onCancel, onChangeBook, regis
       'Your edits to this note will be lost.',
       [
         { text: 'Keep editing', style: 'cancel' },
-        { text: 'Discard',      style: 'destructive', onPress: onCancel },
+        {
+          text: 'Discard',
+          style: 'destructive',
+          onPress: () => {
+            if (!isExistingNote) clearDraft();
+            onCancel();
+          },
+        },
       ],
     );
   };
+
+  // Autosave to the draft slot every ~2s while editing a new note. We
+  // skip autosave when editing an existing note (initialData.id present)
+  // — those edits flow through updateNote on Save, so a separate draft
+  // slot would just duplicate state and risk overwriting on cancel.
+  const isExistingNote = !!initialData?.id;
+  useEffect(() => {
+    if (isExistingNote) return;
+    const t = setTimeout(() => {
+      const payload = {
+        bookId:        book.id,
+        bookTitle:     book.title,
+        title:         (title || '').trim(),
+        blocks,
+        types,
+        tags,
+        linkedNoteIds,
+        savedAt:       Date.now(),
+      };
+      if (draftHasContent(payload)) writeDraft(payload);
+      else clearDraft();
+    }, 2000);
+    return () => clearTimeout(t);
+  }, [isExistingNote, title, blocks, types, tags, linkedNoteIds, book.id, book.title]);
 
   // Expose the dirty-aware cancel up to the Modal so hardware-back / swipe-
   // down dismissals also prompt instead of silently discarding.
@@ -320,6 +449,39 @@ function EditorScreen({ book, initialData, onSave, onCancel, onChangeBook, regis
     registerCancelGuard?.(() => confirmCancelRef.current?.());
     return () => registerCancelGuard?.(null);
   }, [registerCancelGuard]);
+
+  // Share the current note as Markdown via the OS share sheet. The
+  // share sheet's built-in "Copy" action is how the user gets a copy-as-
+  // markdown without us having to depend on a separate clipboard
+  // module. Composed from the in-flight editor state so a user can
+  // share their draft mid-edit without saving first.
+  const handleShare = async () => {
+    const cleanBlocks = blocks.filter(b => {
+      if (b.type === 'image') return !!b.uri;
+      return (b.text || '').trim() || (b.attribution || '').trim();
+    });
+    const md = noteToMarkdown({
+      title:     (title || '').trim(),
+      blocks:    cleanBlocks,
+      tags,
+      bookTitle: book.title,
+      chapter:   initialData?.chapter || '',
+      page:      initialData?.page || '',
+      text:      blocksToText(cleanBlocks),
+    });
+    if (!md) {
+      showToast?.({ message: 'Nothing to share yet — add some text or an image' });
+      return;
+    }
+    try {
+      await Share.share({
+        message: md,
+        title:   (title || '').trim() || `Note on ${book.title}`,
+      });
+    } catch (e) {
+      console.warn('[share] failed', e);
+    }
+  };
 
   // Save — flatten blocks → text for backwards compat
   const handleSave = () => {
@@ -342,10 +504,13 @@ function EditorScreen({ book, initialData, onSave, onCancel, onChangeBook, regis
     // Only persist linked notes when Connection is actually selected.
     const finalLinkedIds = finalTypes.includes('connection') ? linkedNoteIds : [];
 
+    // Persisted draft is no longer recoverable once the note is saved.
+    if (!isExistingNote) clearDraft();
+
     onSave({
       bookId:        book.id,
       bookTitle:     book.title,
-      title:         initialTitle.trim(),
+      title:         (title || '').trim(),
       blocks:        cleanBlocks,
       types:         finalTypes,
       type:          finalTypes[0],
@@ -385,17 +550,32 @@ function EditorScreen({ book, initialData, onSave, onCancel, onChangeBook, regis
             >
               <Ionicons name="chevron-back" size={22} color={C.ink} importantForAccessibility="no" />
             </TouchableOpacity>
-            <TouchableOpacity
-              onPress={handleSave}
-              disabled={!canSave}
-              activeOpacity={0.85}
-              style={[ed.savePill, !canSave && { opacity: 0.4 }]}
-              accessibilityRole="button"
-              accessibilityLabel="Save note"
-              accessibilityState={{ disabled: !canSave }}
-            >
-              <Text style={ed.savePillTxt}>Save</Text>
-            </TouchableOpacity>
+            <View style={ed.appBarRight}>
+              <TouchableOpacity
+                onPress={handleShare}
+                disabled={!canSave}
+                activeOpacity={0.7}
+                style={[ed.iconBtn, !canSave && { opacity: 0.4 }]}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                accessibilityRole="button"
+                accessibilityLabel="Share note as Markdown"
+                accessibilityHint="Opens the system share sheet — use Copy for plain Markdown"
+                accessibilityState={{ disabled: !canSave }}
+              >
+                <Ionicons name="share-outline" size={20} color={C.ink} importantForAccessibility="no" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleSave}
+                disabled={!canSave}
+                activeOpacity={0.85}
+                style={[ed.savePill, !canSave && { opacity: 0.4 }]}
+                accessibilityRole="button"
+                accessibilityLabel="Save note"
+                accessibilityState={{ disabled: !canSave }}
+              >
+                <Text style={ed.savePillTxt}>Save</Text>
+              </TouchableOpacity>
+            </View>
           </View>
           <Text style={ed.appBarTitle} accessibilityRole="header">
             Note on {book.title}
@@ -425,14 +605,30 @@ function EditorScreen({ book, initialData, onSave, onCancel, onChangeBook, regis
           <View style={ed.toolbarWrap}>
             <Toolbar
               onInsert={insertBlock}
+              onFormat={handleFormat}
               onPickFromGallery={handlePickFromGallery}
               onTakePhoto={handleTakePhoto}
             />
           </View>
 
-          {/* Tag row — sits directly under the toolbar (no title field).
-              Hosts both the fixed note-type chips and free-text custom tags
-              on a single line. */}
+          {/* Title — optional slim input. The schema has always supported
+              note.title; this exposes it directly so users can give a
+              note a stable name instead of relying on derived previews. */}
+          <View style={ed.titleWrap}>
+            <TextInput
+              style={ed.titleInput}
+              value={title}
+              onChangeText={setTitle}
+              placeholder="Title (optional)"
+              placeholderTextColor={C.inkFaint}
+              multiline
+              textAlignVertical="top"
+              accessibilityLabel="Note title"
+            />
+          </View>
+
+          {/* Tag row — fixed note-type chips and free-text custom tags
+              on a single line, below the title. */}
           <TagRow
             selectedTypes={types}
             onToggle={toggleType}
@@ -572,12 +768,15 @@ function EditorScreen({ book, initialData, onSave, onCancel, onChangeBook, regis
           })}
 
           {/* Tail tap zone — fills empty space, lets user click below last
-              block to append a fresh paragraph (only if the last block
-              isn't already a paragraph that can be focused directly). */}
+              block to focus a paragraph for fresh writing. If the last
+              block is already a paragraph, focus it via its imperative
+              handle so the user can keep typing; otherwise append a new
+              paragraph and let autoFocus pull it in. */}
           <Pressable
             onPress={() => {
               const last = blocks[blocks.length - 1];
               if (last && last.type === 'paragraph') {
+                blockRefs.current[last.id]?.focus?.();
                 return;
               }
               setBlocks(bs => [
@@ -608,6 +807,11 @@ function EditorScreen({ book, initialData, onSave, onCancel, onChangeBook, regis
 //   onClose()    — close without saving
 export function RichNoteEditor({ visible, books, initialNote, defaultBook, onSave, onClose }) {
   const [pickedBook, setPickedBook] = useState(null);
+  // Restored draft from the autosave slot. When non-null, EditorScreen
+  // receives it as initialData so the in-flight title/blocks/types/tags
+  // load back into state instead of the empty defaults. Cleared once the
+  // user saves, discards, or declines to restore.
+  const [restoredDraft, setRestoredDraft] = useState(null);
   // Set by EditorScreen on mount with its dirty-aware cancel handler. Null
   // while the BookPicker step is showing — picker has no work to lose.
   const cancelGuardRef = useRef(null);
@@ -616,11 +820,54 @@ export function RichNoteEditor({ visible, books, initialNote, defaultBook, onSav
     if (visible && initialNote) {
       const book = books.find(b => b.id === initialNote.bookId);
       setPickedBook(book || null);
-    } else if (visible && defaultBook) {
-      setPickedBook(defaultBook);
-    } else if (visible) {
-      setPickedBook(null);
+      setRestoredDraft(null);
+      return;
     }
+    if (!visible) {
+      setPickedBook(null);
+      setRestoredDraft(null);
+      return;
+    }
+
+    // New-note flow. Check for an autosaved draft before falling back to
+    // the default book or the picker. If a draft exists, ask the user
+    // whether to restore — declining clears the draft so it doesn't keep
+    // re-prompting every time they open the editor.
+    let cancelled = false;
+    (async () => {
+      const draft = await readDraft();
+      if (cancelled) return;
+      if (draft) {
+        const draftBook = books.find(b => b.id === draft.bookId) || defaultBook;
+        Alert.alert(
+          'Restore your unsaved note?',
+          draftBook?.title ? `Pick up your draft on "${draftBook.title}".` : 'Pick up where you left off.',
+          [
+            {
+              text: 'Discard',
+              style: 'destructive',
+              onPress: () => {
+                clearDraft();
+                if (defaultBook) setPickedBook(defaultBook);
+                else setPickedBook(null);
+              },
+            },
+            {
+              text: 'Restore',
+              onPress: () => {
+                setRestoredDraft(draft);
+                setPickedBook(draftBook || null);
+              },
+            },
+          ],
+          { cancelable: false },
+        );
+        return;
+      }
+      if (defaultBook) setPickedBook(defaultBook);
+      else setPickedBook(null);
+    })();
+    return () => { cancelled = true; };
   }, [visible, initialNote, defaultBook, books]);
 
   const handleCancel = () => {
@@ -660,7 +907,11 @@ export function RichNoteEditor({ visible, books, initialNote, defaultBook, onSav
         ) : (
           <EditorScreen
             book={pickedBook}
-            initialData={initialNote}
+            // A restored draft is wired in as initialData so the editor's
+            // existing state seeding loads the recovered title/blocks/types
+            // /tags. We deliberately omit `id` so the draft is treated as a
+            // new note on save (creating, not updating).
+            initialData={initialNote || restoredDraft || null}
             onSave={handleSaveFromEditor}
             onCancel={handleCancel}
             onChangeBook={!initialNote ? () => setPickedBook(null) : null}
