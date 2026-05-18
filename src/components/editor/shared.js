@@ -3,8 +3,9 @@
  * block component can import only what it needs without circular deps.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet } from 'react-native';
+import { AppText as Text } from '../AppText';
 import { useTheme } from '../../theme';
 
 export const TYPES = [
@@ -180,6 +181,83 @@ export function useWikiLinkAutocomplete({ text, selection, allNotes, allBooks })
     range: { from: openPos, to: (openPos === -1 ? -1 : openPos + 2 + query.length) },
     close: () => setIsOpen(false),
   };
+}
+
+// ── Live-preview inline markdown ──────────────────────────────────────
+// Parse a block's text into chunks so the editor can render delimiters
+// faded and content stylised (bold/italic/underline/highlight/wiki-link)
+// inside a TextInput. Crucially the delimiter characters are KEPT as
+// their own chunks — every character in `text` still appears in the
+// rendered children, so cursor/selection positions map 1:1 to the
+// underlying string and the toolbar's wrapSelection logic keeps working.
+//
+// Pattern order mirrors MarkdownText (display renderer): wiki-link
+// first so [[Title]] survives the ** pass, then bold > underline >
+// highlight > italic.
+const INLINE_PATTERNS = [
+  { type: 'wikilink',  regex: /\[\[([^\]\n]+?)\]\]/, prefix: '[[', suffix: ']]' },
+  { type: 'bold',      regex: /\*\*([^*\n]+?)\*\*/,  prefix: '**', suffix: '**' },
+  { type: 'underline', regex: /__([^_\n]+?)__/,      prefix: '__', suffix: '__' },
+  { type: 'highlight', regex: /==([^=\n]+?)==/,      prefix: '==', suffix: '==' },
+  { type: 'italic',    regex: /\*([^*\n]+?)\*/,      prefix: '*',  suffix: '*'  },
+];
+
+export function parseInlineMarkdown(text) {
+  if (!text) return [];
+  for (const { type, regex, prefix, suffix } of INLINE_PATTERNS) {
+    const m = regex.exec(text);
+    if (m) {
+      const before  = text.slice(0, m.index);
+      const content = m[1];
+      const after   = text.slice(m.index + m[0].length);
+      return [
+        ...parseInlineMarkdown(before),
+        { text: prefix,  kind: 'delim',   markType: type },
+        { text: content, kind: 'content', markType: type },
+        { text: suffix,  kind: 'delim',   markType: type },
+        ...parseInlineMarkdown(after),
+      ];
+    }
+  }
+  return [{ text, kind: 'plain' }];
+}
+
+// Returns the styled <Text> children array to pass to TextInput. The
+// children act purely as a styling overlay — `value` on the TextInput
+// remains the source of truth. Returns null on empty text so the
+// placeholder renders normally.
+//
+// Implementation note: on iOS, RN merges children styling with the
+// value-rendered string by char range. The children's concatenated
+// text matches `text` exactly (delimiters preserved), so cursor
+// positions stay stable. Wrapped in useMemo to avoid rebuilding on
+// every keystroke when text hasn't changed identity.
+export function useMarkdownChildren(text) {
+  const { C, F, themeVersion } = useTheme();
+  const styles = useMemo(() => ({
+    delim: { color: C.inkFaint },
+    content: {
+      bold:      { fontFamily: F.serif, fontWeight: '700' },
+      italic:    { fontFamily: F.serifItalic, fontStyle: 'italic' },
+      underline: { fontFamily: F.serif, textDecorationLine: 'underline' },
+      highlight: { fontFamily: F.serif, backgroundColor: C.amberPale },
+      wikilink:  { fontFamily: F.serif, color: C.sage, fontWeight: '700' },
+    },
+  }), [themeVersion]);
+
+  return useMemo(() => {
+    if (!text) return null;
+    const chunks = parseInlineMarkdown(text);
+    // Fast path: no markdown at all — skip styled children so we don't
+    // pay the per-keystroke reconciliation cost on plain prose.
+    if (chunks.length === 1 && chunks[0].kind === 'plain') return null;
+    return chunks.map((c, i) => {
+      const style = c.kind === 'delim'   ? styles.delim
+                  : c.kind === 'content' ? styles.content[c.markType]
+                  : undefined;
+      return <Text key={i} style={style}>{c.text}</Text>;
+    });
+  }, [text, styles]);
 }
 
 // ── Block styles helper ───────────────────────────────────────────────

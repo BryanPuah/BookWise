@@ -7,7 +7,7 @@ import { View, TouchableOpacity, Pressable } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { AppText as Text, AppTextInput as TextInput } from '../../AppText';
 import { useTheme } from '../../../theme';
-import { useBlkStyles, FORMAT_DELIMS, wrapSelection } from '../shared';
+import { useBlkStyles, useMarkdownChildren, FORMAT_DELIMS, wrapSelection } from '../shared';
 
 export const BulletBlock = React.forwardRef(function BulletBlock(
   { block, onChange, onRemove, autoFocus, onFocus },
@@ -17,6 +17,7 @@ export const BulletBlock = React.forwardRef(function BulletBlock(
   const blk = useBlkStyles();
   const inputRef = useRef(null);
   const [selection, setSelection] = useState({ start: 0, end: 0 });
+  const mdChildren = useMarkdownChildren(block.text);
 
   useEffect(() => {
     if (autoFocus) {
@@ -54,7 +55,9 @@ export const BulletBlock = React.forwardRef(function BulletBlock(
           placeholderTextColor={C.inkFaint}
           multiline
           textAlignVertical="top"
-        />
+        >
+          {mdChildren}
+        </TextInput>
         {block.text.length === 0 && onRemove && (
           <TouchableOpacity onPress={onRemove} style={blk.removeBtn} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
             <Ionicons name="close-circle" size={16} color={C.inkFaint} />

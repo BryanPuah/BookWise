@@ -328,12 +328,12 @@ export function ProfileScreen() {
       borderRadius: 14,
       borderWidth: 1,
       borderColor: C.rose,
-      backgroundColor: C.white,
+      backgroundColor: C.rose,
     },
     logoutTxt: {
       fontFamily: F.serif,
       fontSize: 14,
-      color: C.rose,
+      color: C.white,
       fontWeight: '700',
       letterSpacing: 0.2,
     },
@@ -412,7 +412,7 @@ export function ProfileScreen() {
           )}
           activeOpacity={0.85}
         >
-          <Ionicons name="log-out-outline" size={18} color={C.rose} />
+          <Ionicons name="log-out-outline" size={18} color={C.white} />
           <Text style={s.logoutTxt}>Sign out</Text>
         </TouchableOpacity>
       </ScrollView>

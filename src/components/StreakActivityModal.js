@@ -11,13 +11,13 @@
 
 import React, { useMemo, useRef, useEffect } from 'react';
 import {
-  View, ScrollView, TouchableOpacity, StyleSheet, Modal,
+  View, ScrollView, StyleSheet, Modal,
 } from 'react-native';
 import { AppText as Text } from './AppText';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { useStore } from '../store';
 import { useTheme } from '../theme';
+import { ModalHeader } from './ModalHeader';
 
 const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const WEEKDAY_LABELS = ['Mon', 'Wed', 'Fri'];  // GitHub only labels these three
@@ -76,19 +76,6 @@ export function StreakActivityModal({ visible, onClose }) {
   const { C, F, themeVersion } = useTheme();
   const s = useMemo(() => StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.paper },
-
-  // Top bar
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 0.5,
-    borderBottomColor: C.border,
-  },
-  title: { fontFamily: F.serif, fontSize: 18, color: C.ink, letterSpacing: -0.2 },
-  closeBtn: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center' },
 
   // Grid
   gridKicker: {
@@ -189,17 +176,11 @@ export function StreakActivityModal({ visible, onClose }) {
       onRequestClose={onClose}
     >
       <SafeAreaView style={s.safe} edges={['top', 'bottom']}>
-        {/* Top bar */}
-        <View style={s.topBar}>
-          <Text style={s.title}>Active Day Streak</Text>
-          <TouchableOpacity
-            onPress={onClose}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            style={s.closeBtn}
-          >
-            <Ionicons name="close" size={22} color={C.ink} />
-          </TouchableOpacity>
-        </View>
+        <ModalHeader
+          title="Active Day Streak"
+          titleAlign="left"
+          right={{ kind: 'icon', icon: 'close', label: 'Close', onPress: onClose }}
+        />
 
         {/* Activity grid — horizontal scroll on small screens */}
         <Text style={s.gridKicker}>ACTIVITY · LAST 12 MONTHS</Text>

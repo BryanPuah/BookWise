@@ -25,6 +25,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useStore } from '../store';
 import { useTheme } from '../theme';
+import { ModalHeader } from './ModalHeader';
 
 // Format the date as "Tuesday, May 12, 2026"
 function formatLongDate(dateKey) {
@@ -49,26 +50,11 @@ export function ReflectionPage({ visible, dateKey, onClose }) {
   const p = useMemo(() => StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.paper },
 
-  // Top bar
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  iconBtn: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 999,
-  },
+  // Edit-mode header actions (Cancel + Save pill)
   editActions: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    paddingRight: 4,
   },
   cancelTxt: {
     fontFamily: F.serif,
@@ -78,9 +64,9 @@ export function ReflectionPage({ visible, dateKey, onClose }) {
   },
   saveBtn: {
     backgroundColor: C.ink,
-    paddingHorizontal: 18,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderRadius: 18,
   },
   saveBtnTxt: {
     fontFamily: F.serif,
@@ -215,39 +201,37 @@ export function ReflectionPage({ visible, dateKey, onClose }) {
           style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          {/* Top bar — back chevron on left, edit pencil on right (read mode only) */}
-          <View style={p.topBar}>
-            <TouchableOpacity
-              onPress={onClose}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              style={p.iconBtn}
-            >
-              <Ionicons name="chevron-back" size={22} color={C.ink} />
-            </TouchableOpacity>
-
-            {editing ? (
+          <ModalHeader
+            divider={false}
+            left={{ icon: 'back', onPress: onClose }}
+            right={editing ? (
               <View style={p.editActions}>
-                <TouchableOpacity onPress={handleCancel} activeOpacity={0.6}>
+                <TouchableOpacity
+                  onPress={handleCancel}
+                  activeOpacity={0.6}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Cancel edit"
+                >
                   <Text style={p.cancelTxt}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={handleSave}
                   activeOpacity={0.85}
                   style={p.saveBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel="Save reflection"
                 >
                   <Text style={p.saveBtnTxt}>Save</Text>
                 </TouchableOpacity>
               </View>
-            ) : (
-              <TouchableOpacity
-                onPress={() => setEditing(true)}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                style={p.iconBtn}
-              >
-                <Ionicons name="create-outline" size={20} color={C.ink} />
-              </TouchableOpacity>
-            )}
-          </View>
+            ) : {
+              kind: 'icon',
+              icon: 'create-outline',
+              label: 'Edit',
+              onPress: () => setEditing(true),
+            }}
+          />
 
           <ScrollView
             style={{ flex: 1 }}

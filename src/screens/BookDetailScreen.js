@@ -66,14 +66,15 @@ export function BookDetailScreen({ route, navigation }) {
   const s = useMemo(() => StyleSheet.create({
     safe: { flex: 1, backgroundColor: C.paper },
 
-    // Top nav row
+    // Top nav row — padding mirrors ModalHeader so the back chevron sits at a
+    // comfortable tap distance from the status bar / notch.
     topNav: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
       paddingHorizontal: 12,
-      paddingTop: 8,
-      paddingBottom: 4,
+      paddingVertical: 10,
+      minHeight: 56,
     },
     iconBtn: {
       width: 36,

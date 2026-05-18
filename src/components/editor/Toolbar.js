@@ -1,10 +1,6 @@
 /**
- * Toolbar — horizontal strip of media, inline-format, and block-type
- * buttons for RichNoteEditor. Sits above the blocks scroll view.
- *
- * Inline-format buttons (B / I / U / ==) call onFormat(kind) which the
- * editor routes to the imperative handle of the currently focused block
- * — see EditorScreen.handleFormat for the dispatch.
+ * Toolbar — horizontal strip of media and block-type buttons for
+ * RichNoteEditor. Sits above the blocks scroll view.
  */
 
 import React, { useMemo } from 'react';
@@ -13,7 +9,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { AppText as Text } from '../AppText';
 import { useTheme } from '../../theme';
 
-export function Toolbar({ onInsert, onFormat, onPickFromGallery, onTakePhoto }) {
+export function Toolbar({ onInsert, onPickFromGallery, onTakePhoto }) {
   const { C, F, themeVersion } = useTheme();
   const tb = useMemo(() => StyleSheet.create({
     scrollContent: { paddingHorizontal: 20 },
@@ -33,14 +29,6 @@ export function Toolbar({ onInsert, onFormat, onPickFromGallery, onTakePhoto }) 
       minWidth: 30,
     },
     btnTxt: { fontFamily: F.serif, fontSize: 14, color: C.inkSoft, fontStyle: 'italic' },
-    btnTxtBold: { fontStyle: 'normal', fontWeight: '700', fontSize: 15 },
-    btnTxtUnderline: { fontStyle: 'normal', fontWeight: '600', fontSize: 14, textDecorationLine: 'underline' },
-    btnTxtHighlight: {
-      fontStyle: 'normal', fontWeight: '700', fontSize: 12,
-      color: C.ink,
-      backgroundColor: C.amberPale,
-      paddingHorizontal: 4, borderRadius: 3,
-    },
     divider: { width: 1, height: 14, backgroundColor: C.border, opacity: 0.7 },
     sectionDivider: { width: 1, height: 20, backgroundColor: C.borderMid, marginHorizontal: 4 },
   }), [themeVersion]);
@@ -79,65 +67,7 @@ export function Toolbar({ onInsert, onFormat, onPickFromGallery, onTakePhoto }) 
 
         <View style={tb.sectionDivider} />
 
-        {/* Inline format buttons — wrap the focused block's selection in
-            markdown delimiters via the editor's imperative dispatch. */}
-        {onFormat ? (
-          <>
-            <TouchableOpacity
-              style={tb.btn}
-              onPress={() => onFormat('bold')}
-              activeOpacity={0.6}
-              accessibilityRole="button"
-              accessibilityLabel="Bold"
-            >
-              <Text style={[tb.btnTxt, tb.btnTxtBold]}>B</Text>
-            </TouchableOpacity>
-            <View style={tb.divider} />
-            <TouchableOpacity
-              style={tb.btn}
-              onPress={() => onFormat('italic')}
-              activeOpacity={0.6}
-              accessibilityRole="button"
-              accessibilityLabel="Italic"
-            >
-              <Text style={tb.btnTxt}>I</Text>
-            </TouchableOpacity>
-            <View style={tb.divider} />
-            <TouchableOpacity
-              style={tb.btn}
-              onPress={() => onFormat('underline')}
-              activeOpacity={0.6}
-              accessibilityRole="button"
-              accessibilityLabel="Underline"
-            >
-              <Text style={[tb.btnTxt, tb.btnTxtUnderline]}>U</Text>
-            </TouchableOpacity>
-            <View style={tb.divider} />
-            <TouchableOpacity
-              style={tb.btn}
-              onPress={() => onFormat('highlight')}
-              activeOpacity={0.6}
-              accessibilityRole="button"
-              accessibilityLabel="Highlight"
-            >
-              <Text style={tb.btnTxtHighlight}>==</Text>
-            </TouchableOpacity>
-
-            <View style={tb.sectionDivider} />
-          </>
-        ) : null}
-
         {/* Block-type buttons */}
-        <TouchableOpacity
-          style={tb.btn}
-          onPress={() => onInsert('heading')}
-          activeOpacity={0.6}
-          accessibilityRole="button"
-          accessibilityLabel="Insert heading"
-        >
-          <Text style={[tb.btnTxt, tb.btnTxtBold]}>H</Text>
-        </TouchableOpacity>
-        <View style={tb.divider} />
         <TouchableOpacity
           style={tb.btn}
           onPress={() => onInsert('bullet')}
@@ -166,16 +96,6 @@ export function Toolbar({ onInsert, onFormat, onPickFromGallery, onTakePhoto }) 
           accessibilityLabel="Insert thought"
         >
           <Ionicons name="bulb-outline" size={16} color={C.inkSoft} importantForAccessibility="no" />
-        </TouchableOpacity>
-        <View style={tb.divider} />
-        <TouchableOpacity
-          style={tb.btn}
-          onPress={() => onInsert('paragraph')}
-          activeOpacity={0.6}
-          accessibilityRole="button"
-          accessibilityLabel="Insert paragraph"
-        >
-          <Ionicons name="text-outline" size={16} color={C.inkSoft} importantForAccessibility="no" />
         </TouchableOpacity>
       </View>
     </ScrollView>

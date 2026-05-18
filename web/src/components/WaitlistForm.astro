@@ -1,0 +1,85 @@
+---
+interface Props {
+  formId: string;
+  cta?: string;
+}
+const { formId, cta = 'Join the waitlist' } = Astro.props;
+---
+<form
+  id={formId}
+  class="waitlist-form flex flex-col sm:flex-row gap-2"
+  data-form-id={formId}
+  novalidate
+>
+  <label for={`${formId}-email`} class="sr-only">Email address</label>
+  <input
+    id={`${formId}-email`}
+    type="email"
+    name="email"
+    required
+    autocomplete="email"
+    placeholder="you@example.com"
+    class="flex-1 px-4 py-3 rounded-card bg-white border border-line text-ink placeholder:text-ink-faint focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 font-sans text-base"
+  />
+  <button
+    type="submit"
+    class="px-5 py-3 rounded-card bg-ink text-white font-sans text-sm font-semibold tracking-wide hover:bg-ink-soft transition-colors shadow-soft whitespace-nowrap"
+  >
+    {cta} →
+  </button>
+</form>
+<p
+  class="waitlist-success font-serif text-base text-accent-deep mt-3 hidden"
+  data-success-for={formId}
+>
+  Thank you — you're on the list. We'll be in touch.
+</p>
+<p
+  class="waitlist-error font-sans text-sm text-red-600 mt-3 hidden"
+  data-error-for={formId}
+>
+  Something went wrong. Try again in a moment.
+</p>
+
+<script>
+  // Stub: replace the body of `submitEmail` with a real POST to your
+  // email provider (Resend audience, Formspree, Buttondown, etc.).
+  // Return true on success, false on failure.
+  async function submitEmail(email: string): Promise<boolean> {
+    console.log('[waitlist] would submit:', email);
+    await new Promise((r) => setTimeout(r, 400));
+    return true;
+  }
+
+  document
+    .querySelectorAll<HTMLFormElement>('form.waitlist-form')
+    .forEach((form) => {
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = form.dataset.formId;
+        const input = form.querySelector<HTMLInputElement>('input[type="email"]');
+        const errEl = document.querySelector(`[data-error-for="${id}"]`);
+        const okEl  = document.querySelector(`[data-success-for="${id}"]`);
+        errEl?.classList.add('hidden');
+        if (!input || !input.value || !input.checkValidity()) {
+          input?.focus();
+          return;
+        }
+        const button = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+        if (button) { button.disabled = true; button.style.opacity = '0.6'; }
+        try {
+          const ok = await submitEmail(input.value.trim());
+          if (ok) {
+            form.classList.add('hidden');
+            okEl?.classList.remove('hidden');
+          } else {
+            errEl?.classList.remove('hidden');
+          }
+        } catch {
+          errEl?.classList.remove('hidden');
+        } finally {
+          if (button) { button.disabled = false; button.style.opacity = '1'; }
+        }
+      });
+    });
+</script>

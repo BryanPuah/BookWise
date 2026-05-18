@@ -1,0 +1,28 @@
+---
+import WaitlistForm from './WaitlistForm.astro';
+import EditorMockup from './EditorMockup.astro';
+---
+<section class="px-6 pt-10 md:pt-20 pb-16 md:pb-24 max-w-6xl mx-auto">
+  <div class="grid md:grid-cols-2 gap-12 md:gap-16 items-center">
+    <div>
+      <p class="font-sans text-[11px] font-bold tracking-[0.18em] text-ink-muted uppercase">
+        Bookwise · In development
+      </p>
+      <h1 class="font-serif text-5xl md:text-6xl leading-[1.05] tracking-tight text-ink mt-4">
+        A reading companion that remembers what mattered.
+      </h1>
+      <p class="font-serif text-lg md:text-xl text-ink-muted mt-6 max-w-prose leading-relaxed">
+        Capture quotes, questions, and thoughts as you read. Bookwise turns them into a connected library that lasts longer than the book.
+      </p>
+      <div class="mt-8 max-w-md">
+        <WaitlistForm formId="hero-form" cta="Join the waitlist" />
+        <p class="font-sans text-xs text-ink-faint mt-3">
+          Early access · No spam · Your data stays yours
+        </p>
+      </div>
+    </div>
+    <div class="md:pl-4">
+      <EditorMockup />
+    </div>
+  </div>
+</section>

@@ -8,7 +8,7 @@ import { View, TouchableOpacity, Pressable } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { AppTextInput as TextInput } from '../../AppText';
 import { useTheme } from '../../../theme';
-import { useBlkStyles, FORMAT_DELIMS, wrapSelection } from '../shared';
+import { useBlkStyles, useMarkdownChildren, FORMAT_DELIMS, wrapSelection } from '../shared';
 
 export const QuoteBlock = React.forwardRef(function QuoteBlock(
   { block, onChange, onRemove, autoFocus, onFocus },
@@ -19,6 +19,7 @@ export const QuoteBlock = React.forwardRef(function QuoteBlock(
   const quoteRef = useRef(null);
   const attribRef = useRef(null);
   const [selection, setSelection] = useState({ start: 0, end: 0 });
+  const mdChildren = useMarkdownChildren(block.text);
 
   useEffect(() => {
     if (autoFocus) {
@@ -57,7 +58,9 @@ export const QuoteBlock = React.forwardRef(function QuoteBlock(
             placeholderTextColor={C.inkFaint}
             multiline
             textAlignVertical="top"
-          />
+          >
+            {mdChildren}
+          </TextInput>
           <TextInput
             ref={attribRef}
             style={blk.attribution}

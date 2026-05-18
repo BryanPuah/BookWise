@@ -206,14 +206,7 @@ export const GOAL_RECURRENCE = Object.freeze({
 // unchanged so callers can carry custom payloads (Open Library metadata etc.).
 
 const nowIso = () => new Date().toISOString();
-// Local-zone YYYY-MM-DD. Must match store.js — see the comment there.
-const todayKey = () => {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-};
+const todayKey = () => new Date().toISOString().slice(0, 10);
 const pickCover = () => COVER_KEYS[Math.floor(Math.random() * COVER_KEYS.length)];
 
 /**

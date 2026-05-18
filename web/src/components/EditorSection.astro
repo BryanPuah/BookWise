@@ -1,0 +1,68 @@
+---
+const features = [
+  'Quote · Insight · Question · Action · Summary · Connection',
+  '[[Wiki-links]] between notes, with backlinks generated automatically',
+  'Page references, chapter markers, tags, image attachments',
+  'Soft-deleted notes recoverable for thirty days',
+];
+---
+<section class="px-6 py-20 md:py-28 max-w-6xl mx-auto border-t border-line">
+  <div class="grid md:grid-cols-2 gap-12 md:gap-16 items-center">
+    <div class="md:order-2">
+      <p class="font-sans text-[11px] font-bold tracking-[0.18em] text-accent-deep uppercase">
+        The editor
+      </p>
+      <h2 class="font-serif text-3xl md:text-4xl text-ink mt-3 leading-tight">
+        Made for the way readers actually take notes.
+      </h2>
+      <p class="font-serif text-lg text-ink-muted mt-5 leading-relaxed">
+        Drop a quote with attribution. Add a thought below it. Mark a question for later. Tag it for next month's revisit. The editor stays out of the way.
+      </p>
+      <ul class="mt-6 space-y-3">
+        {features.map((item) => (
+          <li class="flex items-start gap-3 font-serif text-base text-ink-soft">
+            <span class="text-accent mt-2 text-[8px] leading-none">●</span>
+            <span>{item}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+
+    <div class="md:order-1">
+      <div class="bg-white rounded-hero shadow-strong border border-line p-6 md:p-7 max-w-md mx-auto">
+        <p class="text-[10px] font-sans font-bold tracking-[0.15em] uppercase text-ink-muted mb-4">
+          Sapiens · Ch. 4
+        </p>
+
+        <div class="space-y-5">
+          <div>
+            <span class="text-[10px] font-sans font-bold tracking-[0.15em] uppercase text-accent-deep bg-accent-pale px-2 py-0.5 rounded-full">
+              Insight
+            </span>
+            <p class="font-serif text-base text-ink mt-2 leading-relaxed">
+              Agriculture didn't free humans — it bound us to wheat. The shift was a downgrade in lived quality, paid forward in raw population.
+            </p>
+          </div>
+
+          <div class="border-l-2 border-accent pl-4">
+            <span class="text-[10px] font-sans font-bold tracking-[0.15em] uppercase text-accent-deep">
+              Question
+            </span>
+            <p class="font-serif italic text-base text-ink-soft mt-1 leading-relaxed">
+              What's the modern equivalent? What are we farming that's farming us back?
+            </p>
+          </div>
+
+          <div class="flex flex-wrap gap-1.5 pt-1">
+            <span class="text-[10px] font-sans font-semibold tracking-wider uppercase text-ink-muted bg-paper px-2 py-1 rounded-full border border-line">
+              HISTORY
+            </span>
+            <span class="text-[10px] font-sans font-semibold tracking-wider uppercase text-ink-muted bg-paper px-2 py-1 rounded-full border border-line">
+              TRADE-OFFS
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

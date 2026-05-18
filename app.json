@@ -10,10 +10,16 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.yourname.bookwise"
+      "bundleIdentifier": "com.yourname.bookwise",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": false
+        }
+      }
     },
     "android": {
       "package": "com.yourname.bookwise",
+      "usesCleartextTraffic": false,
       "adaptiveIcon": {
         "backgroundColor": "#1C1814"
       }

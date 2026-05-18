@@ -46,8 +46,8 @@ export function SettingsScreen({ navigation }) {
       flexDirection: 'row',
       alignItems: 'center',
       paddingHorizontal: 12,
-      paddingTop: 8,
-      paddingBottom: 4,
+      paddingVertical: 10,
+      minHeight: 56,
     },
     backBtn: {
       width: 36,

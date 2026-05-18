@@ -275,32 +275,6 @@ function EditorScreen({ book, initialData, onSave, onCancel, onChangeBook, regis
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80);
   };
 
-  // Inline formatting dispatch. Routes a toolbar tap (bold/italic/under-
-  // line/highlight) to the currently-focused block's imperative
-  // applyFormat handle. Falls back to the last text-bearing block when
-  // nothing is focused yet — otherwise the very first toolbar tap (when
-  // the user hasn't tapped into the editor) would silently no-op.
-  const handleFormat = (kind) => {
-    const tryApply = (id) => {
-      const handle = id ? blockRefs.current[id] : null;
-      if (handle?.applyFormat) {
-        handle.applyFormat(kind);
-        return true;
-      }
-      return false;
-    };
-    if (tryApply(focusedBlockId.current)) return;
-    for (let i = blocks.length - 1; i >= 0; i--) {
-      const b = blocks[i];
-      if (b.type === 'image') continue;
-      if (tryApply(b.id)) {
-        focusedBlockId.current = b.id;
-        blockRefs.current[b.id]?.focus?.();
-        return;
-      }
-    }
-  };
-
   const insertImageBlocks = (assets) => {
     if (!assets || assets.length === 0) return;
     const newImageBlocks = assets.map(a =>
@@ -605,7 +579,6 @@ function EditorScreen({ book, initialData, onSave, onCancel, onChangeBook, regis
           <View style={ed.toolbarWrap}>
             <Toolbar
               onInsert={insertBlock}
-              onFormat={handleFormat}
               onPickFromGallery={handlePickFromGallery}
               onTakePhoto={handleTakePhoto}
             />

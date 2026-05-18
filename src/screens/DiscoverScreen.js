@@ -31,6 +31,18 @@ async function fetchWithTimeout(url, ms = FETCH_TIMEOUT_MS) {
 // themes (sage/amber/navy/rose/plum/slate) so it's safe to read at module load.
 const COVER_KEYS = Object.keys(covers);
 
+// Only http(s) URLs are safe to store from the user-supplied LINK field.
+// Schemes like javascript:, data:, file:, or app deep-links could be abused
+// if/when this URL is later passed to Linking.openURL. Auto-prepend https://
+// when the user types a bare host so the common case still works.
+function sanitizeUserUrl(raw) {
+  const v = (raw || '').trim();
+  if (!v) return '';
+  if (/^https?:\/\//i.test(v)) return v;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(v)) return '';
+  return `https://${v}`;
+}
+
 // ── Format suggestions for the manual-add sheet ────────────────────────
 // Free-text — these are tap-to-fill suggestions, not a fixed list.
 const FORMAT_SUGGESTIONS = [
@@ -350,7 +362,7 @@ function AddReadingItemSheet({ onAdd, onClose }) {
     pages:  parseInt(length) || 0,
     genre:  genre.trim(),
     format: format.trim() || 'Other',
-    url:    url.trim(),
+    url:    sanitizeUserUrl(url),
   });
 
   const pickFormat = (f) => {
@@ -955,7 +967,7 @@ export function DiscoverScreen() {
       status,
       // New fields — backwards-compatible additions
       format: format || 'Book',
-      url:    url || '',
+      url:    sanitizeUserUrl(url),
     });
   }, [addBook]);
 

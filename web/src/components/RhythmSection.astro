@@ -1,0 +1,55 @@
+---
+// Activity grid mirrors src/components/StreakActivityModal.js — 7 rows
+// (Sun..Sat) × 26 columns ≈ half a year. The fill values are deterministic
+// so the visual is identical across reloads but doesn't look algorithmic.
+const cells = Array.from({ length: 26 * 7 }, (_, i) => {
+  const r = ((i * 37 + 11) % 100) / 100;
+  if (r > 0.78) return 'bg-accent';
+  if (r > 0.55) return 'bg-accent/70';
+  if (r > 0.35) return 'bg-accent/45';
+  if (r > 0.18) return 'bg-accent/25';
+  return 'bg-paper border border-line';
+});
+---
+<section class="px-6 py-20 md:py-28 max-w-6xl mx-auto border-t border-line">
+  <div class="grid md:grid-cols-2 gap-12 md:gap-16 items-center">
+    <div class="md:order-2">
+      <p class="font-sans text-[11px] font-bold tracking-[0.18em] text-accent-deep uppercase">
+        Reading rhythm
+      </p>
+      <h2 class="font-serif text-3xl md:text-4xl text-ink mt-3 leading-tight">
+        Gentle accountability, not a treadmill.
+      </h2>
+      <p class="font-serif text-lg text-ink-muted mt-5 leading-relaxed">
+        Set recurring reading goals — daily, weekly, monthly, or one-off. Write a single line of reflection at the end of the day. Watch the streak grow without it becoming the point.
+      </p>
+    </div>
+
+    <div class="md:order-1">
+      <div class="bg-white rounded-hero shadow-strong border border-line p-6 md:p-7 max-w-md mx-auto">
+        <p class="font-sans text-[11px] font-bold tracking-[0.18em] uppercase text-ink-muted">
+          2026 · Reading activity
+        </p>
+        <div class="mt-4 grid grid-cols-[repeat(26,1fr)] gap-[3px]">
+          {cells.map((cls) => (
+            <div class={`aspect-square rounded-[2px] ${cls}`}></div>
+          ))}
+        </div>
+        <div class="flex items-end gap-8 mt-6 pt-5 border-t border-line">
+          <div>
+            <p class="font-serif text-3xl text-ink font-bold leading-none">47</p>
+            <p class="font-sans text-[10px] font-bold tracking-[0.15em] uppercase text-ink-muted mt-2">
+              Day streak
+            </p>
+          </div>
+          <div>
+            <p class="font-serif text-3xl text-ink font-bold leading-none">183</p>
+            <p class="font-sans text-[10px] font-bold tracking-[0.15em] uppercase text-ink-muted mt-2">
+              Notes this year
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

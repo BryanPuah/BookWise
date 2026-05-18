@@ -7,7 +7,7 @@ import { View, TouchableOpacity, Pressable } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { AppTextInput as TextInput } from '../../AppText';
 import { useTheme } from '../../../theme';
-import { useBlkStyles, FORMAT_DELIMS, wrapSelection } from '../shared';
+import { useBlkStyles, useMarkdownChildren, FORMAT_DELIMS, wrapSelection } from '../shared';
 
 export const HeadingBlock = React.forwardRef(function HeadingBlock(
   { block, onChange, onRemove, autoFocus, onFocus },
@@ -17,6 +17,7 @@ export const HeadingBlock = React.forwardRef(function HeadingBlock(
   const blk = useBlkStyles();
   const inputRef = useRef(null);
   const [selection, setSelection] = useState({ start: 0, end: 0 });
+  const mdChildren = useMarkdownChildren(block.text);
 
   useEffect(() => {
     if (autoFocus) {
@@ -53,7 +54,9 @@ export const HeadingBlock = React.forwardRef(function HeadingBlock(
           placeholderTextColor={C.inkFaint}
           multiline
           textAlignVertical="top"
-        />
+        >
+          {mdChildren}
+        </TextInput>
         {block.text.length === 0 && onRemove && (
           <TouchableOpacity onPress={onRemove} style={blk.removeBtn} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
             <Ionicons name="close-circle" size={16} color={C.inkFaint} />

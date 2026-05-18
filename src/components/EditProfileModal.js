@@ -20,6 +20,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useStore } from '../store';
 import { useTheme, AVATAR_COLORS } from '../theme';
+import { ModalHeader } from './ModalHeader';
 
 export { AVATAR_COLORS };
 
@@ -85,24 +86,6 @@ export function EditProfileModal({ visible, onClose }) {
 
   const p = useMemo(() => StyleSheet.create({
     safe: { flex: 1, backgroundColor: C.paper },
-    topBar: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: 20,
-      paddingVertical: 14,
-      borderBottomWidth: 0.5,
-      borderBottomColor: C.border,
-    },
-    title: { fontFamily: F.serif, fontSize: 17, color: C.ink, letterSpacing: -0.2 },
-    cancelTxt: { fontFamily: F.serif, fontSize: 14, color: C.inkMuted, fontWeight: '500' },
-    saveBtn: {
-      backgroundColor: C.ink,
-      paddingHorizontal: 16,
-      paddingVertical: 7,
-      borderRadius: 18,
-    },
-    saveBtnTxt: { fontFamily: F.serif, fontSize: 13, color: C.white, fontWeight: '700' },
 
     sectionLabel: {
       fontFamily: F.sans,
@@ -233,22 +216,11 @@ export function EditProfileModal({ visible, onClose }) {
           style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-          {/* Top bar */}
-          <View style={p.topBar}>
-            <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Text style={p.cancelTxt}>Cancel</Text>
-            </TouchableOpacity>
-            <Text style={p.title}>Edit Profile</Text>
-            <TouchableOpacity
-              onPress={handleSave}
-              activeOpacity={0.85}
-              style={[p.saveBtn, !canSave && { opacity: 0.4 }]}
-              disabled={!canSave}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Text style={p.saveBtnTxt}>Save</Text>
-            </TouchableOpacity>
-          </View>
+          <ModalHeader
+            title="Edit Profile"
+            left={{ icon: 'cancel', onPress: onClose }}
+            right={{ kind: 'pill', label: 'Save', onPress: handleSave, disabled: !canSave }}
+          />
 
           <ScrollView
             contentContainerStyle={{ paddingBottom: 200 }}

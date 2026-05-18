@@ -1,0 +1,21 @@
+---
+import WaitlistForm from './WaitlistForm.astro';
+---
+<section class="px-6 py-24 md:py-32 max-w-3xl mx-auto text-center border-t border-line">
+  <div class="space-y-2 font-serif text-base md:text-lg text-ink-muted">
+    <p>Built around <span class="text-ink">Open Library</span> — free, ad-free book data.</p>
+    <p>Your notes live on your device.</p>
+    <p>Made by one reader, for readers.</p>
+  </div>
+
+  <h2 class="font-serif text-4xl md:text-5xl text-ink mt-12 leading-tight">
+    Be the first to read with it.
+  </h2>
+
+  <div class="mt-10 max-w-md mx-auto">
+    <WaitlistForm formId="closing-form" cta="Get notified at launch" />
+    <p class="font-sans text-xs text-ink-faint mt-3">
+      One email at launch. Unsubscribe is one click.
+    </p>
+  </div>
+</section>

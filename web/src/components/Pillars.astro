@@ -1,0 +1,38 @@
+---
+const pillars = [
+  {
+    eyebrow: 'Capture',
+    title:   'Rich notes that fit how you read.',
+    body:    'A block-based editor with six note types — quote, insight, question, action, summary, connection. Attach a page, a chapter, a photo of the margin.',
+  },
+  {
+    eyebrow: 'Connect',
+    title:   'A library that knows itself.',
+    body:    'Every note links back to a book. Every [[reference]] becomes a backlink. Every tag, a filter. Notes find each other.',
+  },
+  {
+    eyebrow: 'Return',
+    title:   'A rhythm, not a chore.',
+    body:    'Daily reflections, gentle streaks, recurring reading goals. The app meets you where your reading already is.',
+  },
+];
+---
+<section class="px-6 py-20 md:py-28 max-w-6xl mx-auto border-t border-line">
+  <p class="font-sans text-[11px] font-bold tracking-[0.18em] text-ink-muted uppercase text-center">
+    What it is
+  </p>
+  <h2 class="font-serif text-3xl md:text-4xl text-ink text-center mt-3 max-w-2xl mx-auto leading-tight">
+    The space between a book and what it leaves you with.
+  </h2>
+  <div class="grid md:grid-cols-3 gap-10 md:gap-12 mt-16">
+    {pillars.map((p) => (
+      <div>
+        <p class="font-sans text-[11px] font-bold tracking-[0.18em] text-accent-deep uppercase">
+          {p.eyebrow}
+        </p>
+        <h3 class="font-serif text-xl text-ink mt-3 leading-snug">{p.title}</h3>
+        <p class="font-serif text-base text-ink-muted mt-3 leading-relaxed">{p.body}</p>
+      </div>
+    ))}
+  </div>
+</section>

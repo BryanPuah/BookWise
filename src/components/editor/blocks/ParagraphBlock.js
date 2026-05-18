@@ -11,7 +11,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { AppTextInput as TextInput } from '../../AppText';
 import { useTheme } from '../../../theme';
 import {
-  useBlkStyles, useWikiLinkAutocomplete,
+  useBlkStyles, useWikiLinkAutocomplete, useMarkdownChildren,
   FORMAT_DELIMS, MD_SHORTCUTS, wrapSelection,
 } from '../shared';
 import { WikiLinkSuggestions } from '../WikiLinkSuggestions';
@@ -25,6 +25,7 @@ export const ParagraphBlock = React.forwardRef(function ParagraphBlock(
   const inputRef = useRef(null);
   const [selection, setSelection] = useState({ start: 0, end: 0 });
   const [focused, setFocused] = useState(false);
+  const mdChildren = useMarkdownChildren(block.text);
 
   // Auto-focus on mount if marked (used when block is appended via tail tap)
   useEffect(() => {
@@ -105,7 +106,9 @@ export const ParagraphBlock = React.forwardRef(function ParagraphBlock(
             placeholderTextColor={C.inkFaint}
             multiline
             textAlignVertical="top"
-          />
+          >
+            {mdChildren}
+          </TextInput>
           {block.text.length === 0 && onRemove && (
             <TouchableOpacity onPress={onRemove} style={blk.removeBtn} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
               <Ionicons name="close-circle" size={16} color={C.inkFaint} />
