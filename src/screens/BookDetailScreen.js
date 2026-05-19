@@ -211,7 +211,7 @@ export function BookDetailScreen({ route, navigation }) {
       letterSpacing: 0.3,
     },
     actionBtn: {
-      backgroundColor: C.ink,
+      backgroundColor: C.sage,
       paddingHorizontal: 18,
       paddingVertical: 12,
       borderRadius: 14,

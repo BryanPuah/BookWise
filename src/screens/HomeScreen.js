@@ -12,6 +12,7 @@ import { ReadingTimeline } from '../components/ReadingTimeline';
 import { AppHeader } from '../components/AppHeader';
 import { ReflectionPage } from '../components/ReflectionPage';
 import { StreakActivityModal } from '../components/StreakActivityModal';
+import { RichNoteEditor } from '../components/RichNoteEditor';
 import { useTheme } from '../theme';
 
 // RTL-aware forward chevron — picks the glyph that points "into the page".
@@ -307,7 +308,7 @@ function HeroBookCard({ book, noteCount, onOpen, onAddNote, styles }) {
 // ── Main screen ────────────────────────────────────────────────────────
 export function HomeScreen({ navigation, route }) {
   const { C, F, themeVersion } = useTheme();
-  const { books, notes, readingBooks, currentStreak, reflections, user } = useStore();
+  const { books, notes, readingBooks, currentStreak, reflections, user, addNote } = useStore();
 
   // First name for the greeting — split on whitespace to handle "Julian Barnes" → "Julian".
   // Falls back to the whole name if no spaces (e.g. single-word names).
@@ -340,6 +341,9 @@ export function HomeScreen({ navigation, route }) {
   const [reflectionDate, setReflectionDate] = useState(null);
   // Active Day Streak grid modal
   const [streakModalOpen, setStreakModalOpen] = useState(false);
+  // Note editor — opened from the hero "Add Note" button. Holds the
+  // pre-selected book so RichNoteEditor can skip the BookPicker step.
+  const [noteEditorBook, setNoteEditorBook] = useState(null);
 
   // Honour `reflectionDate` route param — set when a reflection result is
   // tapped in the global search modal. The `_t` cache-buster ensures the
@@ -895,7 +899,7 @@ export function HomeScreen({ navigation, route }) {
                   book={book}
                   noteCount={noteCountByBook.get(book.id) || 0}
                   onOpen={() => guardedNavigate('BookDetail', { bookId: book.id, tab: 'notes' })}
-                  onAddNote={() => guardedNavigate('BookDetail', { bookId: book.id, tab: 'notes' })}
+                  onAddNote={() => setNoteEditorBook(book)}
                   styles={s}
                 />
               )}
@@ -1128,6 +1132,24 @@ export function HomeScreen({ navigation, route }) {
       <StreakActivityModal
         visible={streakModalOpen}
         onClose={() => setStreakModalOpen(false)}
+      />
+
+      {/* Hero "Add Note" — opens the rich note editor with the hero book
+          pre-selected so the BookPicker step is skipped. */}
+      <RichNoteEditor
+        visible={!!noteEditorBook}
+        books={books}
+        defaultBook={noteEditorBook}
+        initialNote={null}
+        onSave={(data) => {
+          addNote({
+            bookId: noteEditorBook?.id,
+            bookTitle: noteEditorBook?.title,
+            ...data,
+          });
+          setNoteEditorBook(null);
+        }}
+        onClose={() => setNoteEditorBook(null)}
       />
     </SafeAreaView>
   );

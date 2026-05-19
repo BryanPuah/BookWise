@@ -21,7 +21,7 @@ import {
   StyleSheet, Modal, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { AppText as Text, AppTextInput as TextInput } from './AppText';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useStore } from '../store';
 import { useTheme } from '../theme';
@@ -196,6 +196,11 @@ export function ReflectionPage({ visible, dateKey, onClose }) {
       presentationStyle="fullScreen"
       onRequestClose={onClose}
     >
+      {/* Modals on iOS create a separate React tree that doesn't inherit
+          the app-root SafeAreaProvider context. We provide our own here so
+          the inner SafeAreaView correctly reads the device's notch insets —
+          otherwise the back/edit buttons sit flush against the status bar. */}
+      <SafeAreaProvider>
       <SafeAreaView style={p.safe} edges={['top', 'bottom']}>
         <KeyboardAvoidingView
           style={{ flex: 1 }}
@@ -288,6 +293,7 @@ export function ReflectionPage({ visible, dateKey, onClose }) {
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
+      </SafeAreaProvider>
     </Modal>
   );
 }
