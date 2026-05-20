@@ -25,12 +25,13 @@ import { useStore } from '../store';
 import { useTheme } from '../theme';
 import { SettingRow, SwatchPicker, FontPicker } from '../components/SettingsRows';
 import { buildMarkdownExport } from './ProfileScreen';
+import { scenarios, SCENARIO_META } from '../mockData';
 
 const APP_VERSION = '1.0.0';
 const FEEDBACK_EMAIL = 'feedback@bookwise.app';
 
 export function SettingsScreen({ navigation }) {
-  const { user, notes, reflections, books } = useStore();
+  const { user, notes, reflections, books, loadScenario } = useStore();
   const {
     C, F, themeVersion,
     themes, themeName, setAccent,
@@ -124,6 +125,32 @@ export function SettingsScreen({ navigation }) {
 
   const handleOpenGoals = () => navigation.navigate('Goals');
 
+  // Dev-only — load a mock data scenario, replacing all current store data.
+  // Gated behind __DEV__ so it never ships. Confirm dialog because this wipes
+  // the active library; user picked "Replace" semantics in the Step #2 plan.
+  const handleLoadScenario = (key, label) => {
+    const factory = scenarios[key];
+    if (!factory) return;
+    Alert.alert(
+      `Load "${label}" scenario?`,
+      'This will REPLACE your current books, notes, goals, reflections, activity, and profile with the scenario data. Local AsyncStorage will be overwritten.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Replace',
+          style: 'destructive',
+          onPress: () => {
+            try {
+              loadScenario(factory());
+            } catch (e) {
+              Alert.alert('Failed to load scenario', String(e?.message || e));
+            }
+          },
+        },
+      ],
+    );
+  };
+
   return (
     <SafeAreaView style={s.safe} edges={['top']}>
       <ScrollView contentContainerStyle={{ paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
@@ -209,6 +236,26 @@ export function SettingsScreen({ navigation }) {
             value={APP_VERSION}
           />
         </View>
+
+        {__DEV__ && (
+          <>
+            <Text style={s.sectionLabel}>DEVELOPER (DEV BUILDS ONLY)</Text>
+            <View style={s.card}>
+              {SCENARIO_META.map((m, i) => (
+                <React.Fragment key={m.key}>
+                  {i > 0 && <View style={s.divider} />}
+                  <SettingRow
+                    icon="flask-outline"
+                    label={`Load: ${m.label}`}
+                    value={m.hint}
+                    rightChevron
+                    onPress={() => handleLoadScenario(m.key, m.label)}
+                  />
+                </React.Fragment>
+              ))}
+            </View>
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );

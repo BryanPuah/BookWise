@@ -21,7 +21,7 @@
  * states pass `onCapture` so their CTA can open the editor directly.
  */
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppText as Text } from '../components/AppText';
@@ -120,7 +120,10 @@ export function NotesScreen({ navigation, route }) {
     },
   }), [themeVersion]);
 
-  const { notes, books, trashedNotes, addNote, deleteNoteWithUndo, updateNote, restoreNote } = useStore();
+  const {
+    notes, books, trashedNotes,
+    addNote, deleteNoteWithUndo, updateNote, restoreNote, toggleStar,
+  } = useStore();
 
   const [lens,  setLens]  = useState('list');  // 'list' | 'graph'
   const [group, setGroup] = useState('all');   // 'all' | 'book' | 'type'
@@ -139,21 +142,43 @@ export function NotesScreen({ navigation, route }) {
     if (lens === 'graph' && (group === 'all' || group === 'trash')) setGroup('book');
   }, [lens]);
 
-  const openCapture = () => setShowModal(true);
+  const openCapture = useCallback(() => setShowModal(true), []);
 
-  const handleSave = (data) => { addNote(data); };
+  const handleSave = useCallback((data) => { addNote(data); }, [addNote]);
 
-  const handleEdit = (note) => {
+  // Handlers passed down to NoteCard are useCallback'd with stable deps so
+  // the memo'd card's prop check actually fires — without this, every
+  // parent re-render (e.g. notes array identity change from a star toggle
+  // elsewhere) would hand each NoteCard a fresh function ref and force a
+  // re-render across the whole visible list.
+  const handleEdit = useCallback((note) => {
     setEditNote(note);
     setShowEditModal(true);
-  };
+  }, []);
 
-  const handleSaveEdit = (data) => {
+  // handleStar routes through the new store-level `toggleStar`, which
+  // reads the note's current `starred` value inside its setNotes callback.
+  // This keeps the handler dep-free (no `notes` closure) and stable across
+  // notes mutations — so toggling a star in one row doesn't re-render every
+  // other NoteCard in the list.
+  const handleStar = useCallback((id) => toggleStar(id), [toggleStar]);
+
+  // Direct pass-through — `deleteNoteWithUndo` is already a stable store
+  // callback. Wrapping it in useCallback here keeps the call site explicit
+  // about what flows into the children.
+  const handleDelete = useCallback((id) => deleteNoteWithUndo(id), [deleteNoteWithUndo]);
+
+  // Edit-save guards against "deleted mid-edit". Three states for the
+  // underlying note:
+  //   • still live          → patch in place.
+  //   • trashed mid-edit    → restore it (clears the trashed flag) and patch.
+  //   • truly purged        → re-add as new, preserving the original id/date.
+  //
+  // Reads `editNote`, `notes`, and `trashedNotes` from closure so its deps
+  // include them. This handler is only passed to the editor modal (not to
+  // every NoteCard), so identity churn here doesn't affect list re-renders.
+  const handleSaveEdit = useCallback((data) => {
     if (!editNote) { setEditNote(null); return; }
-    // Guard against "deleted mid-edit". Three states for the underlying note:
-    //   • still live          → patch in place.
-    //   • trashed mid-edit    → restore it (clears the trashed flag) and patch.
-    //   • truly purged        → re-add as new, preserving the original id/date.
     const stillExists = notes.some(n => n.id === editNote.id);
     if (stillExists) {
       updateNote(editNote.id, data);
@@ -164,14 +189,7 @@ export function NotesScreen({ navigation, route }) {
       addNote({ ...editNote, ...data });
     }
     setEditNote(null);
-  };
-
-  const handleStar = (id) => {
-    const note = notes.find(n => n.id === id);
-    if (note) updateNote(id, { starred: !note.starred });
-  };
-
-  const handleDelete = (id) => deleteNoteWithUndo(id);
+  }, [editNote, notes, trashedNotes, addNote, updateNote, restoreNote]);
 
   // Honour `editNoteId` route param — set when a note is tapped from the
   // global search modal. Opens that note in the editor. The `_t`

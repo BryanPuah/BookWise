@@ -10,22 +10,25 @@
  * Swipeable left-edge gesture surfaces a Delete action.
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { memo, useMemo, useState } from 'react';
 import {
   View, TouchableOpacity, Image, StyleSheet,
 } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { AppText as Text } from '../../components/AppText';
-import { useStore } from '../../store';
+import { useNotesIndex } from '../../store';
 import { MarkdownText } from '../../components/MarkdownText';
 import { useTheme } from '../../theme';
 import { useNT, typeAccent, timeAgo } from './shared';
 
-export function NoteCard({ note, onDelete, onEdit, onStar, showBook = false }) {
+function NoteCardImpl({ note, onDelete, onEdit, onStar, showBook = false }) {
   const { C, F, themeVersion } = useTheme();
   const NT = useNT();
-  const { noteById, backlinkIndex } = useStore();
+  // Subscribed to the narrower NotesIndexContext — only re-renders when
+  // liveNotes changes, not on every store mutation (toast, goal toggle,
+  // day-active mark) like a full useStore() would.
+  const { noteById, backlinkIndex } = useNotesIndex();
   // Thumbnails point at file:// URIs that can disappear if the OS evicts the
   // image cache (legacy notes) or the user clears app storage. Track failure
   // per-card so the broken white box is replaced with a placeholder instead.
@@ -428,3 +431,10 @@ export function NoteCard({ note, onDelete, onEdit, onStar, showBook = false }) {
     </Swipeable>
   );
 }
+
+// Memo'd so list re-renders (parent re-renders triggered by unrelated state
+// changes — toasts, goal toggles, day-active marks) don't re-render every
+// visible card. Default shallow prop comparison is enough because every
+// prop here is either a stable object (note via memoized liveNotes) or a
+// useCallback'd handler from the parent screen.
+export const NoteCard = memo(NoteCardImpl);

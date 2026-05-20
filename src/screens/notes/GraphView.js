@@ -304,6 +304,10 @@ export function GraphView({ notes, books, onEdit, onDelete, onStar, onCapture, o
           p.x = drag.gx; p.y = drag.gy; p.vx = 0; p.vy = 0;
           return;
         }
+        // Pinned nodes (dragged + released) hold their position but still act
+        // as repulsion / spring sources, so the rest of the graph reflows
+        // around them — matches Obsidian's "drag to fix" behaviour.
+        if (p.pinned) { p.vx = 0; p.vy = 0; return; }
         p.vx += (cx - p.x) * SIM.GRAVITY;
         p.vy += (cy - p.y) * SIM.GRAVITY;
         const m = n.kind === 'hub' ? SIM.HUB_MASS : 1;
@@ -441,6 +445,11 @@ export function GraphView({ notes, books, onEdit, onDelete, onStar, onCapture, o
       }
     })
     .onEnd(() => {
+      const drag = draggingRef.current;
+      if (drag) {
+        const p = positionsRef.current[drag.id];
+        if (p) { p.pinned = true; p.vx = 0; p.vy = 0; }
+      }
       draggingRef.current = null;
       pendingDragRef.current = null;
       wakeLoop();
@@ -499,8 +508,14 @@ export function GraphView({ notes, books, onEdit, onDelete, onStar, onCapture, o
   );
 
   const resetView = () => {
+    // Clear pins so the layout re-settles to the organic constellation —
+    // otherwise "Reset" only re-centers the camera, leaving the user's
+    // hand-arranged nodes stuck where they were.
+    const pos = positionsRef.current;
+    for (const k in pos) { if (pos[k].pinned) pos[k].pinned = false; }
     const r = { x: 0, y: 0, k: 1 };
     setTx(r); savedRef.current = r;
+    wakeLoop();
   };
 
   if (isGated) {
@@ -672,7 +687,7 @@ export function GraphView({ notes, books, onEdit, onDelete, onStar, onCapture, o
         </TouchableOpacity>
         {hintVisible && (
           <View pointerEvents="none" style={gv.hint}>
-            <Text style={gv.hintTxt}>Drag nodes · pinch · pan · tap</Text>
+            <Text style={gv.hintTxt}>Drag to pin · pinch · pan · Reset to unpin</Text>
           </View>
         )}
       </View>

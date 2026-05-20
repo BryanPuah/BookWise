@@ -1,8 +1,20 @@
-import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { genId } from './schema';
 
 const StoreContext = createContext(null);
+// Narrower context for the note-graph indexes (noteById, backlinkIndex).
+// NoteCard is rendered N times in long lists; subscribing it to the full
+// StoreContext makes every card re-render on unrelated state changes
+// (toast appear/dismiss, day-active mark, goal toggle). This context's
+// value only changes when liveNotes does — orders of magnitude fewer
+// invalidations at stress sizes.
+const NotesIndexContext = createContext(null);
+
+// Shared "no notes for this book" sentinel — keeps identity stable across
+// calls so consumers passing the result into useMemo/useEffect deps don't
+// bust their caches on every render.
+const EMPTY_NOTES = Object.freeze([]);
 
 // ── Persistence ──────────────────────────────────────────────────────
 // Hydrate from AsyncStorage on mount, debounced write-through on every
@@ -151,10 +163,31 @@ export function StoreProvider({ children }) {
   useEffect(() => { if (hydrated) writeJSON(STORAGE_KEYS.activeDays,      activeDays);      }, [activeDays,      hydrated]);
   useEffect(() => { if (hydrated) writeJSON(STORAGE_KEYS.user,            user);            }, [user,            hydrated]);
 
+  // ── Toasts ───────────────────────────────────────────────────────
+  // Defined high in the file because `deleteNoteWithUndo` below depends on
+  // `showToast` and lists it in its deps array — JS would TDZ on a forward
+  // reference. All other mutators below stay in their domain sections.
+  const showToast = useCallback(({ message, action, duration = 4500 } = {}) => {
+    if (!message) return null;
+    const id = genId('t');
+    setToasts(t => [...t, { id, message, action }]);
+    setTimeout(() => {
+      setToasts(t => t.filter(x => x.id !== id));
+    }, duration);
+    return id;
+  }, []);
+  const dismissToast = useCallback((id) => {
+    setToasts(t => t.filter(x => x.id !== id));
+  }, []);
+
   // ── Books ────────────────────────────────────────────────────────
-  const addBook    = (book)  => setBooks(b => [book, ...b]);
-  const updateBook = (id, patch) => setBooks(b => b.map(x => x.id===id ? {...x,...patch} : x));
-  const removeBook = (id)    => setBooks(b => b.filter(x => x.id!==id));
+  // All mutators below use the functional setter form, so they read no
+  // closed-over state and are safe to memoize with empty deps. Stable
+  // identity across renders means consumers using them as effect deps
+  // (or passing them to memoized children) don't bust caches needlessly.
+  const addBook    = useCallback((book)  => setBooks(b => [book, ...b]), []);
+  const updateBook = useCallback((id, patch) => setBooks(b => b.map(x => x.id===id ? {...x,...patch} : x)), []);
+  const removeBook = useCallback((id)    => setBooks(b => b.filter(x => x.id!==id)), []);
 
   // ── Notes ────────────────────────────────────────────────────────
   // `addNote` normalizes the payload — fills in id/date/starred, derives the
@@ -163,7 +196,7 @@ export function StoreProvider({ children }) {
   // had drifted; centralizing here keeps the on-disk shape consistent.
   // Existing id/date are preserved so an "edit-of-deleted-note" re-add keeps
   // the original identity.
-  const addNote = (data) => {
+  const addNote = useCallback((data) => {
     const types = data.types?.length
       ? data.types
       : (data.type ? [data.type] : ['insight']);
@@ -192,47 +225,68 @@ export function StoreProvider({ children }) {
       deletedAt:     undefined,
     };
     setNotes(n => [note, ...n]);
-  };
-  const updateNote = (id, patch) => setNotes(n => n.map(x => x.id===id ? {...x,...patch} : x));
+  }, []);
+  const updateNote = useCallback((id, patch) => setNotes(n => n.map(x => x.id===id ? {...x,...patch} : x)), []);
+
+  // Single-action star toggle. Lives here (instead of in screens) so
+  // callers can pass a stable reference into memoized children without
+  // needing to keep `notes` in their dep arrays — every star toggle in
+  // a long list would otherwise invalidate the onStar prop across every
+  // visible NoteCard and bust the React.memo.
+  const toggleStar = useCallback((id) =>
+    setNotes(n => n.map(x => x.id === id ? { ...x, starred: !x.starred } : x)),
+    [],
+  );
 
   // Soft-delete. Sets `trashed: true` + a timestamp so the auto-purge on
   // the next hydration can drop the entry after the retention window.
   // Hard-deletion is intentionally separate (`purgeNote`) so the swipe
   // gesture can keep firing this without surprising the user.
-  const deleteNote = (id) => setNotes(n => n.map(x => (
+  const deleteNote = useCallback((id) => setNotes(n => n.map(x => (
     x.id === id ? { ...x, trashed: true, deletedAt: new Date().toISOString() } : x
-  )));
+  ))), []);
 
   // Restore a trashed note. Clears the trashed flag and timestamp so it
   // re-appears in the active list. No-op if the note doesn't exist.
-  const restoreNote = (id) => setNotes(n => n.map(x => (
+  const restoreNote = useCallback((id) => setNotes(n => n.map(x => (
     x.id === id ? { ...x, trashed: false, deletedAt: undefined } : x
-  )));
+  ))), []);
 
   // Hard-delete (skip trash). Used by the Trash view's "Delete forever"
   // affordance and the future auto-purge timer.
-  const purgeNote = (id) => setNotes(n => n.filter(x => x.id !== id));
+  const purgeNote = useCallback((id) => setNotes(n => n.filter(x => x.id !== id)), []);
 
   // Hard-delete every trashed note. Surfaced via the Trash view's
   // "Empty Trash" affordance.
-  const purgeAllTrashed = () => setNotes(n => n.filter(x => !x.trashed));
+  const purgeAllTrashed = useCallback(() => setNotes(n => n.filter(x => !x.trashed)), []);
 
   // Delete-with-undo. Now routes through the soft-delete path: the note
   // stays in storage with `trashed: true`, and Undo just clears the
   // flag. Toast copy and gesture stay identical to the old hard-delete
   // flow so the user-facing contract is unchanged.
-  const deleteNoteWithUndo = (id) => {
-    const exists = notes.some(n => n.id === id);
-    if (!exists) return;
-    deleteNote(id);
-    showToast({
-      message: 'Note moved to Trash',
-      action: {
-        label: 'Undo',
-        onPress: () => restoreNote(id),
-      },
+  //
+  // The existence check happens inside the setter so we don't have to keep
+  // `notes` in the dep array — that would invalidate this callback on every
+  // notes mutation and bust memoized children that depend on it. `existed`
+  // is read after setNotes returns (synchronous on the reducer-style path);
+  // even under StrictMode's double-invoke, it lands on the same value.
+  const deleteNoteWithUndo = useCallback((id) => {
+    let existed = false;
+    setNotes(n => {
+      const idx = n.findIndex(x => x.id === id);
+      if (idx === -1) return n;
+      existed = true;
+      const copy = n.slice();
+      copy[idx] = { ...copy[idx], trashed: true, deletedAt: new Date().toISOString() };
+      return copy;
     });
-  };
+    if (existed) {
+      showToast({
+        message: 'Note moved to Trash',
+        action: { label: 'Undo', onPress: () => restoreNote(id) },
+      });
+    }
+  }, [restoreNote, showToast]);
 
   // ── Notes — live + trashed views ─────────────────────────────────
   // `liveNotes` is what every screen renders; `trashedNotes` powers the
@@ -278,37 +332,41 @@ export function StoreProvider({ children }) {
   }, [liveNotes]);
 
   // ── Goals (templates) ────────────────────────────────────────────
-  const addGoal    = (goal)  => setGoals(g => [goal, ...g]);
-  const updateGoal = (id, patch) => setGoals(g => g.map(x => x.id===id ? {...x,...patch} : x));
-  const removeGoal = (id)    => {
+  const addGoal    = useCallback((goal)  => setGoals(g => [goal, ...g]), []);
+  const updateGoal = useCallback((id, patch) => setGoals(g => g.map(x => x.id===id ? {...x,...patch} : x)), []);
+  const removeGoal = useCallback((id)    => {
     setGoals(g => g.filter(x => x.id!==id));
     // Also remove all completion entries for this goal (orphan cleanup)
     setGoalCompletions(c => c.filter(x => x.goalId !== id));
-  };
+  }, []);
 
   // ── Goal completions ─────────────────────────────────────────────
   // Toggle completion of a goal on a specific date.
-  const toggleGoalCompletion = (goalId, date) => {
+  const toggleGoalCompletion = useCallback((goalId, date) => {
     setGoalCompletions(c => {
       const existing = c.find(x => x.goalId === goalId && x.date === date);
       if (existing) return c.filter(x => x !== existing);
       return [...c, { goalId, date, completedAt: new Date().toISOString() }];
     });
-  };
+  }, []);
 
-  // Check completion for a (goalId, date)
-  const isGoalCompletedOn = (goalId, date) =>
-    goalCompletions.some(x => x.goalId === goalId && x.date === date);
+  // Check completion for a (goalId, date). Identity rotates with
+  // `goalCompletions` — callers using this in effect deps will refire
+  // when completions change, which is the correct semantic.
+  const isGoalCompletedOn = useCallback((goalId, date) =>
+    goalCompletions.some(x => x.goalId === goalId && x.date === date),
+    [goalCompletions]);
 
   // All completions for a given date — useful for the DayPanel
-  const goalCompletionsOn = (date) =>
-    goalCompletions.filter(x => x.date === date);
+  const goalCompletionsOn = useCallback((date) =>
+    goalCompletions.filter(x => x.date === date),
+    [goalCompletions]);
 
   // Return the goals that should appear on a given date (YYYY-MM-DD).
   // Filters by recurrence type — daily always shows, weekly matches weekday,
   // monthly matches day-of-month, once matches the explicit dueDate.
   // Also respects the goal's created date so it never appears before it existed.
-  const goalsForDate = (dateKey) => {
+  const goalsForDate = useCallback((dateKey) => {
     if (!dateKey) return [];
     const d = new Date(dateKey + 'T00:00:00');
     if (isNaN(d.getTime())) return [];
@@ -336,28 +394,53 @@ export function StoreProvider({ children }) {
         default:        return true; // legacy goals (no recurrence) treat as daily
       }
     });
-  };
+  }, [goals]);
 
   // ── Derived ──────────────────────────────────────────────────────
   // Trashed notes are excluded so book detail screens don't surface them
   // until they're restored.
-  const bookNotes    = (bookId) => liveNotes.filter(n => n.bookId===bookId);
-  const readingBooks = books.filter(b => b.status==='reading');
-  const currentBook  = readingBooks[0] || null;
+  //
+  // `notesByBookId` is built once per liveNotes change so `bookNotes(id)`
+  // drops from O(N) per call to O(1). Same map also powers ByBookView's
+  // grouping. Stable identity across renders — empty results share the
+  // module-level `EMPTY_NOTES` sentinel for the same reason.
+  const notesByBookId = useMemo(() => {
+    const m = new Map();
+    for (const n of liveNotes) {
+      if (!n.bookId) continue;
+      let arr = m.get(n.bookId);
+      if (!arr) { arr = []; m.set(n.bookId, arr); }
+      arr.push(n);
+    }
+    return m;
+  }, [liveNotes]);
+  const bookNotes = useCallback(
+    (bookId) => notesByBookId.get(bookId) || EMPTY_NOTES,
+    [notesByBookId],
+  );
+
+  const readingBooks = useMemo(
+    () => books.filter(b => b.status === 'reading'),
+    [books],
+  );
+  const currentBook = useMemo(() => readingBooks[0] || null, [readingBooks]);
 
   // ── Active days & streak ─────────────────────────────────────────────
   // Mark a date as active. No-op if already marked. Called once per app
   // launch from App.js to record that the user opened the app today.
-  const markDayActive = (date = todayKey()) => {
+  const markDayActive = useCallback((date = todayKey()) => {
     setActiveDays(days => (days.includes(date) ? days : [...days, date]));
-  };
+  }, []);
 
   // Current streak — consecutive days ending today or yesterday.
   // If user opened the app today, includes today. If they didn't open
   // today but did yesterday, the streak still counts from yesterday
   // (grace period — they can still extend it by opening today).
   // If neither today nor yesterday are active, streak is 0.
-  const currentStreak = (() => {
+  //
+  // Was an IIFE that re-ran every provider render — now memoized so a
+  // toast appearing or a goal toggle doesn't reconstruct the date-walk.
+  const currentStreak = useMemo(() => {
     if (activeDays.length === 0) return 0;
     const set = new Set(activeDays);
     const today = todayKey();
@@ -380,102 +463,128 @@ export function StoreProvider({ children }) {
       d.setDate(d.getDate() - 1);
     }
     return count;
-  })();
+  }, [activeDays]);
 
   // ── Reflections ──────────────────────────────────────────────────────
   // One reflection per date. Look up by date key.
-  const reflectionForDate = (date) =>
-    reflections.find(r => r.date === date) || null;
+  const reflectionForDate = useCallback(
+    (date) => reflections.find(r => r.date === date) || null,
+    [reflections],
+  );
 
   // Upsert today's (or any date's) reflection. If text is empty after trim,
   // we delete the entry entirely so the section returns to "Write today's
-  // reflection" prompt state.
-  const upsertReflection = (date, text) => {
+  // reflection" prompt state. The existing-check happens inside the setter
+  // so the callback can be deps-free and stable across renders.
+  const upsertReflection = useCallback((date, text) => {
     const trimmed = (text || '').trim();
-    const existing = reflections.find(r => r.date === date);
-
-    if (!trimmed) {
-      // Empty save → delete if it existed
-      if (existing) {
-        setReflections(rs => rs.filter(r => r.date !== date));
+    setReflections(rs => {
+      const existing = rs.find(r => r.date === date);
+      if (!trimmed) {
+        return existing ? rs.filter(r => r.date !== date) : rs;
       }
-      return;
-    }
-
-    if (existing) {
-      setReflections(rs =>
-        rs.map(r => r.date === date
+      if (existing) {
+        return rs.map(r => r.date === date
           ? { ...r, text: trimmed, updatedAt: new Date().toISOString() }
           : r,
-        ),
-      );
-    } else {
-      setReflections(rs => [...rs, {
+        );
+      }
+      return [...rs, {
         id: genId('r'),
         date,
         text: trimmed,
         updatedAt: new Date().toISOString(),
-      }]);
-    }
-  };
+      }];
+    });
+  }, []);
 
-  const deleteReflection = (date) => {
+  const deleteReflection = useCallback((date) => {
     setReflections(rs => rs.filter(r => r.date !== date));
-  };
-
-  // ── Toasts ───────────────────────────────────────────────────────
-  // Lightweight notification queue. `showToast` returns the id so callers
-  // can dismiss early; auto-dismiss fires after `duration`. Multiple toasts
-  // stack — the host renders only the most recent so they don't pile up.
-  const showToast = ({ message, action, duration = 4500 } = {}) => {
-    if (!message) return null;
-    const id = genId('t');
-    setToasts(t => [...t, { id, message, action }]);
-    setTimeout(() => {
-      setToasts(t => t.filter(x => x.id !== id));
-    }, duration);
-    return id;
-  };
-  const dismissToast = (id) => {
-    setToasts(t => t.filter(x => x.id !== id));
-  };
+  }, []);
 
   // ── User profile + auth ──────────────────────────────────────────
   // Patch the user object (e.g. updateUser({ name: 'Julian' }))
-  const updateUser = (patch) => setUser(u => ({ ...u, ...patch }));
+  const updateUser = useCallback((patch) => setUser(u => ({ ...u, ...patch })), []);
 
   // Logout — instantly clears user identity. Library/notes/reflections
   // are preserved (per user choice — no wipe on logout). App.js routes
   // back to the LoginScreen when user.name becomes empty.
-  const logout = () => setUser(DEFAULT_USER);
+  const logout = useCallback(() => setUser(DEFAULT_USER), []);
+
+  // Bulk-replace every persisted slice in one render. Used by the dev-only
+  // mock-scenario loader in SettingsScreen — lets us drop a complete snapshot
+  // into the app for manual frontend testing before Supabase is wired in.
+  // Missing keys fall back to empty/defaults so partial snapshots are safe.
+  const loadScenario = useCallback((snapshot = {}) => {
+    setBooks(Array.isArray(snapshot.books) ? snapshot.books : []);
+    setNotes(Array.isArray(snapshot.notes) ? snapshot.notes : []);
+    setGoals(Array.isArray(snapshot.goals) ? snapshot.goals : []);
+    setGoalCompletions(Array.isArray(snapshot.goalCompletions) ? snapshot.goalCompletions : []);
+    setActiveDays(Array.isArray(snapshot.activeDays) ? snapshot.activeDays : []);
+    setReflections(Array.isArray(snapshot.reflections) ? snapshot.reflections : []);
+    setUser(snapshot.user && typeof snapshot.user === 'object'
+      ? { ...DEFAULT_USER, ...snapshot.user }
+      : DEFAULT_USER);
+  }, []);
+
+  // Main store value — every state slot that mutates is listed in the
+  // dep array, so the value's identity is stable across renders that
+  // don't change any of them. All mutator/derived functions above are
+  // useCallback-stable, so they don't churn the identity either.
+  const storeValue = useMemo(() => ({
+    hydrated,
+    books,
+    // `notes` is intentionally the live (non-trashed) subset so every
+    // existing consumer keeps reading the same shape it always has.
+    // Callers that want the trash explicitly use `trashedNotes` and
+    // the trash mutations below.
+    notes: liveNotes, trashedNotes,
+    goals, goalCompletions, reflections,
+    activeDays, currentStreak,
+    currentBook, readingBooks,
+    user, updateUser, logout, loadScenario,
+    addBook, updateBook, removeBook,
+    addNote, updateNote, toggleStar, deleteNote, deleteNoteWithUndo,
+    restoreNote, purgeNote, purgeAllTrashed,
+    toasts, showToast, dismissToast,
+    addGoal, updateGoal, removeGoal,
+    toggleGoalCompletion, isGoalCompletedOn, goalCompletionsOn,
+    goalsForDate, markDayActive,
+    reflectionForDate, upsertReflection, deleteReflection,
+    bookNotes,
+  }), [
+    hydrated, books, liveNotes, trashedNotes,
+    goals, goalCompletions, reflections, activeDays,
+    currentStreak, currentBook, readingBooks, user, toasts,
+    updateUser, logout, loadScenario,
+    addBook, updateBook, removeBook,
+    addNote, updateNote, toggleStar, deleteNote, deleteNoteWithUndo,
+    restoreNote, purgeNote, purgeAllTrashed,
+    showToast, dismissToast,
+    addGoal, updateGoal, removeGoal,
+    toggleGoalCompletion, isGoalCompletedOn, goalCompletionsOn,
+    goalsForDate, markDayActive,
+    reflectionForDate, upsertReflection, deleteReflection,
+    bookNotes,
+  ]);
+
+  // Notes-index value — narrower context exposing just the noteById /
+  // backlinkIndex maps. NoteCard subscribes here instead of the full
+  // store so toast/goal/day-active churn doesn't invalidate it; the
+  // value only rotates when liveNotes does.
+  const notesIndexValue = useMemo(
+    () => ({ noteById, backlinkIndex }),
+    [noteById, backlinkIndex],
+  );
 
   return (
-    <StoreContext.Provider value={{
-      hydrated,
-      books,
-      // `notes` is intentionally the live (non-trashed) subset so every
-      // existing consumer keeps reading the same shape it always has.
-      // Callers that want the trash explicitly use `trashedNotes` and
-      // the trash mutations below.
-      notes: liveNotes, trashedNotes,
-      goals, goalCompletions, reflections,
-      activeDays, currentStreak,
-      currentBook, readingBooks,
-      user, updateUser, logout,
-      addBook, updateBook, removeBook,
-      addNote, updateNote, deleteNote, deleteNoteWithUndo,
-      restoreNote, purgeNote, purgeAllTrashed,
-      noteById, backlinkIndex,
-      toasts, showToast, dismissToast,
-      addGoal, updateGoal, removeGoal,
-      toggleGoalCompletion, isGoalCompletedOn, goalCompletionsOn,
-      goalsForDate, markDayActive,
-      reflectionForDate, upsertReflection, deleteReflection,
-      bookNotes,
-    }}>
-      {children}
+    <StoreContext.Provider value={storeValue}>
+      <NotesIndexContext.Provider value={notesIndexValue}>
+        {children}
+      </NotesIndexContext.Provider>
     </StoreContext.Provider>
   );
 }
 
 export const useStore = () => useContext(StoreContext);
+export const useNotesIndex = () => useContext(NotesIndexContext);

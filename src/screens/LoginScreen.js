@@ -27,6 +27,10 @@ import { useStore } from '../store';
 import { useTheme } from '../theme';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Invisible chars that `\s` doesn't catch — pasted addresses can carry these
+// and they'd be stored verbatim in `user.email`, causing silent mismatches
+// downstream (search, profile rendering, bidi-flipped display).
+const INVISIBLE_RE = /[​-‍‪-‮⁠﻿]/g;
 
 // Provider metadata for the OAuth confirmation sheet.
 const PROVIDERS = {
@@ -387,21 +391,21 @@ export function LoginScreen() {
     },
   }), [themeVersion]);
 
-  const canContinue = EMAIL_RE.test(email.trim()) && password.length > 0;
+  const cleanEmail = email.replace(INVISIBLE_RE, '').trim();
+  const canContinue = EMAIL_RE.test(cleanEmail) && password.length > 0;
 
   // Derive a display name from the email local-part so the rest of the
   // app has something to render. "ada.lovelace@x.io" → "Ada Lovelace".
   const handleContinue = () => {
     if (!canContinue) return;
-    const clean = email.trim();
-    const local = clean.split('@')[0] || clean;
+    const local = cleanEmail.split('@')[0] || cleanEmail;
     const name = local
       .replace(/[._-]+/g, ' ')
       .split(' ')
       .filter(Boolean)
       .map(w => w[0].toUpperCase() + w.slice(1).toLowerCase())
       .join(' ') || 'Reader';
-    updateUser({ name, email: clean, avatarSeed: '' });
+    updateUser({ name, email: cleanEmail, avatarSeed: '' });
   };
 
   // Open the dismissible confirmation sheet. The actual identity write

@@ -39,11 +39,25 @@ export function ByBookView({ notes, books, onStar, onDelete, navigation, onEdit,
 
   const [selectedBook, setSelectedBook] = useState(null);
 
+  // One pass over notes + one pass over books, then a single map join —
+  // O(N + B) instead of the previous O(N·B) (which at stress sizes was
+  // 2000 × 1000 = 2M comparisons inside the nested filter+find).
+  // Iteration order matches the prior implementation: groups appear in
+  // first-occurrence-in-notes order because Map preserves insertion order.
   const grouped = useMemo(() => {
-    const ids = [...new Set(notes.map(n => n.bookId))];
-    return ids.map(id => {
-      const book = books.find(b => b.id === id);
-      const groupNotes = notes.filter(n => n.bookId === id);
+    const bookById = new Map();
+    for (const b of books) bookById.set(b.id, b);
+
+    const groupNotesById = new Map();
+    for (const n of notes) {
+      let arr = groupNotesById.get(n.bookId);
+      if (!arr) { arr = []; groupNotesById.set(n.bookId, arr); }
+      arr.push(n);
+    }
+
+    const out = [];
+    for (const [id, groupNotes] of groupNotesById) {
+      const book = bookById.get(id);
       // Synthesize a placeholder book for orphan groups (book deleted, or
       // note saved without a bookId) so the notes don't disappear from the
       // view. Title falls back to whatever was denormalized on the note.
@@ -54,8 +68,9 @@ export function ByBookView({ notes, books, onStar, onDelete, navigation, onEdit,
         cover: 'slate',
         coverId: null,
       };
-      return { book: bookForGroup, notes: groupNotes, isOrphan: !book };
-    });
+      out.push({ book: bookForGroup, notes: groupNotes, isOrphan: !book });
+    }
+    return out;
   }, [notes, books]);
 
   if (selectedBook) {
